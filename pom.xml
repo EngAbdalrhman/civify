@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>3.5.6</version>
+		<relativePath/>
+	</parent>
+
+	<groupId>com.app</groupId>
+	<artifactId>civify</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>civify</name>
+	<description>civify backend</description>
+
+	<properties>
+		<java.version>21</java.version>
+		<spring-ai.version>1.0.3</spring-ai.version>
+		<spring-cloud.version>2025.0.0</spring-cloud.version>
+	</properties>
+
+	<dependencies>
+
+		<!-- =======================
+		     CORE SPRING DEPENDENCIES
+		     ======================= -->
+
+		<!-- Web MVC (REST APIs, Controllers, JSON, etc.) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+
+		<!-- JPA and Hibernate ORM for database access -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+		</dependency>
+
+		<!-- Core Spring Security for authentication and authorization -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
+		<!-- OAuth2 login and integration with external identity providers -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-oauth2-client</artifactId>
+		</dependency>
+
+		<!-- GraphQL API support -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-graphql</artifactId>
+		</dependency>
+
+		<!-- Spring Integration core for message-driven workflows -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-integration</artifactId>
+		</dependency>
+
+
+		<!-- =======================
+		     CLOUD & DISTRIBUTED SYSTEMS
+		     ======================= -->
+
+		<!-- Spring Cloud LoadBalancer for client-side load balancing -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-loadbalancer</artifactId>
+		</dependency>
+
+		<!-- Declarative REST clients using OpenFeign -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-openfeign</artifactId>
+		</dependency>
+
+
+		<!-- =======================
+		     SPRING INTEGRATION MODULES
+		     ======================= -->
+
+		<!-- Messaging with RabbitMQ -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-amqp</artifactId>
+		</dependency>
+
+		<!-- Spring Integration: AMQP adapter -->
+		<dependency>
+			<groupId>org.springframework.integration</groupId>
+			<artifactId>spring-integration-amqp</artifactId>
+		</dependency>
+
+		<!-- Spring Integration: HTTP inbound/outbound gateways -->
+		<dependency>
+			<groupId>org.springframework.integration</groupId>
+			<artifactId>spring-integration-http</artifactId>
+		</dependency>
+
+		<!-- Spring Integration: JPA support for persistence flows -->
+		<dependency>
+			<groupId>org.springframework.integration</groupId>
+			<artifactId>spring-integration-jpa</artifactId>
+		</dependency>
+
+		<!-- Spring Security: Messaging (WebSocket/STOMP security) -->
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-messaging</artifactId>
+		</dependency>
+
+
+		<!-- =======================
+		     AI & DOCUMENT PROCESSING
+		     ======================= -->
+
+		<!-- Spring AI module for reading and processing PDF documents -->
+		<dependency>
+			<groupId>org.springframework.ai</groupId>
+			<artifactId>spring-ai-pdf-document-reader</artifactId>
+		</dependency>
+
+
+		<!-- =======================
+		     DATABASE
+		     ======================= -->
+
+		<!-- PostgreSQL JDBC driver -->
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
+
+		<!-- =======================
+		     TESTING DEPENDENCIES
+		     ======================= -->
+
+		<!-- Core Spring Boot testing (JUnit, Mockito, AssertJ, etc.) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Reactor test utilities for reactive components -->
+		<dependency>
+			<groupId>io.projectreactor</groupId>
+			<artifactId>reactor-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- AMQP testing utilities for RabbitMQ -->
+		<dependency>
+			<groupId>org.springframework.amqp</groupId>
+			<artifactId>spring-rabbit-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- GraphQL test support -->
+		<dependency>
+			<groupId>org.springframework.graphql</groupId>
+			<artifactId>spring-graphql-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Spring Integration testing utilities -->
+		<dependency>
+			<groupId>org.springframework.integration</groupId>
+			<artifactId>spring-integration-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Spring Security testing (mock users, context setup, etc.) -->
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+	</dependencies>
+
+	<!-- =======================
+	     DEPENDENCY MANAGEMENT
+	     ======================= -->
+	<dependencyManagement>
+		<dependencies>
+
+			<!-- Spring Cloud BOM for consistent dependency versions -->
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-dependencies</artifactId>
+				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+
+			<!-- Spring AI BOM for consistent version management -->
+			<dependency>
+				<groupId>org.springframework.ai</groupId>
+				<artifactId>spring-ai-bom</artifactId>
+				<version>${spring-ai.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+
+		</dependencies>
+	</dependencyManagement>
+
+	<!-- =======================
+	     BUILD CONFIGURATION
+	     ======================= -->
+	<build>
+		<plugins>
+
+			<!-- Compiler plugin with Lombok annotation processing -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.mapstruct</groupId>
+							<artifactId>mapstruct-processor</artifactId>
+							<version>1.5.5.Final</version>
+						</path>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+							<version>1.18.30</version>
+						</path>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok-mapstruct-binding</artifactId>
+							<version>0.2.0</version>
+						</path>
+					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+
+			<!-- GraphQL Codegen plugin: generates Java classes from schema files -->
+			<plugin>
+				<groupId>io.github.deweyjose</groupId>
+				<artifactId>graphqlcodegen-maven-plugin</artifactId>
+				<version>1.61.5</version>
+				<executions>
+					<execution>
+						<id>dgs-codegen</id>
+						<goals>
+							<goal>generate</goal>
+						</goals>
+						<configuration>
+							<schemaPaths>
+								<param>src/main/resources/graphql-client</param>
+							</schemaPaths>
+							<packageName>com.app.civify.codegen</packageName>
+							<addGeneratedAnnotation>true</addGeneratedAnnotation>
+							<disableDatesInGeneratedAnnotation>true</disableDatesInGeneratedAnnotation>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+
+			<!-- Adds generated GraphQL sources to project build -->
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>build-helper-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>add-dgs-source</id>
+						<phase>generate-sources</phase>
+						<goals>
+							<goal>add-source</goal>
+						</goals>
+						<configuration>
+							<sources>
+								<source>${project.build.directory}/generated-sources</source>
+							</sources>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+
+			<!-- Spring Boot plugin for packaging and running the application -->
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<excludes>
+						<exclude>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+			
+
+		</plugins>
+	</build>
+
+	<profiles>
+
+    <!-- 🧩 Development profile (default) -->
+    <profile>
+        <id>dev</id>
+        <activation>
+            <activeByDefault>true</activeByDefault>
+        </activation>
+        <properties>
+            <!-- This tells Spring Boot to use application-dev.properties -->
+            <spring.profiles.active>dev</spring.profiles.active>
+        </properties>
+        <build>
+            <finalName>civify-dev</finalName>
+        </build>
+    </profile>
+
+    <!-- 🚀 Production profile -->
+    <profile>
+        <id>prod</id>
+        <properties>
+            <!-- This tells Spring Boot to use application-prod.properties -->
+            <spring.profiles.active>prod</spring.profiles.active>
+        </properties>
+        <build>
+            <finalName>civify-prod</finalName>
+        </build>
+    </profile>
+
+</profiles>
+
+</project>
