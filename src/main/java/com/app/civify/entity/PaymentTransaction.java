@@ -1,21 +1,20 @@
 package com.app.civify.entity;
 
 import jakarta.persistence.*;
-import java.time.Instant;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 
-import lombok.Getter;
-import lombok.Setter;
+import java.time.LocalDateTime;
 
 @Entity
-@Getter
-@Setter
-public class PaymentTransaction {
+@Data
+@EqualsAndHashCode(callSuper = true)
+public class PaymentTransaction extends BaseEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    private String providerId;
+    private Long userId;
+    private String orderId;
+    private String paymentKey;
     private String status;
     private double amount;
-    private Instant createdAt;
+    private LocalDateTime completedAt;
 }
