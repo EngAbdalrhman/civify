@@ -2,6 +2,7 @@ package com.app.civify.service.subscription;
 
 import com.app.civify.entity.UserSubscription;
 import com.app.civify.repository.UserSubscriptionRepository;
+import com.app.civify.util.EmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -112,13 +113,29 @@ public class SubscriptionLifecycleService {
     }
 
     private void sendRenewalReminder(UserSubscription subscription) {
-        // TODO: Implement email notification service
-        log.info("Renewal reminder would be sent to user {} for plan {}",
-                subscription.getUser().getId(), subscription.getPlan().getName());
+        try {
+            String subject = "Subscription Renewal Reminder";
+            String body = String.format(
+                    "Dear %s,\n\n" +
+                    "Your subscription to %s plan is expiring on %s.\n" +
+                    "Please renew your subscription to continue enjoying premium features.\n\n" +
+                    "Best regards,\n" +
+                    "Civify Team",
+                    subscription.getUser().getUsername(),
+                    subscription.getPlan().getName(),
+                    subscription.getEndDate()
+            );
+            
+            emailService.sendEmail(subscription.getUser().getEmail(), subject, body);
+            log.info("Renewal reminder sent to user {} for plan {}",
+                    subscription.getUser().getId(), subscription.getPlan().getName());
+        } catch (Exception e) {
+            log.error("Failed to send renewal reminder to user {}: {}",
+                    subscription.getUser().getId(), e.getMessage());
+        }
     }
 
     private void downgradeUserToFreePlan(Long userId) {
-        // TODO: Implement user role downgrade logic
-        log.info("Downgrading user {} to free plan", userId);
+        subscriptionService.downgradeUserToFreePlan(userId);
     }
 }

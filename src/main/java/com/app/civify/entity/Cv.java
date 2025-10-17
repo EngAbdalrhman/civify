@@ -9,9 +9,14 @@ import lombok.Setter;
 @Getter
 @Setter
 public class Cv {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
     private String fileName;
     private String fileId;
-    @Lob private String rawText;
-    @Lob private String structuredData;
+    @Lob
+    private String rawText;
+    @Lob
+    private String structuredData;
 }

@@ -39,4 +39,6 @@ public interface SubscriptionService {
     void cancelSubscription(Long subscriptionId);
 
     void renewSubscription(Long subscriptionId, boolean isAnnual);
+    
+    void downgradeUserToFreePlan(Long userId);
 }

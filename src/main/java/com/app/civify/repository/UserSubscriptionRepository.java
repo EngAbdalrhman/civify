@@ -21,4 +21,8 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
     // For lifecycle management
     List<UserSubscription> findByStatusAndEndDateBefore(UserSubscription.SubscriptionStatus status, LocalDateTime date);
     List<UserSubscription> findByStatusAndEndDateBetween(UserSubscription.SubscriptionStatus status, LocalDateTime startDate, LocalDateTime endDate);
+    
+    // Additional methods for subscription service
+    List<UserSubscription> findByUserIdAndStatus(Long userId, UserSubscription.SubscriptionStatus status);
+    List<UserSubscription> findByUserId(Long userId);
 }
