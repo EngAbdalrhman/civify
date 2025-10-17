@@ -153,7 +153,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         return switch (feature.toUpperCase()) {
             case "CV" -> sub.canUseCv();
             case "API" -> sub.canUseApi();
-            case "WATERMARK" -> Boolean.TRUE.equals(plan.getWatermark());
+            case "WATERMARK" -> !Boolean.TRUE.equals(plan.getWatermark()); // false watermark = no watermark
             case "DASHBOARD" -> Boolean.TRUE.equals(plan.getDashboard());
             default -> false;
         };
@@ -202,9 +202,27 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         subscription.setStatus(UserSubscription.SubscriptionStatus.ACTIVE);
         subscriptionRepository.save(subscription);
 
-        // Upgrade user role based on plan
+        // Update user based on plan's dashboard feature
         User user = subscription.getUser();
-        user.setRole(Role.ROLE_LICENSED_USER);
+        SubscriptionPlan plan = subscription.getPlan();
+        
+        // Only upgrade to licensed if plan has dashboard access
+        if (plan.grantsLicensedStatus()) {
+            user.setIsLicensed(true);
+            user.setRole(Role.ROLE_LICENSED_USER);
+        }
+        
+        // Update user's plan name
+        user.setPlan(plan.getName().toLowerCase());
+        
+        // Update limits based on plan
+        if (plan.getCvLimit() != null) {
+            user.setUiCvLimit(plan.getCvLimit());
+        }
+        if (plan.getApiLimit() != null) {
+            user.setApiRateLimit(plan.getApiLimit());
+        }
+        
         userRepository.save(user);
 
         log.info("Subscription activated successfully for user {}", user.getId());
@@ -256,6 +274,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         user.setRole(Role.ROLE_USER);
+        user.setIsLicensed(false);
+        user.setPlan("free");
+        user.setUiCvLimit(5); // Free plan default
+        user.setApiRateLimit(500); // Free plan default
         userRepository.save(user);
 
         log.info("User {} downgraded to free plan successfully", userId);

@@ -31,6 +31,10 @@ public class AuthServiceImpl implements AuthService {
         user.setEmail(req.getEmail());
         user.setPassword(passwordEncoder.encode(req.getPassword()));
         user.setRole(Role.ROLE_USER);
+        user.setPlan("free"); // Default plan is free
+        user.setIsLicensed(false);
+        user.setIsAdmin(false);
+        user.setIsEmailVerified(false);
         userRepository.save(user);
         String refresh = tokenService.generateRefreshToken(user.getUsername());
         String access = tokenService.generateAccessToken(user.getUsername(), user.getRole().name());

@@ -8,8 +8,13 @@ import java.time.LocalDateTime;
 
 @Entity
 @Data
+@Table(name = "user_subscriptions")
 @EqualsAndHashCode(callSuper = true)
 public class UserSubscription extends BaseEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

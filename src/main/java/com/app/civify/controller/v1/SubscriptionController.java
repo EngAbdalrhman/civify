@@ -55,29 +55,7 @@ public class SubscriptionController {
         return ResponseEntity.ok(subscriptions);
     }
 
-    @PostMapping("/calculate-price")
-    public ResponseEntity<Map<String, Object>> calculatePrice(
-            @RequestParam Long planId,
-            @RequestParam(required = false) String promoCode,
-            @RequestParam(defaultValue = "false") boolean isAnnual) {
-        
-        try {
-            BigDecimal totalPrice = subscriptionService.calculateTotalPrice(planId, isAnnual, promoCode);
-            
-            return ResponseEntity.ok(Map.of(
-                    "planId", planId,
-                    "isAnnual", isAnnual,
-                    "promoCode", promoCode != null ? promoCode : "",
-                    "totalPrice", totalPrice
-            ));
-        } catch (Exception e) {
-            log.error("Error calculating price: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", e.getMessage()
-            ));
-        }
-    }
-
+    
     @PostMapping("/cancel/{subscriptionId}")
     @PreAuthorize("hasAnyRole('USER', 'LICENSED_USER', 'ADMIN')")
     public ResponseEntity<Map<String, String>> cancelSubscription(

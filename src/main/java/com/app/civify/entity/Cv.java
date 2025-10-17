@@ -1,22 +1,35 @@
 package com.app.civify.entity;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 @Entity
+@Data
 @Table(name = "cvs")
-@Getter
-@Setter
-public class Cv {
+@EqualsAndHashCode(callSuper = true)
+public class Cv extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @Column(nullable = false, length = 255)
     private String fileName;
-    private String fileId;
-    @Lob
+
+    @Column(nullable = false, length = 255)
+    private String fileId; // Storage bucket ID
+
+    @Column(length = 50000, columnDefinition = "TEXT")
     private String rawText;
-    @Lob
-    private String structuredData;
+
+    @Column(length = 50000, columnDefinition = "TEXT")
+    private String structuredData; // JSON
+
+    @Column(length = 50000, columnDefinition = "TEXT")
+    private String profileData; // JSON
 }
