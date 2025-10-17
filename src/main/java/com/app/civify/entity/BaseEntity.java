@@ -1,4 +1,3 @@
-
 package com.app.civify.entity;
 
 import jakarta.persistence.*;
@@ -12,16 +11,11 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 
-
 @Getter
 @Setter
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
 public class BaseEntity {
-
-    // @Id
-    // @GeneratedValue(strategy = GenerationType.IDENTITY)
-    // private Long id;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -47,9 +41,7 @@ public class BaseEntity {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }
-        // if (updatedAt == null) {
-        //     updatedAt = LocalDateTime.now();
-        // }
+
         if (isDeleted == null) {
             isDeleted = false;
         }

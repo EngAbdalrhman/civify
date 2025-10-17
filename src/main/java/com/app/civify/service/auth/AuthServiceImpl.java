@@ -45,7 +45,7 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse login(AuthRequest req) {
         authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(req.getUsername(), req.getPassword()));
         User user = userRepository.findByUsername(req.getUsername()).orElseThrow();
-        if (user.isTwoFactorEnabled()) {
+        if (user.getTwoFactorEnabled()) {
             otpService.generateAndSend(user.getUsername());
             return new AuthResponse(null, null, true);
         }

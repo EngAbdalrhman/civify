@@ -11,10 +11,19 @@ import java.time.LocalDateTime;
 @EqualsAndHashCode(callSuper = true)
 public class PaymentTransaction extends BaseEntity {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private String id;
+
     private Long userId;
+
     private String orderId;
+
     private String paymentKey;
+
     private String status;
+
     private double amount;
+
     private LocalDateTime completedAt;
 }

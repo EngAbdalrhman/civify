@@ -26,9 +26,6 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private String password;
 
-    @Column(length = 255)
-    private String name;
-
     @Column(length = 50)
     private String phone;
 
@@ -119,6 +116,9 @@ public class User extends BaseEntity {
 
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
+
+    @Column(unique = true, nullable = false, length = 100)
+    private String username;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

@@ -22,10 +22,10 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymobClient paymobClient;
     private final PaymentRepository paymentRepository;
 
-    @Value("${payment.paymob.api-key}")
+    @Value("${PAYMOB_API_KEY}")
     private String apiKey;
 
-    @Value("${payment.paymob.integration-id}")
+    @Value("${PAYMOB_INTEGRATION_ID}")
     private String integrationId;
 
     @Override
