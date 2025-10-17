@@ -49,6 +49,14 @@ public class JwtUtil {
         return generateToken(username, role, refreshTokenExpiration);
     }
 
+    public String generateAccessToken(String username, String role, Long userId, String email) {
+        return generateToken(username, role, userId, email, accessTokenExpiration);
+    }
+
+    public String generateRefreshToken(String username, String role, Long userId, String email) {
+        return generateToken(username, role, userId, email, refreshTokenExpiration);
+    }
+
     private String generateToken(String username, long expiration) {
         return Jwts.builder()
                 .setSubject(username)
@@ -62,6 +70,18 @@ public class JwtUtil {
         return Jwts.builder()
                 .setSubject(username)
                 .claim("role", role)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+    private String generateToken(String username, String role, Long userId, String email, long expiration) {
+        return Jwts.builder()
+                .setSubject(username)
+                .claim("role", role)
+                .claim("userId", userId)
+                .claim("email", email)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getSigningKey())
@@ -96,6 +116,14 @@ public class JwtUtil {
 
     public String extractRole(String token) {
         return extractClaim(token, claims -> claims.get("role", String.class));
+    }
+
+    public Long extractUserId(String token) {
+        return extractClaim(token, claims -> claims.get("userId", Long.class));
+    }
+
+    public String extractEmail(String token) {
+        return extractClaim(token, claims -> claims.get("email", String.class));
     }
 
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {

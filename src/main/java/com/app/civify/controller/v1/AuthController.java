@@ -4,6 +4,7 @@ import com.app.civify.dto.auth.AuthRequest;
 import com.app.civify.dto.auth.AuthResponse;
 import com.app.civify.service.auth.AuthService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -39,6 +40,7 @@ public class AuthController {
     }
 
     @PostMapping("/2fa/enable")
+    // @PreAuthorize("hasRole('USER')")
     public ResponseEntity<Void> enable2fa(@RequestParam("username") String username) {
         authService.enable2fa(username);
         return ResponseEntity.noContent().build();
