@@ -32,13 +32,16 @@ public class PaymentTransaction extends BaseEntity {
     private BigDecimal amount;
 
     @Column(nullable = false)
-    private String currency;
+    private String currency = "EGP";
 
     private LocalDateTime completedAt;
 
     // Gateway information for multi-gateway support
     @Column(nullable = false)
     private String gateway;
+
+    // Link to subscription
+    private Long subscriptionId;
 
     // Additional metadata (JSONB for PostgreSQL)
     @Column(columnDefinition = "jsonb")

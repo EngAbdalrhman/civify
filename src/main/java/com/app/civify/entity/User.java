@@ -106,18 +106,4 @@ public class User extends BaseEntity {
     public GrantedAuthority getAuthority() {
         return new SimpleGrantedAuthority("ROLE_" + role.name());
     }
-
-    /**
-     * Get the currently active subscription for this user
-     * Usage tracking is now handled at the subscription level
-     */
-    public UserSubscription getActiveSubscription() {
-        if (subscriptions == null || subscriptions.isEmpty()) {
-            return null;
-        }
-        return subscriptions.stream()
-                .filter(UserSubscription::isActive)
-                .max((a, b) -> a.getStartDate().compareTo(b.getStartDate()))
-                .orElse(null);
-    }
 }
