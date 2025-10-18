@@ -27,11 +27,15 @@ class PaymentGatewayManagerTest {
         gatewayManager = new PaymentGatewayManager();
 
         // Mock gateway behaviors
-        when(paymobGateway.getGatewayName()).thenReturn("paymob");
-        when(paymobGateway.isEnabled()).thenReturn(true);
+        lenient().when(paymobGateway.getGatewayName()).thenReturn("paymob");
+        lenient().when(paymobGateway.isEnabled()).thenReturn(true);
 
-        when(stripeGateway.getGatewayName()).thenReturn("stripe");
-        when(stripeGateway.isEnabled()).thenReturn(false); // Disabled for testing
+        lenient().when(stripeGateway.getGatewayName()).thenReturn("stripe");
+        lenient().when(stripeGateway.isEnabled()).thenReturn(false); // Disabled for testing
+
+        // Register gateways
+        gatewayManager.registerGateway(paymobGateway);
+        gatewayManager.registerGateway(stripeGateway);
     }
 
     @Test

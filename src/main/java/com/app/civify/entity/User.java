@@ -7,6 +7,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Data
@@ -41,20 +42,7 @@ public class User extends BaseEntity {
     @Column(length = 2000)
     private String skills;
 
-    // Admin and License flags
-    @Column(nullable = false)
-    private Boolean isAdmin = false;
-
-    @Column(nullable = false)
-    private Boolean isLicensed = false;
-
-    @Column(length = 50)
-    private String licenseKey;
-
-    @Column(name = "license_activated_at")
-    private LocalDateTime licenseActivatedAt;
-
-    // API Usage tracking
+    // API Usage tracking (current usage counters)
     @Column(length = 255)
     private String apiKeyHash;
 
@@ -64,33 +52,16 @@ public class User extends BaseEntity {
     @Column(name = "api_usage_count", nullable = false)
     private Integer apiUsageCount = 0;
 
-    @Column(name = "api_rate_limit", nullable = false)
-    private Integer apiRateLimit = 500;
-
     // Legacy CV tracking (deprecated but kept for compatibility)
     @Column(name = "cv_count", nullable = false)
     private Integer cvCount = 0;
 
-    @Column(name = "cv_limit", nullable = false)
-    private Integer cvLimit = 3;
-
-    // UI CV tracking (current month)
+    // UI CV tracking (current month usage counter)
     @Column(name = "ui_cv_count", nullable = false)
     private Integer uiCvCount = 0;
 
-    @Column(name = "ui_cv_limit", nullable = false)
-    private Integer uiCvLimit = 5;
-
     @Column(length = 10, name = "ui_cv_month")
     private String uiCvMonth;
-
-    // Subscription plan
-    @Column(length = 50, nullable = false)
-    private String plan = "free"; // free/premium/enterprise/lifetime
-
-    // Watermark setting based on subscription
-    @Column(nullable = false)
-    private Boolean watermark = true; // true = show watermark, false = no watermark
 
     // OAuth fields
     @Column(name = "oauth_provider")
@@ -127,6 +98,10 @@ public class User extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role = Role.ROLE_USER;
+
+    // Relationships
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<UserSubscription> subscriptions;
 
     // Helper methods for security
     public boolean isAccountNonExpired() {
@@ -173,7 +148,9 @@ public class User extends BaseEntity {
         if (!currentMonth.equals(apiUsageMonth)) {
             return true; // New month, reset
         }
-        return apiUsageCount < apiRateLimit;
+        // Get API limit from active subscription, default to 500 if no subscription
+        Integer apiLimit = getActiveSubscriptionApiLimit();
+        return apiUsageCount < apiLimit;
     }
 
     public boolean canGenerateUiCv() {
@@ -181,6 +158,36 @@ public class User extends BaseEntity {
         if (!currentMonth.equals(uiCvMonth)) {
             return true; // New month, reset
         }
-        return uiCvCount < uiCvLimit;
+        // Get CV limit from active subscription, default to 5 if no subscription
+        Integer cvLimit = getActiveSubscriptionCvLimit();
+        return uiCvCount < cvLimit;
+    }
+
+    /**
+     * Get API rate limit from the most recent active subscription
+     */
+    private Integer getActiveSubscriptionApiLimit() {
+        if (subscriptions != null && !subscriptions.isEmpty()) {
+            return subscriptions.stream()
+                    .filter(sub -> sub.isActive() && sub.getPlan() != null)
+                    .max((a, b) -> a.getStartDate().compareTo(b.getStartDate()))
+                    .map(sub -> sub.getPlan().getApiLimit())
+                    .orElse(500); // Default free tier limit
+        }
+        return 500; // Default free tier limit
+    }
+
+    /**
+     * Get CV limit from the most recent active subscription
+     */
+    private Integer getActiveSubscriptionCvLimit() {
+        if (subscriptions != null && !subscriptions.isEmpty()) {
+            return subscriptions.stream()
+                    .filter(sub -> sub.isActive() && sub.getPlan() != null)
+                    .max((a, b) -> a.getStartDate().compareTo(b.getStartDate()))
+                    .map(sub -> sub.getPlan().getCvLimit())
+                    .orElse(5); // Default free tier limit
+        }
+        return 5; // Default free tier limit
     }
 }

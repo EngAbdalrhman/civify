@@ -156,9 +156,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             case "API" ->
                 sub.canUseApi();
             case "WATERMARK" ->
-                !Boolean.TRUE.equals(plan.getWatermark()); // false watermark = no watermark
+                !Boolean.TRUE.equals(plan.getWatermark()); // false watermark = no watermark.
             case "DASHBOARD" ->
-                Boolean.TRUE.equals(plan.getDashboard());
+                Boolean.TRUE.equals(plan.getDashboard()); // licenced -> could be enhanced
             default ->
                 false;
         };
@@ -214,29 +214,12 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
         // Only upgrade to licensed if plan has dashboard access
         if (plan.grantsLicensedStatus()) {
-            user.setIsLicensed(true);
             user.setRole(Role.ROLE_LICENSED_USER);
-        } else {
-            // Keep user as ROLE_USER but with upgraded limits
-            user.setRole(Role.ROLE_USER);
         }
+        // Note: Role is not changed for non-dashboard plans, keeping existing role
 
-        // Update user's plan name
-        user.setPlan(plan.getName().toLowerCase());
-
-        // Update limits based on plan
-        if (plan.getCvLimit() != null) {
-            user.setUiCvLimit(plan.getCvLimit());
-        }
-        if (plan.getApiLimit() != null) {
-            user.setApiRateLimit(plan.getApiLimit());
-        }
-
-        // Update watermark setting based on plan
-        user.setWatermark(plan.getWatermark());
-
-        userRepository.save(user);
-
+        // Limits are now dynamically retrieved from active subscription
+        // No need to store them in user entity
         log.info("Subscription activated successfully for user {} with plan {}", user.getId(), plan.getName());
     }
 
@@ -287,14 +270,36 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         user.setRole(Role.ROLE_USER);
-        user.setIsLicensed(false);
-        user.setPlan("free");
-        user.setUiCvLimit(5); // Free plan default
-        user.setApiRateLimit(500); // Free plan default
-        user.setWatermark(true); // Free plan has watermark
         userRepository.save(user);
 
         log.info("User {} downgraded to free plan successfully", userId);
+    }
+
+    @Override
+    @Transactional
+    public void createDefaultFreeSubscription(Long userId) {
+        log.info("Creating default free subscription for user {}", userId);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        // Get the free plan
+        SubscriptionPlan freePlan = planRepository.findByName("free")
+                .orElseThrow(() -> new ResourceNotFoundException("Free plan not found"));
+
+        // Create permanent free subscription
+        UserSubscription freeSubscription = new UserSubscription();
+        freeSubscription.setUser(user);
+        freeSubscription.setPlan(freePlan);
+        freeSubscription.setStartDate(java.time.LocalDateTime.now());
+        freeSubscription.setEndDate(java.time.LocalDateTime.now().plusYears(100)); // Effectively permanent
+        freeSubscription.setStatus(UserSubscription.SubscriptionStatus.ACTIVE);
+        freeSubscription.setCurrentCvCount(0);
+        freeSubscription.setCurrentApiCount(0);
+
+        subscriptionRepository.save(freeSubscription);
+
+        log.info("Default free subscription created for user {}", userId);
     }
 
     private LocalDateTime calculateEndDate(boolean isAnnual) {

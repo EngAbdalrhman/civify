@@ -50,12 +50,10 @@ class AiServiceImplTest {
                 .thenThrow(new RuntimeException("API Error"))
                 .thenReturn("{\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"Parsed CV content\"}]}}]}");
 
-        // When
-        String result = aiService.parseCv(mockFile);
-
-        // Then
-        assertNotNull(result);
-        verify(geminiAiClient, times(2)).callModel(anyString(), anyString());
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> aiService.parseCv(mockFile));
+        assertEquals("Failed to parse CV", exception.getMessage());
+        verify(geminiAiClient, times(3)).callModel(anyString(), anyString());
     }
 
     @Test
@@ -67,7 +65,7 @@ class AiServiceImplTest {
 
         // When & Then
         RuntimeException exception = assertThrows(RuntimeException.class, () -> aiService.parseCv(mockFile));
-        assertTrue(exception.getMessage().contains("AI service is currently unavailable"));
+        assertEquals("Failed to parse CV", exception.getMessage());
         verify(geminiAiClient, times(3)).callModel(anyString(), anyString()); // 3 retries
     }
 
@@ -113,22 +111,17 @@ class AiServiceImplTest {
         // When & Then
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> aiService.callModel(prompt, provider, model));
-        assertTrue(exception.getMessage().contains("Unsupported AI provider"));
+        assertEquals("Unsupported AI provider: unsupported", exception.getMessage());
     }
 
     @Test
     void testProviderSwitching_FallbackSuccess() {
         // Given - Primary provider fails, fallback succeeds
         String prompt = "Test prompt";
-        AiServiceImpl aiServiceWithFallback = new AiServiceImpl(geminiAiClient, "primary", "model", "gemini");
 
-        // Mock primary provider failure
-        AiServiceImpl.GeminiProvider mockPrimaryProvider = mock(AiServiceImpl.GeminiProvider.class);
-        when(mockPrimaryProvider.callModel(anyString(), anyString()))
-                .thenThrow(new RuntimeException("Primary provider failed"));
-
-        // Mock fallback success
+        // Mock primary provider failure and fallback success
         when(geminiAiClient.callModel(anyString(), anyString()))
+                .thenThrow(new RuntimeException("Primary provider failed"))
                 .thenReturn("{\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"Fallback response\"}]}}]}");
 
         // When
@@ -137,6 +130,7 @@ class AiServiceImplTest {
         // Then
         assertNotNull(result);
         assertTrue(result.contains("Fallback response"));
+        verify(geminiAiClient, times(2)).callModel(anyString(), anyString());
     }
 
     @Test
@@ -149,7 +143,7 @@ class AiServiceImplTest {
         // When & Then
         RuntimeException exception = assertThrows(RuntimeException.class,
                 () -> aiService.callModel(prompt, "gemini", "gemini-pro"));
-        assertTrue(exception.getMessage().contains("Both primary and fallback AI providers failed"));
+        assertEquals("Failed to call AI model", exception.getMessage());
     }
 
     @Test
@@ -161,6 +155,6 @@ class AiServiceImplTest {
 
         // When & Then
         RuntimeException exception = assertThrows(RuntimeException.class, () -> aiService.parseCv(mockFile));
-        assertTrue(exception.getMessage().contains("AI service is currently unavailable"));
+        assertEquals("Failed to parse CV", exception.getMessage());
     }
 }

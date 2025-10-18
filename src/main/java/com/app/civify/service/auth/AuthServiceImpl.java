@@ -3,6 +3,7 @@ package com.app.civify.service.auth;
 import com.app.civify.dto.auth.AuthRequest;
 import com.app.civify.dto.auth.AuthResponse;
 import com.app.civify.security.model.Role;
+import com.app.civify.service.subscription.SubscriptionService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -22,6 +23,7 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final TokenService tokenService;
     private final OtpService otpService;
+    private final SubscriptionService subscriptionService;
 
     @Override
     public AuthResponse register(AuthRequest req) {
@@ -31,11 +33,11 @@ public class AuthServiceImpl implements AuthService {
         user.setEmail(req.getEmail());
         user.setPassword(passwordEncoder.encode(req.getPassword()));
         user.setRole(Role.ROLE_USER);
-        user.setPlan("free"); // Default plan is free
-        user.setIsLicensed(false);
-        user.setIsAdmin(false);
         user.setIsEmailVerified(false);
         userRepository.save(user);
+
+        // Create default free subscription for new user
+        subscriptionService.createDefaultFreeSubscription(user.getId());
         String refresh = tokenService.generateRefreshToken(user.getUsername());
         String access = tokenService.generateAccessToken(user.getUsername(), user.getRole().name());
         return new AuthResponse(access, refresh, false);

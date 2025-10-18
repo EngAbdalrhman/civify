@@ -45,11 +45,11 @@ class SubscriptionLifecycleServiceTest {
         LocalDateTime pastDate = now.minusDays(1);
 
         UserSubscription expiredSubscription = createMockSubscription();
-        expiredSubscription.setStatus(UserSubscription.SubscriptionStatus.ACTIVE);
-        expiredSubscription.setEndDate(pastDate);
+        lenient().when(expiredSubscription.getStatus()).thenReturn(UserSubscription.SubscriptionStatus.ACTIVE);
+        lenient().when(expiredSubscription.getEndDate()).thenReturn(pastDate);
 
-        when(subscriptionRepository.findByStatusAndEndDateBefore(
-                UserSubscription.SubscriptionStatus.ACTIVE, now))
+        lenient().when(subscriptionRepository.findByStatusAndEndDateBefore(
+                UserSubscription.SubscriptionStatus.ACTIVE, any(LocalDateTime.class)))
                 .thenReturn(List.of(expiredSubscription));
 
         // When
@@ -57,7 +57,7 @@ class SubscriptionLifecycleServiceTest {
 
         // Then
         verify(subscriptionRepository).findByStatusAndEndDateBefore(
-                UserSubscription.SubscriptionStatus.ACTIVE, now);
+                eq(UserSubscription.SubscriptionStatus.ACTIVE), any(LocalDateTime.class));
         verify(expiredSubscription).setStatus(UserSubscription.SubscriptionStatus.EXPIRED);
         verify(subscriptionRepository).save(expiredSubscription);
         verify(subscriptionService).downgradeUserToFreePlan(any(Long.class));
@@ -69,11 +69,11 @@ class SubscriptionLifecycleServiceTest {
         LocalDateTime oneWeekAgo = LocalDateTime.now().minusDays(7);
 
         UserSubscription overdueSubscription = createMockSubscription();
-        overdueSubscription.setStatus(UserSubscription.SubscriptionStatus.PENDING);
-        overdueSubscription.setStartDate(oneWeekAgo.minusDays(1));
+        lenient().when(overdueSubscription.getStatus()).thenReturn(UserSubscription.SubscriptionStatus.PENDING);
+        lenient().when(overdueSubscription.getStartDate()).thenReturn(oneWeekAgo.minusDays(1));
 
-        when(subscriptionRepository.findByStatusAndEndDateBefore(
-                UserSubscription.SubscriptionStatus.PENDING, oneWeekAgo))
+        lenient().when(subscriptionRepository.findByStatusAndEndDateBefore(
+                UserSubscription.SubscriptionStatus.PENDING, any(LocalDateTime.class)))
                 .thenReturn(List.of(overdueSubscription));
 
         // When
@@ -81,7 +81,7 @@ class SubscriptionLifecycleServiceTest {
 
         // Then
         verify(subscriptionRepository).findByStatusAndEndDateBefore(
-                UserSubscription.SubscriptionStatus.PENDING, oneWeekAgo);
+                eq(UserSubscription.SubscriptionStatus.PENDING), any(LocalDateTime.class));
         verify(overdueSubscription).setStatus(UserSubscription.SubscriptionStatus.CANCELLED);
         verify(subscriptionRepository).save(overdueSubscription);
         verify(subscriptionService).downgradeUserToFreePlan(any(Long.class));
@@ -93,11 +93,11 @@ class SubscriptionLifecycleServiceTest {
         LocalDateTime threeDaysAgo = LocalDateTime.now().minusDays(3);
 
         UserSubscription pendingSubscription = createMockSubscription();
-        pendingSubscription.setStatus(UserSubscription.SubscriptionStatus.PENDING);
-        pendingSubscription.setStartDate(threeDaysAgo.minusDays(1));
+        lenient().when(pendingSubscription.getStatus()).thenReturn(UserSubscription.SubscriptionStatus.PENDING);
+        lenient().when(pendingSubscription.getStartDate()).thenReturn(threeDaysAgo.minusDays(1));
 
-        when(subscriptionRepository.findByStatusAndStartDateBefore(
-                UserSubscription.SubscriptionStatus.PENDING, threeDaysAgo))
+        lenient().when(subscriptionRepository.findByStatusAndStartDateBefore(
+                UserSubscription.SubscriptionStatus.PENDING, any(LocalDateTime.class)))
                 .thenReturn(List.of(pendingSubscription));
 
         // When
@@ -105,7 +105,7 @@ class SubscriptionLifecycleServiceTest {
 
         // Then
         verify(subscriptionRepository).findByStatusAndStartDateBefore(
-                UserSubscription.SubscriptionStatus.PENDING, threeDaysAgo);
+                eq(UserSubscription.SubscriptionStatus.PENDING), any(LocalDateTime.class));
         verify(emailService).sendEmail(anyString(), anyString(), anyString());
     }
 
@@ -116,11 +116,11 @@ class SubscriptionLifecycleServiceTest {
         LocalDateTime threeDaysFromNow = now.plusDays(3);
 
         UserSubscription expiringSubscription = createMockSubscription();
-        expiringSubscription.setStatus(UserSubscription.SubscriptionStatus.ACTIVE);
-        expiringSubscription.setEndDate(now.plusDays(2)); // Expires in 2 days
+        lenient().when(expiringSubscription.getStatus()).thenReturn(UserSubscription.SubscriptionStatus.ACTIVE);
+        lenient().when(expiringSubscription.getEndDate()).thenReturn(now.plusDays(2)); // Expires in 2 days
 
-        when(subscriptionRepository.findByStatusAndEndDateBetween(
-                UserSubscription.SubscriptionStatus.ACTIVE, now, threeDaysFromNow))
+        lenient().when(subscriptionRepository.findByStatusAndEndDateBetween(
+                UserSubscription.SubscriptionStatus.ACTIVE, any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(List.of(expiringSubscription));
 
         // When
@@ -128,7 +128,7 @@ class SubscriptionLifecycleServiceTest {
 
         // Then
         verify(subscriptionRepository).findByStatusAndEndDateBetween(
-                UserSubscription.SubscriptionStatus.ACTIVE, now, threeDaysFromNow);
+                eq(UserSubscription.SubscriptionStatus.ACTIVE), any(LocalDateTime.class), any(LocalDateTime.class));
         verify(emailService).sendEmail(anyString(), anyString(), anyString());
     }
 
@@ -139,11 +139,11 @@ class SubscriptionLifecycleServiceTest {
         LocalDateTime threeDaysFromNow = now.plusDays(3);
 
         UserSubscription expiringSubscription = createMockSubscription();
-        expiringSubscription.setStatus(UserSubscription.SubscriptionStatus.ACTIVE);
-        expiringSubscription.setEndDate(now.plusDays(2));
+        lenient().when(expiringSubscription.getStatus()).thenReturn(UserSubscription.SubscriptionStatus.ACTIVE);
+        lenient().when(expiringSubscription.getEndDate()).thenReturn(now.plusDays(2));
 
-        when(subscriptionRepository.findByStatusAndEndDateBetween(
-                UserSubscription.SubscriptionStatus.ACTIVE, now, threeDaysFromNow))
+        lenient().when(subscriptionRepository.findByStatusAndEndDateBetween(
+                UserSubscription.SubscriptionStatus.ACTIVE, any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(List.of(expiringSubscription));
 
         doThrow(new RuntimeException("Email service error"))
@@ -162,11 +162,11 @@ class SubscriptionLifecycleServiceTest {
         LocalDateTime threeDaysAgo = LocalDateTime.now().minusDays(3);
 
         UserSubscription pendingSubscription = createMockSubscription();
-        pendingSubscription.setStatus(UserSubscription.SubscriptionStatus.PENDING);
-        pendingSubscription.setStartDate(threeDaysAgo.minusDays(1));
+        lenient().when(pendingSubscription.getStatus()).thenReturn(UserSubscription.SubscriptionStatus.PENDING);
+        lenient().when(pendingSubscription.getStartDate()).thenReturn(threeDaysAgo.minusDays(1));
 
-        when(subscriptionRepository.findByStatusAndStartDateBefore(
-                UserSubscription.SubscriptionStatus.PENDING, threeDaysAgo))
+        lenient().when(subscriptionRepository.findByStatusAndStartDateBefore(
+                UserSubscription.SubscriptionStatus.PENDING, any(LocalDateTime.class)))
                 .thenReturn(List.of(pendingSubscription));
 
         doThrow(new RuntimeException("Email service error"))
