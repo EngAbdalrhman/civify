@@ -15,5 +15,7 @@ public interface AuthService {
 
     void enable2fa(String username);
 
+    void disable2fa(String username);
+
     AuthResponse verifyOtp(String username, String code);
 }

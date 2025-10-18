@@ -2,20 +2,27 @@ package com.app.civify.service.auth;
 
 import com.app.civify.dto.auth.AuthRequest;
 import com.app.civify.dto.auth.AuthResponse;
-import com.app.civify.security.model.Role;
-import com.app.civify.service.subscription.SubscriptionService;
-
-import lombok.RequiredArgsConstructor;
-
 import com.app.civify.entity.User;
+import com.app.civify.exception.BadRequestException;
 import com.app.civify.repository.UserRepository;
+import com.app.civify.security.model.Role;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Refactored auth service with proper flows:
+ * - Register → Email verification required
+ * - Login → Check email verification → Optional 2FA → Tokens
+ * - OAuth2 → Auto-verified → Tokens
+ */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
@@ -23,68 +30,193 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final TokenService tokenService;
     private final OtpService otpService;
-    private final SubscriptionService subscriptionService;
+    private final EmailVerificationService emailVerificationService;
 
+    /**
+     * Register new user - Sends verification email, does NOT return tokens
+     */
     @Override
+    @Transactional
     public AuthResponse register(AuthRequest req) {
-        // basic register stub
+        log.info("Registering new user: {}", req.getUsername());
+
+        // Check if username already exists
+        if (userRepository.findByUsername(req.getUsername()).isPresent()) {
+            throw new BadRequestException("Username already exists");
+        }
+
+        // Check if email already exists
+        if (userRepository.findByEmail(req.getEmail()).isPresent()) {
+            throw new BadRequestException("Email already exists");
+        }
+
+        // Create new user (email NOT verified yet)
         User user = new User();
         user.setUsername(req.getUsername());
         user.setEmail(req.getEmail());
         user.setPassword(passwordEncoder.encode(req.getPassword()));
         user.setRole(Role.ROLE_USER);
-        user.setIsEmailVerified(false);
+        user.setIsEmailVerified(false); // Must verify email first!
+        user.setTwoFactorEnabled(false);
         userRepository.save(user);
 
-        // Create default free subscription for new user
-        subscriptionService.createDefaultFreeSubscription(user.getId());
-        String refresh = tokenService.generateRefreshToken(user.getUsername());
-        String access = tokenService.generateAccessToken(user.getUsername(), user.getRole().name());
-        return new AuthResponse(access, refresh, false);
+        // Send verification email
+        emailVerificationService.sendVerificationEmail(user);
+
+        log.info("User registered successfully: {}. Verification email sent.", req.getUsername());
+
+        // Return response without tokens - must verify email first
+        return AuthResponse.builder()
+                .message("Registration successful! Please check your email to verify your account.")
+                .requires2FA(false)
+                .build();
     }
 
+    /**
+     * Login with username/password
+     */
     @Override
+    @Transactional
     public AuthResponse login(AuthRequest req) {
-        authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(req.getUsername(), req.getPassword()));
-        User user = userRepository.findByUsername(req.getUsername()).orElseThrow();
-        if (user.getTwoFactorEnabled()) {
-            otpService.generateAndSend(user.getUsername());
-            return new AuthResponse(null, null, true);
+        log.info("Login attempt for user: {}", req.getUsername());
+
+        // Authenticate credentials
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(req.getUsername(), req.getPassword())
+        );
+
+        User user = userRepository.findByUsername(req.getUsername())
+                .orElseThrow(() -> new BadRequestException("User not found"));
+
+        // Check if email is verified
+        if (!user.getIsEmailVerified()) {
+            log.warn("Login attempt with unverified email: {}", req.getUsername());
+            throw new BadRequestException("Please verify your email before logging in. Check your inbox for verification link.");
         }
-        String refresh = tokenService.generateRefreshToken(user.getUsername());
-        String access = tokenService.generateAccessToken(user.getUsername(), user.getRole().name());
-        return new AuthResponse(access, refresh, false);
+
+        // Update last login time
+        user.setLastLoginAt(java.time.LocalDateTime.now());
+        userRepository.save(user);
+
+        // Check if 2FA is enabled
+        if (user.getTwoFactorEnabled()) {
+            // Generate and send OTP
+            otpService.generateAndSend(user.getUsername());
+            log.info("2FA OTP sent to user: {}", req.getUsername());
+
+            return AuthResponse.builder()
+                    .message("OTP sent to your email. Please verify to complete login.")
+                    .requires2FA(true)
+                    .build();
+        }
+
+        // Generate tokens
+        TokenService.AuthTokenPair tokens = tokenService.createAuthTokens(user);
+
+        log.info("Login successful for user: {}", req.getUsername());
+
+        return AuthResponse.builder()
+                .accessToken(tokens.getAccessToken())
+                .refreshToken(tokens.getRefreshToken())
+                .requires2FA(false)
+                .build();
     }
 
+    /**
+     * Verify 2FA OTP and return tokens
+     */
     @Override
-    public AuthResponse refresh(String refreshToken) {
-        String subject = tokenService.verifyAndRotateRefreshToken(refreshToken);
-        User user = userRepository.findByUsername(subject).orElseThrow();
-        String access = tokenService.generateAccessToken(subject, user.getRole().name());
-        String newRefresh = tokenService.generateRefreshToken(subject);
-        return new AuthResponse(access, newRefresh, false);
+    @Transactional
+    public AuthResponse verifyOtp(String username, String code) {
+        log.info("Verifying OTP for user: {}", username);
+
+        if (!otpService.verify(username, code)) {
+            throw new BadRequestException("Invalid or expired OTP");
+        }
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new BadRequestException("User not found"));
+
+        // Update last login time
+        user.setLastLoginAt(java.time.LocalDateTime.now());
+        userRepository.save(user);
+
+        // Generate tokens
+        TokenService.AuthTokenPair tokens = tokenService.createAuthTokens(user);
+
+        log.info("2FA verification successful for user: {}", username);
+
+        return AuthResponse.builder()
+                .accessToken(tokens.getAccessToken())
+                .refreshToken(tokens.getRefreshToken())
+                .requires2FA(false)
+                .build();
     }
 
+    /**
+     * Refresh access token using refresh token
+     */
+    @Override
+    @Transactional
+    public AuthResponse refresh(String refreshToken) {
+        log.info("Refreshing access token");
+
+        String username = tokenService.extractUsername(refreshToken);
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new BadRequestException("User not found"));
+
+        // Generate new token pair (refresh token rotation)
+        TokenService.AuthTokenPair tokens = tokenService.refreshAccessToken(refreshToken, user);
+
+        log.info("Access token refreshed for user: {}", username);
+
+        return AuthResponse.builder()
+                .accessToken(tokens.getAccessToken())
+                .refreshToken(tokens.getRefreshToken())
+                .requires2FA(false)
+                .build();
+    }
+
+    /**
+     * Logout - Revoke refresh token
+     */
     @Override
     public void logout(String refreshToken) {
+        log.info("Logging out user");
         tokenService.revokeRefreshToken(refreshToken);
     }
 
+    /**
+     * Enable 2FA for user
+     */
     @Override
+    @Transactional
     public void enable2fa(String username) {
-        User user = userRepository.findByUsername(username).orElseThrow();
+        log.info("Enabling 2FA for user: {}", username);
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new BadRequestException("User not found"));
+
         user.setTwoFactorEnabled(true);
         userRepository.save(user);
+
+        log.info("2FA enabled for user: {}", username);
     }
 
+    /**
+     * Disable 2FA for user
+     */
     @Override
-    public AuthResponse verifyOtp(String username, String code) {
-        if (!otpService.verify(username, code)) {
-            throw new RuntimeException("Invalid OTP");
-        }
-        User user = userRepository.findByUsername(username).orElseThrow();
-        String refresh = tokenService.generateRefreshToken(username);
-        String access = tokenService.generateAccessToken(username, user.getRole().name());
-        return new AuthResponse(access, refresh, false);
+    @Transactional
+    public void disable2fa(String username) {
+        log.info("Disabling 2FA for user: {}", username);
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new BadRequestException("User not found"));
+
+        user.setTwoFactorEnabled(false);
+        userRepository.save(user);
+
+        log.info("2FA disabled for user: {}", username);
     }
 }
