@@ -24,85 +24,90 @@ class AiServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        aiService = new AiServiceImpl(geminiAiClient, "gemini", "gemini-pro", "openai");
+        // Initialize with gemini as primary, no fallback
+        aiService = new AiServiceImpl(geminiAiClient, "gemini", "gemini-pro", "", "");
     }
 
     @Test
-    void testParseCv_Success() {
+    void parseCv_Success() {
         // Given
         when(mockFile.getOriginalFilename()).thenReturn("resume.pdf");
-        when(geminiAiClient.callModel(anyString(), anyString())).thenReturn("{\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"Parsed CV content\"}]}}]}");
+        when(geminiAiClient.callModel(anyString(), anyString()))
+                .thenReturn("Parsed CV content in JSON format");
 
         // When
         String result = aiService.parseCv(mockFile);
 
         // Then
         assertNotNull(result);
-        assertTrue(result.contains("Parsed CV content"));
-        verify(geminiAiClient).callModel(anyString(), anyString());
+        assertEquals("Parsed CV content in JSON format", result);
+        verify(geminiAiClient).callModel(eq("gemini-pro"), anyString());
     }
 
     @Test
-    void testParseCv_FailureWithRetry() {
-        // Given
-        when(mockFile.getOriginalFilename()).thenReturn("resume.pdf");
-        when(geminiAiClient.callModel(anyString(), anyString()))
-                .thenThrow(new RuntimeException("API Error"))
-                .thenReturn("{\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"Parsed CV content\"}]}}]}");
-
-        // When & Then
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> aiService.parseCv(mockFile));
-        assertEquals("Failed to parse CV", exception.getMessage());
-        verify(geminiAiClient, times(3)).callModel(anyString(), anyString());
-    }
-
-    @Test
-    void testParseCv_AllRetriesFail() {
+    void parseCv_ThrowsException() {
         // Given
         when(mockFile.getOriginalFilename()).thenReturn("resume.pdf");
         when(geminiAiClient.callModel(anyString(), anyString()))
                 .thenThrow(new RuntimeException("API Error"));
 
         // When & Then
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> aiService.parseCv(mockFile));
-        assertEquals("Failed to parse CV", exception.getMessage());
-        verify(geminiAiClient, times(3)).callModel(anyString(), anyString()); // 3 retries
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> aiService.parseCv(mockFile));
+        assertTrue(exception.getMessage().contains("Failed to parse CV"));
     }
 
     @Test
-    void testTailorCv_Success() {
+    void tailorCv_Success() {
         // Given
         Long cvId = 1L;
-        String jobDescription = "Software Engineer position";
-        when(geminiAiClient.callModel(anyString(), anyString())).thenReturn("{\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"Tailored CV content\"}]}}]}");
+        String jobDescription = "Software Engineer with Java and Spring Boot experience";
+        when(geminiAiClient.callModel(anyString(), anyString()))
+                .thenReturn("Tailored CV content optimized for the job");
 
         // When
         String result = aiService.tailorCv(cvId, jobDescription);
 
         // Then
         assertNotNull(result);
-        assertTrue(result.contains("Tailored CV content"));
-        verify(geminiAiClient).callModel(anyString(), anyString());
+        assertEquals("Tailored CV content optimized for the job", result);
+        verify(geminiAiClient).callModel(eq("gemini-pro"), contains(jobDescription));
     }
 
     @Test
-    void testCallModel_Success() {
+    void tailorCv_ThrowsException() {
+        // Given
+        Long cvId = 1L;
+        String jobDescription = "Test job";
+        when(geminiAiClient.callModel(anyString(), anyString()))
+                .thenThrow(new RuntimeException("API Error"));
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> aiService.tailorCv(cvId, jobDescription));
+        assertTrue(exception.getMessage().contains("Failed to tailor CV"));
+    }
+
+    @Test
+    void callModel_Success() {
         // Given
         String prompt = "Test prompt";
         String provider = "gemini";
         String model = "gemini-pro";
-        when(geminiAiClient.callModel(anyString(), anyString())).thenReturn("{\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"Response\"}]}}]}");
+        when(geminiAiClient.callModel(eq(model), anyString()))
+                .thenReturn("AI response");
 
         // When
         String result = aiService.callModel(prompt, provider, model);
 
         // Then
         assertNotNull(result);
-        verify(geminiAiClient).callModel(anyString(), anyString());
+        assertEquals("AI response", result);
+        verify(geminiAiClient).callModel(eq(model), anyString());
     }
 
     @Test
-    void testCallModel_UnsupportedProvider() {
+    void callModel_UnsupportedProvider() {
         // Given
         String prompt = "Test prompt";
         String provider = "unsupported";
@@ -111,50 +116,122 @@ class AiServiceImplTest {
         // When & Then
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> aiService.callModel(prompt, provider, model));
-        assertEquals("Unsupported AI provider: unsupported", exception.getMessage());
+        assertTrue(exception.getMessage().contains("Unsupported AI provider"));
+        assertTrue(exception.getMessage().contains("unsupported"));
     }
 
     @Test
-    void testProviderSwitching_FallbackSuccess() {
-        // Given - Primary provider fails, fallback succeeds
-        String prompt = "Test prompt";
+    void callModel_WithFallback_PrimaryFails_FallbackSucceeds() {
+        // Given - Initialize with fallback provider
+        AiServiceImpl serviceWithFallback = new AiServiceImpl(
+                geminiAiClient, "gemini", "gemini-pro", "gemini", "gemini-1.5-pro"
+        );
 
-        // Mock primary provider failure and fallback success
-        when(geminiAiClient.callModel(anyString(), anyString()))
-                .thenThrow(new RuntimeException("Primary provider failed"))
-                .thenReturn("{\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"Fallback response\"}]}}]}");
+        when(mockFile.getOriginalFilename()).thenReturn("resume.pdf");
+        when(geminiAiClient.callModel(eq("gemini-pro"), anyString()))
+                .thenThrow(new RuntimeException("Primary model failed"));
+        when(geminiAiClient.callModel(eq("gemini-1.5-pro"), anyString()))
+                .thenReturn("Fallback response");
 
         // When
-        String result = aiService.callModel(prompt, "gemini", "gemini-pro");
+        String result = serviceWithFallback.parseCv(mockFile);
 
         // Then
         assertNotNull(result);
-        assertTrue(result.contains("Fallback response"));
-        verify(geminiAiClient, times(2)).callModel(anyString(), anyString());
+        assertEquals("Fallback response", result);
+        verify(geminiAiClient).callModel(eq("gemini-pro"), anyString());
+        verify(geminiAiClient).callModel(eq("gemini-1.5-pro"), anyString());
     }
 
     @Test
-    void testProviderSwitching_BothFail() {
-        // Given - Both primary and fallback fail
-        String prompt = "Test prompt";
+    void callModel_WithFallback_BothFail() {
+        // Given - Initialize with fallback provider
+        AiServiceImpl serviceWithFallback = new AiServiceImpl(
+                geminiAiClient, "gemini", "gemini-pro", "gemini", "gemini-1.5-pro"
+        );
+
+        when(mockFile.getOriginalFilename()).thenReturn("resume.pdf");
         when(geminiAiClient.callModel(anyString(), anyString()))
-                .thenThrow(new RuntimeException("Both providers failed"));
+                .thenThrow(new RuntimeException("API Error"));
 
         // When & Then
         RuntimeException exception = assertThrows(RuntimeException.class,
-                () -> aiService.callModel(prompt, "gemini", "gemini-pro"));
-        assertEquals("Failed to call AI model", exception.getMessage());
+                () -> serviceWithFallback.parseCv(mockFile));
+        assertTrue(exception.getMessage().contains("Both primary"));
+        assertTrue(exception.getMessage().contains("fallback"));
     }
 
     @Test
-    void testRecoverMethod() {
+    void registerProvider_Success() {
         // Given
-        when(mockFile.getOriginalFilename()).thenReturn("resume.pdf");
+        AiServiceImpl.AiProvider mockProvider = mock(AiServiceImpl.AiProvider.class);
+        when(mockProvider.getProviderName()).thenReturn("TestProvider");
+
+        // When
+        aiService.registerProvider("test", mockProvider);
+
+        // Then - Should not throw exception
+        // Provider is registered successfully
+    }
+
+    @Test
+    void geminiProvider_CallModel_Success() {
+        // Given
+        AiServiceImpl.GeminiProvider provider = new AiServiceImpl.GeminiProvider(geminiAiClient);
+        String prompt = "Test prompt";
+        String model = "gemini-pro";
+        when(geminiAiClient.callModel(eq(model), anyString()))
+                .thenReturn("Response from Gemini");
+
+        // When
+        String result = provider.callModel(prompt, model);
+
+        // Then
+        assertNotNull(result);
+        assertEquals("Response from Gemini", result);
+        verify(geminiAiClient).callModel(eq(model), anyString());
+    }
+
+    @Test
+    void geminiProvider_GetProviderName() {
+        // Given
+        AiServiceImpl.GeminiProvider provider = new AiServiceImpl.GeminiProvider(geminiAiClient);
+
+        // When
+        String name = provider.getProviderName();
+
+        // Then
+        assertEquals("Gemini", name);
+    }
+
+    @Test
+    void geminiProvider_CallModel_HandlesSpecialCharacters() {
+        // Given
+        AiServiceImpl.GeminiProvider provider = new AiServiceImpl.GeminiProvider(geminiAiClient);
+        String promptWithQuotes = "Test \"quoted\" text\nWith newline";
+        String model = "gemini-pro";
+        when(geminiAiClient.callModel(eq(model), anyString()))
+                .thenReturn("Response");
+
+        // When
+        String result = provider.callModel(promptWithQuotes, model);
+
+        // Then
+        assertNotNull(result);
+        verify(geminiAiClient).callModel(eq(model), contains("\\\"quoted\\\""));
+        verify(geminiAiClient).callModel(eq(model), contains("\\n"));
+    }
+
+    @Test
+    void geminiProvider_CallModel_ThrowsException() {
+        // Given
+        AiServiceImpl.GeminiProvider provider = new AiServiceImpl.GeminiProvider(geminiAiClient);
         when(geminiAiClient.callModel(anyString(), anyString()))
-                .thenThrow(new RuntimeException("Persistent API Error"));
+                .thenThrow(new RuntimeException("Connection error"));
 
         // When & Then
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> aiService.parseCv(mockFile));
-        assertEquals("Failed to parse CV", exception.getMessage());
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> provider.callModel("prompt", "model"));
+        assertTrue(exception.getMessage().contains("Gemini API call failed"));
     }
 }

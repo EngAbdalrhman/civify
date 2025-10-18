@@ -1,7 +1,8 @@
 package com.app.civify.util.security;
 
 import com.app.civify.entity.User;
-import com.app.civify.entity.enums.Role;
+import com.app.civify.security.model.Role;
+import com.app.civify.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import org.junit.jupiter.api.BeforeEach;

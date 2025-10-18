@@ -1,21 +1,22 @@
 package com.app.civify.service.subscription;
 
+import com.app.civify.entity.SubscriptionPlan;
 import com.app.civify.entity.User;
 import com.app.civify.entity.UserSubscription;
+import com.app.civify.entity.enums.SubscriptionStatus;
 import com.app.civify.repository.UserSubscriptionRepository;
 import com.app.civify.util.EmailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -30,164 +31,285 @@ class SubscriptionLifecycleServiceTest {
     @Mock
     private EmailService emailService;
 
+    @InjectMocks
     private SubscriptionLifecycleService lifecycleService;
+
+    private User testUser;
+    private SubscriptionPlan testPlan;
+    private UserSubscription testSubscription;
 
     @BeforeEach
     void setUp() {
-        lifecycleService = new SubscriptionLifecycleService(
-                subscriptionRepository, subscriptionService, emailService);
+        testUser = new User();
+        testUser.setId(1L);
+        testUser.setUsername("testuser");
+        testUser.setEmail("test@example.com");
+
+        testPlan = new SubscriptionPlan();
+        testPlan.setId(1L);
+        testPlan.setName("Premium");
+
+        testSubscription = new UserSubscription();
+        testSubscription.setId(1L);
+        testSubscription.setUser(testUser);
+        testSubscription.setPlan(testPlan);
+        testSubscription.setStatus(SubscriptionStatus.ACTIVE);
     }
 
     @Test
-    void testProcessExpiredSubscriptions() {
+    void processExpiredSubscriptions_Success() {
         // Given
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime pastDate = now.minusDays(1);
+        testSubscription.setEndDate(now.minusDays(1));
 
-        UserSubscription expiredSubscription = createMockSubscription();
-        lenient().when(expiredSubscription.getStatus()).thenReturn(UserSubscription.SubscriptionStatus.ACTIVE);
-        lenient().when(expiredSubscription.getEndDate()).thenReturn(pastDate);
-
-        lenient().when(subscriptionRepository.findByStatusAndEndDateBefore(
-                UserSubscription.SubscriptionStatus.ACTIVE, any(LocalDateTime.class)))
-                .thenReturn(List.of(expiredSubscription));
+        when(subscriptionRepository.findByStatusAndEndDateBefore(
+                eq(SubscriptionStatus.ACTIVE), any(LocalDateTime.class)))
+                .thenReturn(List.of(testSubscription));
 
         // When
         lifecycleService.processExpiredSubscriptions();
 
         // Then
         verify(subscriptionRepository).findByStatusAndEndDateBefore(
-                eq(UserSubscription.SubscriptionStatus.ACTIVE), any(LocalDateTime.class));
-        verify(expiredSubscription).setStatus(UserSubscription.SubscriptionStatus.EXPIRED);
-        verify(subscriptionRepository).save(expiredSubscription);
-        verify(subscriptionService).downgradeUserToFreePlan(any(Long.class));
+                eq(SubscriptionStatus.ACTIVE), any(LocalDateTime.class));
+        verify(subscriptionRepository).save(testSubscription);
+        verify(subscriptionService).reactivateFreePlan(1L);
+        verify(emailService).sendEmail(eq("test@example.com"), anyString(), anyString());
     }
 
     @Test
-    void testProcessOverduePayments() {
+    void processExpiredSubscriptions_NoExpiredSubscriptions() {
+        // Given
+        when(subscriptionRepository.findByStatusAndEndDateBefore(
+                eq(SubscriptionStatus.ACTIVE), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+
+        // When
+        lifecycleService.processExpiredSubscriptions();
+
+        // Then
+        verify(subscriptionRepository).findByStatusAndEndDateBefore(
+                eq(SubscriptionStatus.ACTIVE), any(LocalDateTime.class));
+        verify(subscriptionRepository, never()).save(any());
+        verify(subscriptionService, never()).reactivateFreePlan(anyLong());
+    }
+
+    @Test
+    void processExpiredSubscriptions_HandlesErrors() {
+        // Given
+        testSubscription.setEndDate(LocalDateTime.now().minusDays(1));
+
+        when(subscriptionRepository.findByStatusAndEndDateBefore(
+                eq(SubscriptionStatus.ACTIVE), any(LocalDateTime.class)))
+                .thenReturn(List.of(testSubscription));
+        doThrow(new RuntimeException("Email service error"))
+                .when(emailService).sendEmail(anyString(), anyString(), anyString());
+
+        // When - Should not throw exception, error should be logged
+        lifecycleService.processExpiredSubscriptions();
+
+        // Then
+        verify(subscriptionRepository).save(testSubscription);
+        verify(subscriptionService).reactivateFreePlan(1L);
+    }
+
+    @Test
+    void processOverduePayments_Success() {
         // Given
         LocalDateTime oneWeekAgo = LocalDateTime.now().minusDays(7);
+        testSubscription.setStatus(SubscriptionStatus.PENDING);
+        testSubscription.setStartDate(oneWeekAgo.minusDays(1));
 
-        UserSubscription overdueSubscription = createMockSubscription();
-        lenient().when(overdueSubscription.getStatus()).thenReturn(UserSubscription.SubscriptionStatus.PENDING);
-        lenient().when(overdueSubscription.getStartDate()).thenReturn(oneWeekAgo.minusDays(1));
-
-        lenient().when(subscriptionRepository.findByStatusAndEndDateBefore(
-                UserSubscription.SubscriptionStatus.PENDING, any(LocalDateTime.class)))
-                .thenReturn(List.of(overdueSubscription));
+        when(subscriptionRepository.findByStatusAndStartDateBefore(
+                eq(SubscriptionStatus.PENDING), any(LocalDateTime.class)))
+                .thenReturn(List.of(testSubscription));
 
         // When
         lifecycleService.processOverduePayments();
 
         // Then
-        verify(subscriptionRepository).findByStatusAndEndDateBefore(
-                eq(UserSubscription.SubscriptionStatus.PENDING), any(LocalDateTime.class));
-        verify(overdueSubscription).setStatus(UserSubscription.SubscriptionStatus.CANCELLED);
-        verify(subscriptionRepository).save(overdueSubscription);
-        verify(subscriptionService).downgradeUserToFreePlan(any(Long.class));
+        verify(subscriptionRepository).findByStatusAndStartDateBefore(
+                eq(SubscriptionStatus.PENDING), any(LocalDateTime.class));
+        verify(subscriptionRepository).save(testSubscription);
+        verify(emailService).sendEmail(eq("test@example.com"), anyString(), anyString());
     }
 
     @Test
-    void testProcessPaymentReminders() {
+    void processOverduePayments_NoOverduePayments() {
         // Given
-        LocalDateTime threeDaysAgo = LocalDateTime.now().minusDays(3);
+        when(subscriptionRepository.findByStatusAndStartDateBefore(
+                eq(SubscriptionStatus.PENDING), any(LocalDateTime.class)))
+                .thenReturn(List.of());
 
-        UserSubscription pendingSubscription = createMockSubscription();
-        lenient().when(pendingSubscription.getStatus()).thenReturn(UserSubscription.SubscriptionStatus.PENDING);
-        lenient().when(pendingSubscription.getStartDate()).thenReturn(threeDaysAgo.minusDays(1));
+        // When
+        lifecycleService.processOverduePayments();
 
-        lenient().when(subscriptionRepository.findByStatusAndStartDateBefore(
-                UserSubscription.SubscriptionStatus.PENDING, any(LocalDateTime.class)))
-                .thenReturn(List.of(pendingSubscription));
+        // Then
+        verify(subscriptionRepository).findByStatusAndStartDateBefore(
+                eq(SubscriptionStatus.PENDING), any(LocalDateTime.class));
+        verify(subscriptionRepository, never()).save(any());
+        verify(emailService, never()).sendEmail(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void processPaymentReminders_Success() {
+        // Given
+        LocalDateTime fourDaysAgo = LocalDateTime.now().minusDays(4);
+        testSubscription.setStatus(SubscriptionStatus.PENDING);
+        testSubscription.setStartDate(fourDaysAgo);
+
+        when(subscriptionRepository.findByStatusAndStartDateBetween(
+                eq(SubscriptionStatus.PENDING), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(testSubscription));
 
         // When
         lifecycleService.processPaymentReminders();
 
         // Then
-        verify(subscriptionRepository).findByStatusAndStartDateBefore(
-                eq(UserSubscription.SubscriptionStatus.PENDING), any(LocalDateTime.class));
+        verify(subscriptionRepository).findByStatusAndStartDateBetween(
+                eq(SubscriptionStatus.PENDING), any(LocalDateTime.class), any(LocalDateTime.class));
+        verify(emailService).sendEmail(eq("test@example.com"), anyString(), contains("Payment Reminder"));
+    }
+
+    @Test
+    void processPaymentReminders_NoRemindersNeeded() {
+        // Given
+        when(subscriptionRepository.findByStatusAndStartDateBetween(
+                eq(SubscriptionStatus.PENDING), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+
+        // When
+        lifecycleService.processPaymentReminders();
+
+        // Then
+        verify(subscriptionRepository).findByStatusAndStartDateBetween(
+                eq(SubscriptionStatus.PENDING), any(LocalDateTime.class), any(LocalDateTime.class));
+        verify(emailService, never()).sendEmail(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void processPaymentReminders_HandlesEmailFailure() {
+        // Given
+        LocalDateTime fourDaysAgo = LocalDateTime.now().minusDays(4);
+        testSubscription.setStatus(SubscriptionStatus.PENDING);
+        testSubscription.setStartDate(fourDaysAgo);
+
+        when(subscriptionRepository.findByStatusAndStartDateBetween(
+                eq(SubscriptionStatus.PENDING), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(testSubscription));
+        doThrow(new RuntimeException("Email service error"))
+                .when(emailService).sendEmail(anyString(), anyString(), anyString());
+
+        // When - Should not throw exception
+        lifecycleService.processPaymentReminders();
+
+        // Then
         verify(emailService).sendEmail(anyString(), anyString(), anyString());
     }
 
     @Test
-    void testSendRenewalReminders() {
+    void sendRenewalReminders_Success() {
         // Given
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime threeDaysFromNow = now.plusDays(3);
+        LocalDateTime twoDaysFromNow = LocalDateTime.now().plusDays(2);
+        testSubscription.setEndDate(twoDaysFromNow);
+        testPlan.setName("Premium"); // Non-free plan
 
-        UserSubscription expiringSubscription = createMockSubscription();
-        lenient().when(expiringSubscription.getStatus()).thenReturn(UserSubscription.SubscriptionStatus.ACTIVE);
-        lenient().when(expiringSubscription.getEndDate()).thenReturn(now.plusDays(2)); // Expires in 2 days
-
-        lenient().when(subscriptionRepository.findByStatusAndEndDateBetween(
-                UserSubscription.SubscriptionStatus.ACTIVE, any(LocalDateTime.class), any(LocalDateTime.class)))
-                .thenReturn(List.of(expiringSubscription));
+        when(subscriptionRepository.findByStatusAndEndDateBetween(
+                eq(SubscriptionStatus.ACTIVE), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(testSubscription));
 
         // When
         lifecycleService.sendRenewalReminders();
 
         // Then
         verify(subscriptionRepository).findByStatusAndEndDateBetween(
-                eq(UserSubscription.SubscriptionStatus.ACTIVE), any(LocalDateTime.class), any(LocalDateTime.class));
-        verify(emailService).sendEmail(anyString(), anyString(), anyString());
+                eq(SubscriptionStatus.ACTIVE), any(LocalDateTime.class), any(LocalDateTime.class));
+        verify(emailService).sendEmail(eq("test@example.com"), anyString(), contains("Renewal Reminder"));
     }
 
     @Test
-    void testSendRenewalReminder_EmailFailure() {
+    void sendRenewalReminders_SkipsFreePlan() {
         // Given
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime threeDaysFromNow = now.plusDays(3);
+        LocalDateTime twoDaysFromNow = LocalDateTime.now().plusDays(2);
+        testSubscription.setEndDate(twoDaysFromNow);
+        testPlan.setName("Free"); // Free plan should be skipped
 
-        UserSubscription expiringSubscription = createMockSubscription();
-        lenient().when(expiringSubscription.getStatus()).thenReturn(UserSubscription.SubscriptionStatus.ACTIVE);
-        lenient().when(expiringSubscription.getEndDate()).thenReturn(now.plusDays(2));
+        when(subscriptionRepository.findByStatusAndEndDateBetween(
+                eq(SubscriptionStatus.ACTIVE), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(testSubscription));
 
-        lenient().when(subscriptionRepository.findByStatusAndEndDateBetween(
-                UserSubscription.SubscriptionStatus.ACTIVE, any(LocalDateTime.class), any(LocalDateTime.class)))
-                .thenReturn(List.of(expiringSubscription));
+        // When
+        lifecycleService.sendRenewalReminders();
 
+        // Then
+        verify(subscriptionRepository).findByStatusAndEndDateBetween(
+                eq(SubscriptionStatus.ACTIVE), any(LocalDateTime.class), any(LocalDateTime.class));
+        verify(emailService, never()).sendEmail(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void sendRenewalReminders_NoRemindersNeeded() {
+        // Given
+        when(subscriptionRepository.findByStatusAndEndDateBetween(
+                eq(SubscriptionStatus.ACTIVE), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+
+        // When
+        lifecycleService.sendRenewalReminders();
+
+        // Then
+        verify(subscriptionRepository).findByStatusAndEndDateBetween(
+                eq(SubscriptionStatus.ACTIVE), any(LocalDateTime.class), any(LocalDateTime.class));
+        verify(emailService, never()).sendEmail(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void sendRenewalReminders_HandlesEmailFailure() {
+        // Given
+        LocalDateTime twoDaysFromNow = LocalDateTime.now().plusDays(2);
+        testSubscription.setEndDate(twoDaysFromNow);
+        testPlan.setName("Premium");
+
+        when(subscriptionRepository.findByStatusAndEndDateBetween(
+                eq(SubscriptionStatus.ACTIVE), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(testSubscription));
         doThrow(new RuntimeException("Email service error"))
                 .when(emailService).sendEmail(anyString(), anyString(), anyString());
 
         // When - Should not throw exception
         lifecycleService.sendRenewalReminders();
 
-        // Then - Email service was called but exception was handled
+        // Then
         verify(emailService).sendEmail(anyString(), anyString(), anyString());
     }
 
     @Test
-    void testSendPaymentReminder_EmailFailure() {
+    void processExpiredSubscriptions_MultipleSubscriptions() {
         // Given
-        LocalDateTime threeDaysAgo = LocalDateTime.now().minusDays(3);
+        UserSubscription subscription1 = new UserSubscription();
+        subscription1.setId(1L);
+        subscription1.setUser(testUser);
+        subscription1.setPlan(testPlan);
+        subscription1.setStatus(SubscriptionStatus.ACTIVE);
+        subscription1.setEndDate(LocalDateTime.now().minusDays(1));
 
-        UserSubscription pendingSubscription = createMockSubscription();
-        lenient().when(pendingSubscription.getStatus()).thenReturn(UserSubscription.SubscriptionStatus.PENDING);
-        lenient().when(pendingSubscription.getStartDate()).thenReturn(threeDaysAgo.minusDays(1));
+        UserSubscription subscription2 = new UserSubscription();
+        subscription2.setId(2L);
+        subscription2.setUser(testUser);
+        subscription2.setPlan(testPlan);
+        subscription2.setStatus(SubscriptionStatus.ACTIVE);
+        subscription2.setEndDate(LocalDateTime.now().minusDays(2));
 
-        lenient().when(subscriptionRepository.findByStatusAndStartDateBefore(
-                UserSubscription.SubscriptionStatus.PENDING, any(LocalDateTime.class)))
-                .thenReturn(List.of(pendingSubscription));
+        when(subscriptionRepository.findByStatusAndEndDateBefore(
+                eq(SubscriptionStatus.ACTIVE), any(LocalDateTime.class)))
+                .thenReturn(List.of(subscription1, subscription2));
 
-        doThrow(new RuntimeException("Email service error"))
-                .when(emailService).sendEmail(anyString(), anyString(), anyString());
+        // When
+        lifecycleService.processExpiredSubscriptions();
 
-        // When - Should not throw exception
-        lifecycleService.processPaymentReminders();
-
-        // Then - Email service was called but exception was handled
-        verify(emailService).sendEmail(anyString(), anyString(), anyString());
-    }
-
-    private UserSubscription createMockSubscription() {
-        UserSubscription subscription = mock(UserSubscription.class);
-        User user = mock(User.class);
-
-        when(subscription.getUser()).thenReturn(user);
-        when(user.getId()).thenReturn(1L);
-        when(user.getUsername()).thenReturn("testuser");
-        when(user.getEmail()).thenReturn("test@example.com");
-
-        return subscription;
+        // Then
+        verify(subscriptionRepository, times(2)).save(any(UserSubscription.class));
+        verify(subscriptionService, times(2)).reactivateFreePlan(1L);
+        verify(emailService, times(2)).sendEmail(eq("test@example.com"), anyString(), anyString());
     }
 }

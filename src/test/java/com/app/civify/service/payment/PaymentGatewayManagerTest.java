@@ -5,7 +5,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -15,7 +17,7 @@ import static org.mockito.Mockito.*;
 class PaymentGatewayManagerTest {
 
     @Mock
-    private PaymobPaymentGateway paymobGateway;
+    private PaymentGateway paymobGateway;
 
     @Mock
     private PaymentGateway stripeGateway;
@@ -25,114 +27,271 @@ class PaymentGatewayManagerTest {
     @BeforeEach
     void setUp() {
         gatewayManager = new PaymentGatewayManager();
+        ReflectionTestUtils.setField(gatewayManager, "defaultGateway", "paymob");
 
         // Mock gateway behaviors
-        lenient().when(paymobGateway.getGatewayName()).thenReturn("paymob");
-        lenient().when(paymobGateway.isEnabled()).thenReturn(true);
+        when(paymobGateway.getGatewayName()).thenReturn("paymob");
+        when(paymobGateway.isEnabled()).thenReturn(true);
 
-        lenient().when(stripeGateway.getGatewayName()).thenReturn("stripe");
-        lenient().when(stripeGateway.isEnabled()).thenReturn(false); // Disabled for testing
-
-        // Register gateways
-        gatewayManager.registerGateway(paymobGateway);
-        gatewayManager.registerGateway(stripeGateway);
+        when(stripeGateway.getGatewayName()).thenReturn("stripe");
+        when(stripeGateway.isEnabled()).thenReturn(false); // Disabled for testing
     }
 
     @Test
-    void testRegisterGateway_EnabledGateway() {
+    void registerGateway_EnabledGateway_Success() {
+        // When
         gatewayManager.registerGateway(paymobGateway);
 
+        // Then
         assertTrue(gatewayManager.isGatewayAvailable("paymob"));
         assertEquals(paymobGateway, gatewayManager.getGateway("paymob"));
     }
 
     @Test
-    void testRegisterGateway_DisabledGateway() {
+    void registerGateway_DisabledGateway_NotRegistered() {
+        // When
         gatewayManager.registerGateway(stripeGateway);
 
+        // Then
         assertFalse(gatewayManager.isGatewayAvailable("stripe"));
         assertThrows(IllegalArgumentException.class, () -> gatewayManager.getGateway("stripe"));
     }
 
     @Test
-    void testGetDefaultGateway() {
+    void registerGateway_MultipleGateways_BothRegistered() {
+        // Given
+        when(stripeGateway.isEnabled()).thenReturn(true);
+
+        // When
+        gatewayManager.registerGateway(paymobGateway);
+        gatewayManager.registerGateway(stripeGateway);
+
+        // Then
+        assertTrue(gatewayManager.isGatewayAvailable("paymob"));
+        assertTrue(gatewayManager.isGatewayAvailable("stripe"));
+    }
+
+    @Test
+    void getGateway_ExistingGateway_ReturnsGateway() {
+        // Given
         gatewayManager.registerGateway(paymobGateway);
 
+        // When
+        PaymentGateway gateway = gatewayManager.getGateway("paymob");
+
+        // Then
+        assertNotNull(gateway);
+        assertEquals(paymobGateway, gateway);
+    }
+
+    @Test
+    void getGateway_NonExistingGateway_ThrowsException() {
+        // When & Then
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> gatewayManager.getGateway("nonexistent"));
+        assertTrue(exception.getMessage().contains("Payment gateway not found"));
+    }
+
+    @Test
+    void getDefaultGateway_Success() {
+        // Given
+        gatewayManager.registerGateway(paymobGateway);
+
+        // When
         PaymentGateway defaultGateway = gatewayManager.getDefaultGateway();
+
+        // Then
+        assertNotNull(defaultGateway);
         assertEquals(paymobGateway, defaultGateway);
     }
 
     @Test
-    void testGetGateway_NotFound() {
-        assertThrows(IllegalArgumentException.class, () -> gatewayManager.getGateway("nonexistent"));
+    void getAllGateways_ReturnsOnlyEnabledGateways() {
+        // Given
+        when(stripeGateway.isEnabled()).thenReturn(true);
+        gatewayManager.registerGateway(paymobGateway);
+        gatewayManager.registerGateway(stripeGateway);
+
+        // When
+        List<PaymentGateway> gateways = gatewayManager.getAllGateways();
+
+        // Then
+        assertEquals(2, gateways.size());
+        assertTrue(gateways.contains(paymobGateway));
+        assertTrue(gateways.contains(stripeGateway));
     }
 
     @Test
-    void testCreatePayment_DefaultGateway() {
+    void getAllGateways_EmptyList() {
+        // When
+        List<PaymentGateway> gateways = gatewayManager.getAllGateways();
+
+        // Then
+        assertTrue(gateways.isEmpty());
+    }
+
+    @Test
+    void isGatewayAvailable_RegisteredAndEnabled_ReturnsTrue() {
+        // Given
         gatewayManager.registerGateway(paymobGateway);
 
+        // When
+        boolean available = gatewayManager.isGatewayAvailable("paymob");
+
+        // Then
+        assertTrue(available);
+    }
+
+    @Test
+    void isGatewayAvailable_NotRegistered_ReturnsFalse() {
+        // When
+        boolean available = gatewayManager.isGatewayAvailable("nonexistent");
+
+        // Then
+        assertFalse(available);
+    }
+
+    @Test
+    void createPayment_WithDefaultGateway_Success() {
+        // Given
+        gatewayManager.registerGateway(paymobGateway);
         Long userId = 1L;
         double amount = 100.0;
         Map<String, Object> metadata = Map.of("planId", "premium");
 
         when(paymobGateway.createPayment(userId, amount, metadata)).thenReturn("payment_key_123");
 
+        // When
         String result = gatewayManager.createPayment(userId, amount, metadata);
 
+        // Then
         assertEquals("payment_key_123", result);
         verify(paymobGateway).createPayment(userId, amount, metadata);
     }
 
     @Test
-    void testCreatePayment_SpecificGateway() {
+    void createPayment_WithSpecificGateway_Success() {
+        // Given
         gatewayManager.registerGateway(paymobGateway);
-
         Long userId = 1L;
         double amount = 100.0;
         Map<String, Object> metadata = Map.of("planId", "premium");
 
         when(paymobGateway.createPayment(userId, amount, metadata)).thenReturn("payment_key_456");
 
+        // When
         String result = gatewayManager.createPayment("paymob", userId, amount, metadata);
 
+        // Then
         assertEquals("payment_key_456", result);
         verify(paymobGateway).createPayment(userId, amount, metadata);
     }
 
     @Test
-    void testVerifyPayment_DefaultGateway() {
-        gatewayManager.registerGateway(paymobGateway);
+    void createPayment_WithNonExistentGateway_ThrowsException() {
+        // Given
+        Long userId = 1L;
+        double amount = 100.0;
+        Map<String, Object> metadata = Map.of("planId", "premium");
 
+        // When & Then
+        assertThrows(IllegalArgumentException.class,
+                () -> gatewayManager.createPayment("nonexistent", userId, amount, metadata));
+    }
+
+    @Test
+    void verifyPayment_WithDefaultGateway_Success() {
+        // Given
+        gatewayManager.registerGateway(paymobGateway);
         String transactionId = "txn_123";
         when(paymobGateway.verifyPayment(transactionId)).thenReturn(true);
 
+        // When
         boolean result = gatewayManager.verifyPayment(transactionId);
 
+        // Then
         assertTrue(result);
         verify(paymobGateway).verifyPayment(transactionId);
     }
 
     @Test
-    void testHandleCallback_DefaultGateway() {
+    void verifyPayment_Failed_ReturnsFalse() {
+        // Given
         gatewayManager.registerGateway(paymobGateway);
+        String transactionId = "txn_invalid";
+        when(paymobGateway.verifyPayment(transactionId)).thenReturn(false);
 
-        Map<String, Object> callbackData = Map.of("order_id", "order_123", "success", "true");
+        // When
+        boolean result = gatewayManager.verifyPayment(transactionId);
+
+        // Then
+        assertFalse(result);
+        verify(paymobGateway).verifyPayment(transactionId);
+    }
+
+    @Test
+    void handleCallback_WithDefaultGateway_Success() {
+        // Given
+        gatewayManager.registerGateway(paymobGateway);
+        Map<String, Object> callbackData = Map.of(
+                "order_id", "order_123",
+                "success", "true",
+                "amount", 100.0
+        );
         when(paymobGateway.handleCallback(callbackData)).thenReturn(true);
 
+        // When
         boolean result = gatewayManager.handleCallback(callbackData);
 
+        // Then
         assertTrue(result);
         verify(paymobGateway).handleCallback(callbackData);
     }
 
     @Test
-    void testGetAllGateways() {
+    void handleCallback_Failed_ReturnsFalse() {
+        // Given
         gatewayManager.registerGateway(paymobGateway);
-        gatewayManager.registerGateway(stripeGateway); // Disabled, won't be added
+        Map<String, Object> callbackData = Map.of("order_id", "invalid");
+        when(paymobGateway.handleCallback(callbackData)).thenReturn(false);
 
-        var gateways = gatewayManager.getAllGateways();
+        // When
+        boolean result = gatewayManager.handleCallback(callbackData);
 
-        assertEquals(1, gateways.size());
-        assertTrue(gateways.contains(paymobGateway));
+        // Then
+        assertFalse(result);
+        verify(paymobGateway).handleCallback(callbackData);
+    }
+
+    @Test
+    void registerGateway_ReplacesExistingGateway() {
+        // Given
+        PaymentGateway paymobV1 = mock(PaymentGateway.class);
+        PaymentGateway paymobV2 = mock(PaymentGateway.class);
+
+        when(paymobV1.getGatewayName()).thenReturn("paymob");
+        when(paymobV1.isEnabled()).thenReturn(true);
+        when(paymobV2.getGatewayName()).thenReturn("paymob");
+        when(paymobV2.isEnabled()).thenReturn(true);
+
+        // When
+        gatewayManager.registerGateway(paymobV1);
+        gatewayManager.registerGateway(paymobV2); // Replace
+
+        // Then
+        PaymentGateway gateway = gatewayManager.getGateway("paymob");
+        assertEquals(paymobV2, gateway);
+    }
+
+    @Test
+    void getAllGateways_ReturnsImmutableCopy() {
+        // Given
+        gatewayManager.registerGateway(paymobGateway);
+
+        // When
+        List<PaymentGateway> gateways = gatewayManager.getAllGateways();
+
+        // Then - Trying to modify should throw exception
+        assertThrows(UnsupportedOperationException.class, () -> gateways.add(stripeGateway));
     }
 }
