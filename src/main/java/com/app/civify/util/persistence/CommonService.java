@@ -1,4 +1,4 @@
-package com.app.civify.utils.business.service.impl;
+package com.app.civify.util.persistence;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;

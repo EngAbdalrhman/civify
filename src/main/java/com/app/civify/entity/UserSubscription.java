@@ -1,5 +1,6 @@
 package com.app.civify.entity;
 
+import com.app.civify.entity.enums.SubscriptionStatus;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -32,11 +33,17 @@ public class UserSubscription extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private SubscriptionStatus status;
+    private SubscriptionStatus status = SubscriptionStatus.PENDING;
 
-    // Current usage counters
+    // Current usage counters (reset monthly)
+    @Column(nullable = false)
     private Integer currentCvCount = 0;
+
+    @Column(nullable = false)
     private Integer currentApiCount = 0;
+
+    @Column(name = "usage_reset_date")
+    private LocalDateTime usageResetDate;
 
     // Applied promo code (optional)
     @ManyToOne(fetch = FetchType.LAZY)
@@ -45,34 +52,68 @@ public class UserSubscription extends BaseEntity {
 
     private String paymentTransactionId;
 
-    public enum SubscriptionStatus {
-        ACTIVE, EXPIRED, CANCELLED, PENDING
-    }
-
+    /**
+     * Check if subscription is currently active and not expired
+     */
     public boolean isActive() {
         return status == SubscriptionStatus.ACTIVE
                 && LocalDateTime.now().isBefore(endDate);
     }
 
+    /**
+     * Check if user can generate more CVs within their limit
+     */
     public boolean canUseCv() {
-        return isActive() && (plan.getCvLimit() == null || currentCvCount < plan.getCvLimit());
+        if (!isActive()) {
+            return false;
+        }
+        resetUsageIfNewMonth();
+        return plan.getCvLimit() == null || currentCvCount < plan.getCvLimit();
     }
 
+    /**
+     * Check if user can make more API calls within their limit
+     */
     public boolean canUseApi() {
-        return isActive() && (plan.getApiLimit() == null || currentApiCount < plan.getApiLimit());
+        if (!isActive()) {
+            return false;
+        }
+        resetUsageIfNewMonth();
+        return plan.getApiLimit() == null || currentApiCount < plan.getApiLimit();
     }
 
+    /**
+     * Increment CV usage counter
+     */
     public void incrementCvCount() {
+        resetUsageIfNewMonth();
         if (currentCvCount == null) {
             currentCvCount = 0;
         }
         currentCvCount++;
     }
 
+    /**
+     * Increment API usage counter
+     */
     public void incrementApiCount() {
+        resetUsageIfNewMonth();
         if (currentApiCount == null) {
             currentApiCount = 0;
         }
         currentApiCount++;
+    }
+
+    /**
+     * Reset usage counters if it's a new month
+     */
+    private void resetUsageIfNewMonth() {
+        LocalDateTime now = LocalDateTime.now();
+        if (usageResetDate == null || now.isAfter(usageResetDate)) {
+            currentCvCount = 0;
+            currentApiCount = 0;
+            // Set reset date to first day of next month
+            usageResetDate = now.plusMonths(1).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+        }
     }
 }

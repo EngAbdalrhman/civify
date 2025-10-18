@@ -1,6 +1,7 @@
 package com.app.civify.service.subscription;
 
 import com.app.civify.entity.UserSubscription;
+import com.app.civify.entity.enums.SubscriptionStatus;
 import com.app.civify.repository.UserSubscriptionRepository;
 import com.app.civify.util.EmailService;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Service to handle subscription lifecycle events automatically
+ * - Expire subscriptions when end date passes
+ * - Cancel overdue pending payments (7 days grace period)
+ * - Send payment and renewal reminders
+ * - Auto-reactivate free plan when paid subscription expires
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -33,14 +41,14 @@ public class SubscriptionLifecycleService {
 
         LocalDateTime now = LocalDateTime.now();
         List<UserSubscription> expiredSubscriptions = subscriptionRepository
-                .findByStatusAndEndDateBefore(UserSubscription.SubscriptionStatus.ACTIVE, now);
+                .findByStatusAndEndDateBefore(SubscriptionStatus.ACTIVE, now);
 
         for (UserSubscription subscription : expiredSubscriptions) {
             try {
-                cancelExpiredSubscription(subscription);
-                log.info("Cancelled expired subscription for user {}", subscription.getUser().getId());
+                expireSubscription(subscription);
+                log.info("Expired subscription {} for user {}", subscription.getId(), subscription.getUser().getId());
             } catch (Exception e) {
-                log.error("Error cancelling subscription {}: {}", subscription.getId(), e.getMessage());
+                log.error("Error expiring subscription {}: {}", subscription.getId(), e.getMessage(), e);
             }
         }
 
@@ -58,7 +66,7 @@ public class SubscriptionLifecycleService {
 
         LocalDateTime oneWeekAgo = LocalDateTime.now().minusDays(7);
         List<UserSubscription> overdueSubscriptions = subscriptionRepository
-                .findByStatusAndEndDateBefore(UserSubscription.SubscriptionStatus.PENDING, oneWeekAgo);
+                .findByStatusAndStartDateBefore(SubscriptionStatus.PENDING, oneWeekAgo);
 
         for (UserSubscription subscription : overdueSubscriptions) {
             try {
@@ -82,8 +90,11 @@ public class SubscriptionLifecycleService {
         log.info("Starting payment reminder processing");
 
         LocalDateTime threeDaysAgo = LocalDateTime.now().minusDays(3);
+        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+
+        // Find pending subscriptions between 3-7 days old (not yet overdue)
         List<UserSubscription> pendingSubscriptions = subscriptionRepository
-                .findByStatusAndStartDateBefore(UserSubscription.SubscriptionStatus.PENDING, threeDaysAgo);
+                .findByStatusAndStartDateBetween(SubscriptionStatus.PENDING, sevenDaysAgo, threeDaysAgo);
 
         for (UserSubscription subscription : pendingSubscriptions) {
             try {
@@ -99,94 +110,137 @@ public class SubscriptionLifecycleService {
     }
 
     /**
-     * Runs daily at 4 AM to send renewal reminders
+     * Runs daily at 5 AM to send renewal reminders
+     * Reminds users whose subscriptions are expiring in 3 days
      */
-    @Scheduled(cron = "0 0 4 * * ?")
+    @Scheduled(cron = "0 0 5 * * ?")
+    @Transactional
     public void sendRenewalReminders() {
         log.info("Starting renewal reminder processing");
 
-        LocalDateTime threeDaysFromNow = LocalDateTime.now().plusDays(3);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime threeDaysFromNow = now.plusDays(3);
+
         List<UserSubscription> subscriptionsNeedingReminder = subscriptionRepository
-                .findByStatusAndEndDateBetween(UserSubscription.SubscriptionStatus.ACTIVE,
-                        LocalDateTime.now(), threeDaysFromNow);
+                .findByStatusAndEndDateBetween(SubscriptionStatus.ACTIVE, now, threeDaysFromNow);
 
         for (UserSubscription subscription : subscriptionsNeedingReminder) {
             try {
-                sendRenewalReminder(subscription);
-                log.info("Sent renewal reminder for user {}", subscription.getUser().getId());
+                // Don't send reminders for free plan (it never expires)
+                if (!"free".equalsIgnoreCase(subscription.getPlan().getName())) {
+                    sendRenewalReminder(subscription);
+                    log.info("Sent renewal reminder for user {}", subscription.getUser().getId());
+                }
             } catch (Exception e) {
                 log.error("Error sending renewal reminder for subscription {}: {}",
-                        subscription.getId(), e.getMessage());
+                        subscription.getId(), e.getMessage(), e);
             }
         }
 
         log.info("Sent renewal reminders for {} subscriptions", subscriptionsNeedingReminder.size());
     }
 
-    private void cancelExpiredSubscription(UserSubscription subscription) {
-        subscription.setStatus(UserSubscription.SubscriptionStatus.EXPIRED);
+    /**
+     * Expire an active subscription and reactivate free plan
+     */
+    private void expireSubscription(UserSubscription subscription) {
+        subscription.setStatus(SubscriptionStatus.EXPIRED);
         subscriptionRepository.save(subscription);
 
-        // Downgrade user to free plan (ROLE_USER)
-        downgradeUserToFreePlan(subscription.getUser().getId());
+        // Reactivate free plan (Option A flow)
+        subscriptionService.reactivateFreePlan(subscription.getUser().getId());
+
+        // Send expiration notification
+        try {
+            sendExpirationNotification(subscription);
+        } catch (Exception e) {
+            log.error("Failed to send expiration notification: {}", e.getMessage());
+        }
     }
 
+    /**
+     * Cancel an overdue pending subscription
+     */
     private void cancelOverdueSubscription(UserSubscription subscription) {
-        subscription.setStatus(UserSubscription.SubscriptionStatus.CANCELLED);
+        subscription.setStatus(SubscriptionStatus.CANCELLED);
         subscriptionRepository.save(subscription);
 
-        // Downgrade user to free plan (ROLE_USER)
-        downgradeUserToFreePlan(subscription.getUser().getId());
+        // Send cancellation notification
+        try {
+            String subject = "Subscription Request Cancelled";
+            String body = String.format(
+                    "Dear %s,\n\n"
+                    + "Your subscription request for %s plan has been cancelled due to non-payment.\n"
+                    + "You can create a new subscription request anytime from your account.\n\n"
+                    + "Best regards,\n"
+                    + "Civify Team",
+                    subscription.getUser().getUsername(),
+                    subscription.getPlan().getName()
+            );
+
+            emailService.sendEmail(subscription.getUser().getEmail(), subject, body);
+        } catch (Exception e) {
+            log.error("Failed to send cancellation notification: {}", e.getMessage());
+        }
     }
 
+    /**
+     * Send renewal reminder email
+     */
     private void sendRenewalReminder(UserSubscription subscription) {
-        try {
-            String subject = "Subscription Renewal Reminder";
-            String body = String.format(
-                    "Dear %s,\n\n"
-                    + "Your subscription to %s plan is expiring on %s.\n"
-                    + "Please renew your subscription to continue enjoying premium features.\n\n"
-                    + "Best regards,\n"
-                    + "Civify Team",
-                    subscription.getUser().getUsername(),
-                    subscription.getPlan().getName(),
-                    subscription.getEndDate()
-            );
+        String subject = "Subscription Renewal Reminder";
+        String body = String.format(
+                "Dear %s,\n\n"
+                + "Your subscription to %s plan is expiring on %s.\n"
+                + "To continue enjoying premium features, please renew your subscription before it expires.\n\n"
+                + "If your subscription expires, you will automatically be moved to the free plan.\n\n"
+                + "Best regards,\n"
+                + "Civify Team",
+                subscription.getUser().getUsername(),
+                subscription.getPlan().getName(),
+                subscription.getEndDate().toLocalDate()
+        );
 
-            emailService.sendEmail(subscription.getUser().getEmail(), subject, body);
-            log.info("Renewal reminder sent to user {} for plan {}",
-                    subscription.getUser().getId(), subscription.getPlan().getName());
-        } catch (Exception e) {
-            log.error("Failed to send renewal reminder to user {}: {}",
-                    subscription.getUser().getId(), e.getMessage());
-        }
+        emailService.sendEmail(subscription.getUser().getEmail(), subject, body);
     }
 
+    /**
+     * Send payment reminder email
+     */
     private void sendPaymentReminder(UserSubscription subscription) {
-        try {
-            String subject = "Payment Reminder - Complete Your Subscription";
-            String body = String.format(
-                    "Dear %s,\n\n"
-                    + "You have a pending subscription to %s plan that was created on %s.\n"
-                    + "Please complete your payment to activate your subscription and start enjoying premium features.\n\n"
-                    + "If you have any questions, please contact our support team.\n\n"
-                    + "Best regards,\n"
-                    + "Civify Team",
-                    subscription.getUser().getUsername(),
-                    subscription.getPlan().getName(),
-                    subscription.getStartDate().toLocalDate()
-            );
+        String subject = "Payment Reminder - Complete Your Subscription";
+        String body = String.format(
+                "Dear %s,\n\n"
+                + "You have a pending subscription to %s plan that was created on %s.\n"
+                + "Please complete your payment to activate your subscription and start enjoying premium features.\n\n"
+                + "If payment is not completed within 7 days, your subscription request will be automatically cancelled.\n\n"
+                + "If you have any questions, please contact our support team.\n\n"
+                + "Best regards,\n"
+                + "Civify Team",
+                subscription.getUser().getUsername(),
+                subscription.getPlan().getName(),
+                subscription.getStartDate().toLocalDate()
+        );
 
-            emailService.sendEmail(subscription.getUser().getEmail(), subject, body);
-            log.info("Payment reminder sent to user {} for plan {}",
-                    subscription.getUser().getId(), subscription.getPlan().getName());
-        } catch (Exception e) {
-            log.error("Failed to send payment reminder to user {}: {}",
-                    subscription.getUser().getId(), e.getMessage());
-        }
+        emailService.sendEmail(subscription.getUser().getEmail(), subject, body);
     }
 
-    private void downgradeUserToFreePlan(Long userId) {
-        subscriptionService.downgradeUserToFreePlan(userId);
+    /**
+     * Send subscription expiration notification
+     */
+    private void sendExpirationNotification(UserSubscription subscription) {
+        String subject = "Subscription Expired";
+        String body = String.format(
+                "Dear %s,\n\n"
+                + "Your subscription to %s plan has expired.\n"
+                + "You have been automatically moved to the free plan.\n\n"
+                + "To continue enjoying premium features, please renew your subscription from your account.\n\n"
+                + "Best regards,\n"
+                + "Civify Team",
+                subscription.getUser().getUsername(),
+                subscription.getPlan().getName()
+        );
+
+        emailService.sendEmail(subscription.getUser().getEmail(), subject, body);
     }
 }

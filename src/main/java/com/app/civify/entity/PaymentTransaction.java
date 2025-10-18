@@ -1,9 +1,11 @@
 package com.app.civify.entity;
 
+import com.app.civify.entity.enums.PaymentStatus;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -22,13 +24,20 @@ public class PaymentTransaction extends BaseEntity {
 
     private String paymentKey;
 
-    private String status;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private PaymentStatus status = PaymentStatus.PENDING;
 
-    private double amount;
+    @Column(nullable = false)
+    private BigDecimal amount;
+
+    @Column(nullable = false)
+    private String currency;
 
     private LocalDateTime completedAt;
 
     // Gateway information for multi-gateway support
+    @Column(nullable = false)
     private String gateway;
 
     // Additional metadata (JSONB for PostgreSQL)

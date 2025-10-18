@@ -1,5 +1,6 @@
 package com.app.civify.entity;
 
+import com.app.civify.entity.enums.DiscountType;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -36,10 +37,6 @@ public class PromoCode extends BaseEntity {
 
     @Column(nullable = false)
     private Boolean active = true;
-
-    public enum DiscountType {
-        PERCENTAGE, FIXED_AMOUNT
-    }
 
     public boolean isValid() {
         return active
