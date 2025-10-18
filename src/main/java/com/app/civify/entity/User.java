@@ -88,6 +88,10 @@ public class User extends BaseEntity {
     @Column(length = 50, nullable = false)
     private String plan = "free"; // free/premium/enterprise/lifetime
 
+    // Watermark setting based on subscription
+    @Column(nullable = false)
+    private Boolean watermark = true; // true = show watermark, false = no watermark
+
     // OAuth fields
     @Column(name = "oauth_provider")
     private String oauthProvider;

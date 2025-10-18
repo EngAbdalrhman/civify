@@ -74,11 +74,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         if (promoCode != null && !promoCode.isEmpty()) {
             PromoCode promo = promoCodeRepository.findByCodeAndActiveTrue(promoCode)
                     .orElseThrow(() -> new BadRequestException("Invalid or expired promo code"));
-            
+
             if (!promo.isValid()) {
                 throw new BadRequestException("Promo code is not valid");
             }
-            
+
             subscription.setPromoCode(promo);
         }
 
@@ -142,20 +142,25 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     @Override
     public boolean canUserUseFeature(Long userId, String feature) {
         Optional<UserSubscription> subscription = getActiveSubscription(userId);
-        
+
         if (subscription.isEmpty()) {
             return false;
         }
 
         UserSubscription sub = subscription.get();
         SubscriptionPlan plan = sub.getPlan();
-        
+
         return switch (feature.toUpperCase()) {
-            case "CV" -> sub.canUseCv();
-            case "API" -> sub.canUseApi();
-            case "WATERMARK" -> !Boolean.TRUE.equals(plan.getWatermark()); // false watermark = no watermark
-            case "DASHBOARD" -> Boolean.TRUE.equals(plan.getDashboard());
-            default -> false;
+            case "CV" ->
+                sub.canUseCv();
+            case "API" ->
+                sub.canUseApi();
+            case "WATERMARK" ->
+                !Boolean.TRUE.equals(plan.getWatermark()); // false watermark = no watermark
+            case "DASHBOARD" ->
+                Boolean.TRUE.equals(plan.getDashboard());
+            default ->
+                false;
         };
     }
 
@@ -163,13 +168,13 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     @Transactional
     public void incrementUsage(Long userId, String feature) {
         Optional<UserSubscription> subscription = getActiveSubscription(userId);
-        
+
         if (subscription.isEmpty()) {
             throw new BadRequestException("No active subscription found");
         }
 
         UserSubscription sub = subscription.get();
-        
+
         switch (feature.toUpperCase()) {
             case "CV" -> {
                 if (!sub.canUseCv()) {
@@ -183,7 +188,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 }
                 sub.incrementApiCount();
             }
-            default -> throw new BadRequestException("Unknown feature: " + feature);
+            default ->
+                throw new BadRequestException("Unknown feature: " + feature);
         }
 
         subscriptionRepository.save(sub);
@@ -205,16 +211,19 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         // Update user based on plan's dashboard feature
         User user = subscription.getUser();
         SubscriptionPlan plan = subscription.getPlan();
-        
+
         // Only upgrade to licensed if plan has dashboard access
         if (plan.grantsLicensedStatus()) {
             user.setIsLicensed(true);
             user.setRole(Role.ROLE_LICENSED_USER);
+        } else {
+            // Keep user as ROLE_USER but with upgraded limits
+            user.setRole(Role.ROLE_USER);
         }
-        
+
         // Update user's plan name
         user.setPlan(plan.getName().toLowerCase());
-        
+
         // Update limits based on plan
         if (plan.getCvLimit() != null) {
             user.setUiCvLimit(plan.getCvLimit());
@@ -222,10 +231,13 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         if (plan.getApiLimit() != null) {
             user.setApiRateLimit(plan.getApiLimit());
         }
-        
+
+        // Update watermark setting based on plan
+        user.setWatermark(plan.getWatermark());
+
         userRepository.save(user);
 
-        log.info("Subscription activated successfully for user {}", user.getId());
+        log.info("Subscription activated successfully for user {} with plan {}", user.getId(), plan.getName());
     }
 
     @Override
@@ -256,7 +268,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         // Extend end date
         subscription.setEndDate(calculateEndDate(isAnnual));
         subscription.setStatus(UserSubscription.SubscriptionStatus.ACTIVE);
-        
+
         // Reset usage counters
         subscription.setCurrentCvCount(0);
         subscription.setCurrentApiCount(0);
@@ -266,6 +278,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         log.info("Subscription renewed successfully");
     }
 
+    @Override
     @Transactional
     public void downgradeUserToFreePlan(Long userId) {
         log.info("Downgrading user {} to free plan", userId);
@@ -278,14 +291,15 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         user.setPlan("free");
         user.setUiCvLimit(5); // Free plan default
         user.setApiRateLimit(500); // Free plan default
+        user.setWatermark(true); // Free plan has watermark
         userRepository.save(user);
 
         log.info("User {} downgraded to free plan successfully", userId);
     }
 
     private LocalDateTime calculateEndDate(boolean isAnnual) {
-        return isAnnual 
-                ? LocalDateTime.now().plusYears(1) 
+        return isAnnual
+                ? LocalDateTime.now().plusYears(1)
                 : LocalDateTime.now().plusMonths(1);
     }
 }

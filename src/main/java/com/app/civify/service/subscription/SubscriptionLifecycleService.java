@@ -49,6 +49,7 @@ public class SubscriptionLifecycleService {
 
     /**
      * Runs daily at 3 AM to check for subscriptions with overdue payments
+     * Cancels subscriptions that haven't been paid within 7 days of creation
      */
     @Scheduled(cron = "0 0 3 * * ?")
     @Transactional
@@ -69,6 +70,32 @@ public class SubscriptionLifecycleService {
         }
 
         log.info("Processed {} overdue subscriptions", overdueSubscriptions.size());
+    }
+
+    /**
+     * Runs daily at 4 AM to check for subscriptions that need payment reminders
+     * Sends reminders for pending subscriptions older than 3 days
+     */
+    @Scheduled(cron = "0 0 4 * * ?")
+    @Transactional
+    public void processPaymentReminders() {
+        log.info("Starting payment reminder processing");
+
+        LocalDateTime threeDaysAgo = LocalDateTime.now().minusDays(3);
+        List<UserSubscription> pendingSubscriptions = subscriptionRepository
+                .findByStatusAndStartDateBefore(UserSubscription.SubscriptionStatus.PENDING, threeDaysAgo);
+
+        for (UserSubscription subscription : pendingSubscriptions) {
+            try {
+                sendPaymentReminder(subscription);
+                log.info("Sent payment reminder for user {}", subscription.getUser().getId());
+            } catch (Exception e) {
+                log.error("Error sending payment reminder for subscription {}: {}",
+                        subscription.getId(), e.getMessage());
+            }
+        }
+
+        log.info("Sent payment reminders for {} subscriptions", pendingSubscriptions.size());
     }
 
     /**
@@ -116,21 +143,45 @@ public class SubscriptionLifecycleService {
         try {
             String subject = "Subscription Renewal Reminder";
             String body = String.format(
-                    "Dear %s,\n\n" +
-                    "Your subscription to %s plan is expiring on %s.\n" +
-                    "Please renew your subscription to continue enjoying premium features.\n\n" +
-                    "Best regards,\n" +
-                    "Civify Team",
+                    "Dear %s,\n\n"
+                    + "Your subscription to %s plan is expiring on %s.\n"
+                    + "Please renew your subscription to continue enjoying premium features.\n\n"
+                    + "Best regards,\n"
+                    + "Civify Team",
                     subscription.getUser().getUsername(),
                     subscription.getPlan().getName(),
                     subscription.getEndDate()
             );
-            
+
             emailService.sendEmail(subscription.getUser().getEmail(), subject, body);
             log.info("Renewal reminder sent to user {} for plan {}",
                     subscription.getUser().getId(), subscription.getPlan().getName());
         } catch (Exception e) {
             log.error("Failed to send renewal reminder to user {}: {}",
+                    subscription.getUser().getId(), e.getMessage());
+        }
+    }
+
+    private void sendPaymentReminder(UserSubscription subscription) {
+        try {
+            String subject = "Payment Reminder - Complete Your Subscription";
+            String body = String.format(
+                    "Dear %s,\n\n"
+                    + "You have a pending subscription to %s plan that was created on %s.\n"
+                    + "Please complete your payment to activate your subscription and start enjoying premium features.\n\n"
+                    + "If you have any questions, please contact our support team.\n\n"
+                    + "Best regards,\n"
+                    + "Civify Team",
+                    subscription.getUser().getUsername(),
+                    subscription.getPlan().getName(),
+                    subscription.getStartDate().toLocalDate()
+            );
+
+            emailService.sendEmail(subscription.getUser().getEmail(), subject, body);
+            log.info("Payment reminder sent to user {} for plan {}",
+                    subscription.getUser().getId(), subscription.getPlan().getName());
+        } catch (Exception e) {
+            log.error("Failed to send payment reminder to user {}: {}",
                     subscription.getUser().getId(), e.getMessage());
         }
     }
