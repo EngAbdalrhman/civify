@@ -31,7 +31,7 @@ public class PaymentTransaction extends BaseEntity {
     // Gateway information for multi-gateway support
     private String gateway;
 
-    // Additional metadata (JSON string)
-    @Column(length = 2000)
+    // Additional metadata (JSONB for PostgreSQL)
+    @Column(columnDefinition = "jsonb")
     private String metadata;
 }
