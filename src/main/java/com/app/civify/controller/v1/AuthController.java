@@ -5,21 +5,23 @@ import com.app.civify.dto.auth.AuthResponse;
 import com.app.civify.service.auth.AuthService;
 import com.app.civify.service.auth.EmailVerificationService;
 import com.app.civify.util.ApiResponse;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import lombok.extern.slf4j.Slf4j;
+
 /**
- * Auth controller with complete flows:
- * - Registration with email verification
- * - Login with optional 2FA
- * - OAuth2 integration
- * - Token refresh and logout
+ * Auth controller with complete flows: - Registration with email verification -
+ * Login with optional 2FA - OAuth2 integration - Token refresh and logout
  */
 @RestController
 @ApiV1Controller
 @RequestMapping("/auth")
 @RequiredArgsConstructor
+@Slf4j
 public class AuthController {
 
     private final AuthService authService;
@@ -30,7 +32,10 @@ public class AuthController {
      */
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@RequestBody AuthRequest request) {
-        return ResponseEntity.ok(authService.register(request));
+        log.info("Processing user registration request for email: {}", request.getEmail());
+        AuthResponse response = authService.register(request);
+        log.info("User registration completed successfully for email: {}", request.getEmail());
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -57,7 +62,9 @@ public class AuthController {
      */
     @PostMapping("/resend-verification")
     public ResponseEntity<ApiResponse> resendVerification(@RequestParam("email") String email) {
+        log.info("Processing resend verification email request for email: {}", email);
         emailVerificationService.resendVerificationEmail(email);
+        log.info("Verification email resent successfully for email: {}", email);
         return ResponseEntity.ok(ApiResponse.success(
                 "Verification email sent! Please check your inbox.",
                 null

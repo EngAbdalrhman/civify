@@ -67,6 +67,7 @@ public class SecurityConfig {
                 .oauth2Login(oauth2 -> oauth2
                 .userInfoEndpoint(userInfo -> userInfo.userService(oAuth2UserService))
                 .successHandler(oAuth2SuccessHandler)
+                .failureUrl("/apis/v1/auth/login?error=oauth_failed")
                 );
 
         return http.build();
