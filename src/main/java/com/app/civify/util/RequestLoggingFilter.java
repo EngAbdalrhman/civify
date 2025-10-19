@@ -39,10 +39,14 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         String fullUri = uri + (queryString != null ? "?" + queryString : "");
         String remoteAddr = request.getRemoteAddr();
         String userAgent = request.getHeader("User-Agent");
+        String requestId = java.util.UUID.randomUUID().toString();
+
+        // Add request ID to response header for tracking
+        response.setHeader("X-Request-ID", requestId);
 
         // Log incoming request with structured format for ELK
-        log.info("REQUEST_START | method={} | uri={} | remoteAddr={} | userAgent={} | timestamp={}",
-                method, fullUri, remoteAddr, userAgent, LocalDateTime.now());
+        log.info("REQUEST_START | requestId={} | method={} | uri={} | remoteAddr={} | userAgent={} | timestamp={}",
+                requestId, method, fullUri, remoteAddr, userAgent, LocalDateTime.now());
 
         // Get current user if authenticated
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -84,8 +88,8 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             boolean isSuccess = status >= 200 && status < 400;
 
             // Log response with structured format for ELK
-            log.info("REQUEST_END | method={} | uri={} | status={} | duration={}ms | success={} | timestamp={}",
-                    method, fullUri, status, duration, isSuccess, LocalDateTime.now());
+            log.info("REQUEST_END | requestId={} | method={} | uri={} | status={} | duration={}ms | success={} | timestamp={}",
+                    requestId, method, fullUri, status, duration, isSuccess, LocalDateTime.now());
 
             // Create API usage log entry for authenticated requests
             if (user != null && !isExcludedEndpoint(uri)) {

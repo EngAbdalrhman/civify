@@ -53,11 +53,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ResponseEntity<ApiResponse<Void>> handleException(Exception ex, WebRequest request) {
-        // Log the exception
-        logger.error("Unexpected exception occurred: {}", ex.getMessage(), ex);
+        String requestId = request.getHeader("X-Request-ID");
+        if (requestId == null) {
+            requestId = "unknown";
+        }
+
+        // Log the exception with request ID for ELK correlation
+        logger.error("UNEXPECTED_EXCEPTION | requestId={} | message={} | stackTrace={}",
+                requestId, ex.getMessage(), ex);
 
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("X-Request-ID", requestId)
                 .body(ApiResponse.error("An unexpected error occurred: " + ex.getMessage()));
     }
 
@@ -69,11 +76,17 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(EntityNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ResponseEntity<ApiResponse<Void>> handleEntityNotFoundException(EntityNotFoundException ex) {
-        logger.warn("Entity not found: {}", ex.getMessage());
+    public ResponseEntity<ApiResponse<Void>> handleEntityNotFoundException(EntityNotFoundException ex, WebRequest request) {
+        String requestId = request.getHeader("X-Request-ID");
+        if (requestId == null) {
+            requestId = "unknown";
+        }
+
+        logger.warn("ENTITY_NOT_FOUND | requestId={} | message={}", requestId, ex.getMessage());
 
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
+                .header("X-Request-ID", requestId)
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
