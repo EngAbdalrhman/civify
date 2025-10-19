@@ -1,6 +1,7 @@
 package com.app.civify.service.auth;
 
 import com.app.civify.entity.User;
+import com.app.civify.exception.BadRequestException;
 import com.app.civify.repository.UserRepository;
 import com.app.civify.service.subscription.SubscriptionService;
 import com.app.civify.util.EmailService;
@@ -39,7 +40,7 @@ public class EmailVerificationService {
     public void sendVerificationEmail(User user) {
         // Generate verification token
         String token = UUID.randomUUID().toString();
-        
+
         // Store in Redis with 24h expiration
         long hoursToExpire = tokenExpiration / (60 * 60 * 1000);
         redis.opsForValue().set(getVerificationKey(token), user.getEmail(), Duration.ofHours(hoursToExpire));
@@ -81,7 +82,7 @@ public class EmailVerificationService {
 
         // Find user by email
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found for email: " + email));
+                .orElseThrow(() -> new BadRequestException("User not found for email: " + email));
 
         if (user.getIsEmailVerified()) {
             log.info("Email already verified for user: {}", user.getUsername());
@@ -108,10 +109,10 @@ public class EmailVerificationService {
      */
     public void resendVerificationEmail(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new BadRequestException("User not found"));
 
         if (user.getIsEmailVerified()) {
-            throw new RuntimeException("Email is already verified");
+            throw new BadRequestException("Email is already verified");
         }
 
         sendVerificationEmail(user);

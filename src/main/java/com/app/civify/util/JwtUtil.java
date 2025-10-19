@@ -13,17 +13,20 @@ import java.util.Date;
 import java.util.function.Function;
 
 /**
- * Simplified JWT utility for token generation and validation
- * Single responsibility: Handle JWT access tokens only
+ * Simplified JWT utility for token generation and validation Single
+ * responsibility: Handle JWT access tokens only
  */
 @Component
 public class JwtUtil {
 
-    @Value("${jwt.secret}")
-    private String secret;
+    private final String secret;
+    private final long accessTokenExpiration;
 
-    @Value("${jwt.access-token-expiration:604800000}") // 7 days default
-    private long accessTokenExpiration;
+    public JwtUtil(@Value("${jwt.secret}") String secret,
+            @Value("${jwt.access-token-expiration:604800000}") long accessTokenExpiration) {
+        this.secret = secret;
+        this.accessTokenExpiration = accessTokenExpiration;
+    }
 
     private Key getSigningKey() {
         byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
@@ -31,8 +34,8 @@ public class JwtUtil {
     }
 
     /**
-     * Generate JWT access token with all user claims
-     * Single method - no overloading!
+     * Generate JWT access token with all user claims Single method - no
+     * overloading!
      */
     public String generateToken(User user) {
         return Jwts.builder()
