@@ -57,7 +57,12 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .headers(h -> h.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'")))
                 .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/apis/auth/**").permitAll()
+                .requestMatchers("/apis/auth/**", "/apis/civify-docs-api/**", "/apis/civify-docs-ui/**").permitAll()
+                // Documentation endpoints
+                .requestMatchers("/civify-docs-ui", "/civify-docs-api", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                // Public API endpoints
+                .requestMatchers("/api/v1/images/**", "/api/v1/health/**").permitAll()
+                // Admin endpoints
                 .requestMatchers("/apis/v1/admin/**").hasAuthority("ROLE_ADMIN")
                 .anyRequest().authenticated()
                 )
