@@ -82,7 +82,7 @@ public class AuthController {
     /**
      * Verify 2FA OTP
      */
-    @PostMapping("/verify-2fa")
+    @PostMapping("/verify-otp")
     public ResponseEntity<AuthResponse> verify2FA(
             @RequestParam("username") String username,
             @RequestParam("code") String code) {
@@ -109,7 +109,7 @@ public class AuthController {
     /**
      * Enable 2FA for user
      */
-    @PostMapping("/2fa/enable")
+    @PostMapping("/enable-2fa")
     public ResponseEntity<ApiResponse> enable2FA(@RequestParam("username") String username) {
         authService.enable2fa(username);
         return ResponseEntity.ok(ApiResponse.success("2FA enabled successfully", null));
@@ -118,7 +118,7 @@ public class AuthController {
     /**
      * Disable 2FA for user
      */
-    @PostMapping("/2fa/disable")
+    @PostMapping("/disable-2fa")
     public ResponseEntity<ApiResponse> disable2FA(@RequestParam("username") String username) {
         authService.disable2fa(username);
         return ResponseEntity.ok(ApiResponse.success("2FA disabled successfully", null));

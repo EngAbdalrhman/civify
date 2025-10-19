@@ -58,13 +58,16 @@ public class SecurityConfig {
                 .headers(h -> h.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'")))
                 .authorizeHttpRequests(auth -> auth
                 // Authentication
-                .requestMatchers("/apis/auth/*").permitAll()
+                .requestMatchers("/auth", "/auth/**", "/auth/register", "/auth/verify-email",
+                        "/auth/resend-verification", "/auth/login", "/auth/verify-otp",
+                        "/auth/refresh", "/auth/logout", "/auth/enable-2fa",
+                        "/auth/disable-2fa").permitAll()
                 // Documentation endpoints
-                .requestMatchers("/civify-docs-ui", "/civify-docs-api", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                .requestMatchers("/civify-docs-ui", "/civify-docs-api", "/swagger-ui/**").permitAll()
                 // Public API endpoints
-                .requestMatchers("/api/v1/images/**", "/api/v1/health/**").permitAll()
+                .requestMatchers("/health").permitAll()
                 // Admin endpoints
-                .requestMatchers("/apis/v1/admin/**").hasAuthority("ROLE_ADMIN")
+                .requestMatchers("/v1/admin/**").hasAuthority("ROLE_ADMIN")
                 .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
