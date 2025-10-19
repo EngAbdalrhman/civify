@@ -3,8 +3,6 @@ package com.app.civify.exception;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -17,14 +15,14 @@ import org.springframework.web.context.request.WebRequest;
 import com.app.civify.util.ApiResponse;
 
 import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Global exception handler to ensure consistent error responses across the API
  */
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
-
-    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /**
      * Handle service exceptions
@@ -34,12 +32,19 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ServiceException.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public ResponseEntity<ApiResponse<Void>> handleServiceException(ServiceException ex) {
-        // Log the exception
-        logger.error("Service exception occurred: {}", ex.getMessage(), ex);
+    public ResponseEntity<ApiResponse<Void>> handleServiceException(ServiceException ex, WebRequest request) {
+        String requestId = request.getHeader("X-Request-ID");
+        if (requestId == null) {
+            requestId = "unknown";
+        }
+
+        // Log the exception with request ID for ELK correlation
+        log.error("SERVICE_EXCEPTION | requestId={} | message={} | stackTrace={}",
+                requestId, ex.getMessage(), ex);
 
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("X-Request-ID", requestId)
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
@@ -59,7 +64,7 @@ public class GlobalExceptionHandler {
         }
 
         // Log the exception with request ID for ELK correlation
-        logger.error("UNEXPECTED_EXCEPTION | requestId={} | message={} | stackTrace={}",
+        log.error("UNEXPECTED_EXCEPTION | requestId={} | message={} | stackTrace={}",
                 requestId, ex.getMessage(), ex);
 
         return ResponseEntity
@@ -82,7 +87,7 @@ public class GlobalExceptionHandler {
             requestId = "unknown";
         }
 
-        logger.warn("ENTITY_NOT_FOUND | requestId={} | message={}", requestId, ex.getMessage());
+        log.warn("ENTITY_NOT_FOUND | requestId={} | message={}", requestId, ex.getMessage());
 
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
@@ -99,7 +104,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ResponseEntity<ApiResponse<Void>> handleResourceNotFoundException(ResourceNotFoundException ex) {
-        logger.warn("Resource not found: {}", ex.getMessage());
+        log.warn("Resource not found: {}", ex.getMessage());
 
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
@@ -115,7 +120,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceAlreadyExistsException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ResponseEntity<ApiResponse<Void>> handleResourceAlreadyExistsException(ResourceAlreadyExistsException ex) {
-        logger.warn("Resource already exists: {}", ex.getMessage());
+        log.warn("Resource already exists: {}", ex.getMessage());
 
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
@@ -131,7 +136,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgumentException(IllegalArgumentException ex) {
-        logger.warn("Illegal argument: {}", ex.getMessage());
+        log.warn("Illegal argument: {}", ex.getMessage());
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
@@ -147,7 +152,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BadRequestException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ResponseEntity<ApiResponse<Void>> handleBadRequestException(BadRequestException ex) {
-        logger.warn("Bad request: {}", ex.getMessage());
+        log.warn("Bad request: {}", ex.getMessage());
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
@@ -162,11 +167,17 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(UnauthorizedException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
-    public ResponseEntity<ApiResponse<Void>> handleUnauthorizedException(UnauthorizedException ex) {
-        logger.warn("Unauthorized access: {}", ex.getMessage());
+    public ResponseEntity<ApiResponse<Void>> handleUnauthorizedException(UnauthorizedException ex, WebRequest request) {
+        String requestId = request.getHeader("X-Request-ID");
+        if (requestId == null) {
+            requestId = "unknown";
+        }
+
+        log.warn("UNAUTHORIZED_EXCEPTION | requestId={} | message={}", requestId, ex.getMessage());
 
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
+                .header("X-Request-ID", requestId)
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
@@ -187,7 +198,7 @@ public class GlobalExceptionHandler {
             errors.put(fieldName, errorMessage);
         });
 
-        logger.warn("Validation failed: {}", errors);
+        log.warn("Validation failed: {}", errors);
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
@@ -204,7 +215,7 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationException(
             ValidationException ex) {
-        logger.warn("Custom validation failed: {}", ex.getErrors());
+        log.warn("Custom validation failed: {}", ex.getErrors());
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
@@ -220,7 +231,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthorizationException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public ResponseEntity<ApiResponse<Void>> handleAuthorizationException(AuthorizationException ex) {
-        logger.warn("Authorization exception: {}", ex.getMessage());
+        log.warn("Authorization exception: {}", ex.getMessage());
 
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
@@ -236,7 +247,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(com.app.civify.exception.EntityNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ResponseEntity<ApiResponse<Void>> handleCustomEntityNotFoundException(com.app.civify.exception.EntityNotFoundException ex) {
-        logger.warn("Custom entity not found: {}", ex.getMessage());
+        log.warn("Custom entity not found: {}", ex.getMessage());
 
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
