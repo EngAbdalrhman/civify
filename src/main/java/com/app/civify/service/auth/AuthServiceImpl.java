@@ -15,10 +15,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Refactored auth service with proper flows:
- * - Register → Email verification required
- * - Login → Check email verification → Optional 2FA → Tokens
- * - OAuth2 → Auto-verified → Tokens
+ * Refactored auth service with proper flows: - Register → Email verification
+ * required - Login → Check email verification → Optional 2FA → Tokens - OAuth2
+ * → Auto-verified → Tokens
  */
 @Service
 @RequiredArgsConstructor
@@ -73,20 +72,40 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * Login with username/password
+     * Login with username/password or email/password
      */
     @Override
     @Transactional
     public AuthResponse login(AuthRequest req) {
-        log.info("Login attempt for user: {}", req.getUsername());
+        // Validate that either username or email is provided, but not both
+        if ((req.getUsername() == null || req.getUsername().trim().isEmpty())
+                && (req.getEmail() == null || req.getEmail().trim().isEmpty())) {
+            throw new BadRequestException("Either username or email must be provided");
+        }
 
-        // Authenticate credentials
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(req.getUsername(), req.getPassword())
-        );
+        if (req.getUsername() != null && !req.getUsername().trim().isEmpty()
+                && req.getEmail() != null && !req.getEmail().trim().isEmpty()) {
+            throw new BadRequestException("Provide either username OR email, not both");
+        }
 
-        User user = userRepository.findByUsername(req.getUsername())
-                .orElseThrow(() -> new BadRequestException("User not found"));
+        // Determine login identifier (username or email)
+        String loginIdentifier = req.getUsername() != null && !req.getUsername().trim().isEmpty()
+                ? req.getUsername()
+                : req.getEmail();
+
+        log.info("Login attempt for user: {}", loginIdentifier);
+
+        // Find user by username or email
+        User user = req.getUsername() != null && !req.getUsername().trim().isEmpty()
+                ? userRepository.findByUsername(req.getUsername())
+                        .orElseThrow(() -> new BadRequestException("Invalid username or password"))
+                : userRepository.findByEmail(req.getEmail())
+                        .orElseThrow(() -> new BadRequestException("Invalid email or password"));
+
+        // Verify password manually since we need to handle both username and email login
+        if (!passwordEncoder.matches(passwordEncoder.encode(req.getPassword()), user.getPassword())) {
+            throw new BadRequestException("Invalid username/email or password");
+        }
 
         // Check if email is verified
         if (!user.getIsEmailVerified()) {
