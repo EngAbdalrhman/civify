@@ -58,10 +58,7 @@ public class SecurityConfig {
                 .headers(h -> h.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'")))
                 .authorizeHttpRequests(auth -> auth
                 // Authentication
-                .requestMatchers("/auth", "/auth/**", "/auth/register", "/auth/verify-email",
-                        "/auth/resend-verification", "/auth/login", "/auth/verify-otp",
-                        "/auth/refresh", "/auth/logout", "/auth/enable-2fa",
-                        "/auth/disable-2fa").permitAll()
+                .requestMatchers("/auth", "/auth/**").permitAll()
                 // Documentation endpoints
                 .requestMatchers("/civify-docs-ui", "/civify-docs-api", "/swagger-ui/**").permitAll()
                 // Public API endpoints

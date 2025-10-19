@@ -15,22 +15,49 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+
 @RestController
 @ApiV1Controller
 @RequestMapping("/subscriptions")
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "Subscriptions", description = "Subscription management endpoints")
 public class SubscriptionController {
 
     private final SubscriptionService subscriptionService;
     private final UserService userService;
 
+    @Operation(
+            summary = "Get all subscription plans",
+            description = "Retrieves a list of all active subscription plans available to users."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Plans retrieved successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = SubscriptionPlan.class)))
+    })
     @GetMapping("/plans")
     public ResponseEntity<List<SubscriptionPlan>> getAllPlans() {
         List<SubscriptionPlan> plans = subscriptionService.getAllActivePlans();
         return ResponseEntity.ok(plans);
     }
 
+    @Operation(
+            summary = "Get subscription plan by ID",
+            description = "Retrieves a specific subscription plan by its ID."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Plan retrieved successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = SubscriptionPlan.class))),
+        @ApiResponse(responseCode = "404", description = "Plan not found",
+                content = @Content(mediaType = "application/json"))
+    })
     @GetMapping("/plans/{planId}")
     public ResponseEntity<SubscriptionPlan> getPlanById(@PathVariable Long planId) {
         return subscriptionService.getPlanById(planId)
@@ -38,6 +65,19 @@ public class SubscriptionController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @Operation(
+            summary = "Get my active subscription",
+            description = "Retrieves the current user's active subscription details.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Subscription retrieved successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserSubscription.class))),
+        @ApiResponse(responseCode = "401", description = "Unauthorized",
+                content = @Content(mediaType = "application/json")),
+        @ApiResponse(responseCode = "404", description = "No active subscription found",
+                content = @Content(mediaType = "application/json"))
+    })
     @GetMapping("/my-subscription")
     @PreAuthorize("hasAnyRole('USER', 'LICENSED_USER', 'ADMIN')")
     public ResponseEntity<UserSubscription> getMyActiveSubscription(Authentication authentication) {
@@ -47,6 +87,17 @@ public class SubscriptionController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @Operation(
+            summary = "Get my subscription history",
+            description = "Retrieves all subscriptions (past and present) for the current user.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Subscriptions retrieved successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserSubscription.class))),
+        @ApiResponse(responseCode = "401", description = "Unauthorized",
+                content = @Content(mediaType = "application/json"))
+    })
     @GetMapping("/my-subscriptions")
     @PreAuthorize("hasAnyRole('USER', 'LICENSED_USER', 'ADMIN')")
     public ResponseEntity<List<UserSubscription>> getMySubscriptions(Authentication authentication) {
@@ -55,13 +106,25 @@ public class SubscriptionController {
         return ResponseEntity.ok(subscriptions);
     }
 
-    
+    @Operation(
+            summary = "Cancel subscription",
+            description = "Cancels an active subscription. The subscription will remain active until the end of the current billing period.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Subscription cancelled successfully",
+                content = @Content(mediaType = "application/json")),
+        @ApiResponse(responseCode = "400", description = "Cancellation failed",
+                content = @Content(mediaType = "application/json")),
+        @ApiResponse(responseCode = "401", description = "Unauthorized",
+                content = @Content(mediaType = "application/json"))
+    })
     @PostMapping("/cancel/{subscriptionId}")
     @PreAuthorize("hasAnyRole('USER', 'LICENSED_USER', 'ADMIN')")
     public ResponseEntity<Map<String, String>> cancelSubscription(
             @PathVariable Long subscriptionId,
             Authentication authentication) {
-        
+
         try {
             subscriptionService.cancelSubscription(subscriptionId);
             return ResponseEntity.ok(Map.of(
@@ -75,13 +138,26 @@ public class SubscriptionController {
         }
     }
 
+    @Operation(
+            summary = "Renew subscription",
+            description = "Renews an existing subscription for another billing period.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Subscription renewed successfully",
+                content = @Content(mediaType = "application/json")),
+        @ApiResponse(responseCode = "400", description = "Renewal failed",
+                content = @Content(mediaType = "application/json")),
+        @ApiResponse(responseCode = "401", description = "Unauthorized",
+                content = @Content(mediaType = "application/json"))
+    })
     @PostMapping("/renew/{subscriptionId}")
     @PreAuthorize("hasAnyRole('USER', 'LICENSED_USER', 'ADMIN')")
     public ResponseEntity<Map<String, String>> renewSubscription(
             @PathVariable Long subscriptionId,
             @RequestParam(defaultValue = "false") boolean isAnnual,
             Authentication authentication) {
-        
+
         try {
             subscriptionService.renewSubscription(subscriptionId, isAnnual);
             return ResponseEntity.ok(Map.of(
@@ -95,16 +171,27 @@ public class SubscriptionController {
         }
     }
 
+    @Operation(
+            summary = "Check feature access",
+            description = "Checks if the current user can use a specific feature based on their subscription.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Feature access checked successfully",
+                content = @Content(mediaType = "application/json")),
+        @ApiResponse(responseCode = "401", description = "Unauthorized",
+                content = @Content(mediaType = "application/json"))
+    })
     @GetMapping("/can-use/{feature}")
     @PreAuthorize("hasAnyRole('USER', 'LICENSED_USER', 'ADMIN')")
     public ResponseEntity<Map<String, Object>> canUseFeature(
             @PathVariable String feature,
             Authentication authentication) {
-        
+
         try {
             Long userId = getUserIdFromAuthentication(authentication);
             boolean canUse = subscriptionService.canUserUseFeature(userId, feature);
-            
+
             return ResponseEntity.ok(Map.of(
                     "feature", feature,
                     "canUse", canUse
