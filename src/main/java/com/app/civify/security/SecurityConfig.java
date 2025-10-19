@@ -57,7 +57,8 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .headers(h -> h.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'")))
                 .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/apis/auth/**", "/apis/civify-docs-api/**", "/apis/civify-docs-ui/**").permitAll()
+                // Authentication
+                .requestMatchers("/apis/auth/*").permitAll()
                 // Documentation endpoints
                 .requestMatchers("/civify-docs-ui", "/civify-docs-api", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 // Public API endpoints
