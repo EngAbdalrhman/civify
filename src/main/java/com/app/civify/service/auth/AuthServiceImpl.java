@@ -8,8 +8,6 @@ import com.app.civify.repository.UserRepository;
 import com.app.civify.security.model.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +24,6 @@ public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final AuthenticationManager authenticationManager;
     private final TokenService tokenService;
     private final OtpService otpService;
     private final EmailVerificationService emailVerificationService;
@@ -103,13 +100,13 @@ public class AuthServiceImpl implements AuthService {
                         .orElseThrow(() -> new BadRequestException("Invalid email or password"));
 
         // Verify password manually since we need to handle both username and email login
-        if (!passwordEncoder.matches(passwordEncoder.encode(req.getPassword()), user.getPassword())) {
+        if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
             throw new BadRequestException("Invalid username/email or password");
         }
 
         // Check if email is verified
         if (!user.getIsEmailVerified()) {
-            log.warn("Login attempt with unverified email: {}", req.getUsername());
+            log.warn("Login attempt with unverified email: {}", user.getUsername());
             throw new BadRequestException("Please verify your email before logging in. Check your inbox for verification link.");
         }
 
@@ -121,7 +118,7 @@ public class AuthServiceImpl implements AuthService {
         if (user.getTwoFactorEnabled()) {
             // Generate and send OTP
             otpService.generateAndSend(user.getUsername());
-            log.info("2FA OTP sent to user: {}", req.getUsername());
+            log.info("2FA OTP sent to user: {}", user.getUsername());
 
             return AuthResponse.builder()
                     .message("OTP sent to your email. Please verify to complete login.")

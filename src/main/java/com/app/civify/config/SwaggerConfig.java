@@ -38,10 +38,10 @@ public class SwaggerConfig {
                                 .url("https://www.apache.org/licenses/LICENSE-2.0")))
                 .servers(Arrays.asList(
                         new Server()
-                                .url("http://localhost:8080/api/v1")
+                                .url("http://localhost:8077/apis")
                                 .description("Development server"),
                         new Server()
-                                .url("https://cvupper.netlify.app/api/v1")
+                                .url("https://cvupper.netlify.app/apis")
                                 .description("Production server")))
                 .components(new Components()
                         .addSecuritySchemes("bearer-jwt", new SecurityScheme()
