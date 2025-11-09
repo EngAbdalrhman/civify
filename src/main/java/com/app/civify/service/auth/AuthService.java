@@ -11,7 +11,7 @@ public interface AuthService {
 
     AuthResponse refresh(String refreshToken);
 
-    void logout(String refreshToken);
+    void logout(String accessToken, String refreshToken);
 
     void enable2fa(String username);
 

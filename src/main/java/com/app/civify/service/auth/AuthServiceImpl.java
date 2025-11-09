@@ -194,11 +194,18 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * Logout - Revoke refresh token
+     * Logout - Blacklist access token and revoke refresh token
      */
     @Override
-    public void logout(String refreshToken) {
+    public void logout(String accessToken, String refreshToken) {
         log.info("Logging out user");
+
+        // Blacklist access token for immediate invalidation
+        if (accessToken != null && !accessToken.isEmpty()) {
+            tokenService.blacklistAccessToken(accessToken);
+        }
+
+        // Revoke refresh token
         tokenService.revokeRefreshToken(refreshToken);
     }
 

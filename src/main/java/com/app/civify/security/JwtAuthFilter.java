@@ -1,5 +1,6 @@
 package com.app.civify.security;
 
+import com.app.civify.service.auth.TokenService;
 import com.app.civify.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -16,10 +17,12 @@ import java.io.IOException;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
+    private final TokenService tokenService;
     private final CustomUserDetailsService userDetailsService;
 
-    public JwtAuthFilter(JwtUtil jwtUtil, CustomUserDetailsService userDetailsService) {
+    public JwtAuthFilter(JwtUtil jwtUtil, TokenService tokenService, CustomUserDetailsService userDetailsService) {
         this.jwtUtil = jwtUtil;
+        this.tokenService = tokenService;
         this.userDetailsService = userDetailsService;
     }
 
@@ -35,12 +38,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (token != null) {
             try {
                 String username = jwtUtil.extractUsername(token);
-                var userDetails = userDetailsService.loadUserByUsername(username);
-                var auth = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(auth);
+
+                // Validate token (includes blacklist check)
+                if (tokenService.validateAccessToken(token, username)) {
+                    var userDetails = userDetailsService.loadUserByUsername(username);
+                    var auth = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                    auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                }
             } catch (Exception ignored) {
-                // invalid/expired token - proceed without authentication
+                // invalid/expired/blacklisted token - proceed without authentication
             }
         }
 

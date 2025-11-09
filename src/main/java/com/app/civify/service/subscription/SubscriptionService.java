@@ -53,4 +53,44 @@ public interface SubscriptionService {
      * Create a default free subscription for new users
      */
     void createDefaultFreeSubscription(Long userId);
+
+    // ==================== ADMIN PLAN MANAGEMENT ====================
+
+    /**
+     * Create a new subscription plan (Admin only)
+     */
+    SubscriptionPlan createPlan(SubscriptionPlan plan);
+
+    /**
+     * Update an existing subscription plan (Admin only)
+     * Validates that changes don't break existing active subscriptions
+     */
+    SubscriptionPlan updatePlan(Long planId, SubscriptionPlan updatedPlan);
+
+    /**
+     * Activate a subscription plan (Admin only)
+     */
+    SubscriptionPlan activatePlan(Long planId);
+
+    /**
+     * Deactivate a subscription plan (Admin only)
+     * Does not affect existing active subscriptions
+     */
+    SubscriptionPlan deactivatePlan(Long planId);
+
+    /**
+     * Get all plans including inactive ones (Admin only)
+     */
+    List<SubscriptionPlan> getAllPlans();
+
+    /**
+     * Get count of active subscriptions for a specific plan
+     */
+    long getActiveSubscriptionCountForPlan(Long planId);
+
+    /**
+     * Soft delete a plan (Admin only)
+     * Only allowed if no active subscriptions exist
+     */
+    void deletePlan(Long planId);
 }

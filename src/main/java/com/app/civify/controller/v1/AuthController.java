@@ -98,11 +98,20 @@ public class AuthController {
     }
 
     /**
-     * Logout - revokes refresh token
+     * Logout - blacklists access token and revokes refresh token
      */
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse> logout(@RequestParam("refreshToken") String refreshToken) {
-        authService.logout(refreshToken);
+    public ResponseEntity<ApiResponse> logout(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestParam("refreshToken") String refreshToken) {
+
+        // Extract access token from Authorization header
+        String accessToken = null;
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            accessToken = authHeader.substring(7);
+        }
+
+        authService.logout(accessToken, refreshToken);
         return ResponseEntity.ok(ApiResponse.success("Logged out successfully", null));
     }
 

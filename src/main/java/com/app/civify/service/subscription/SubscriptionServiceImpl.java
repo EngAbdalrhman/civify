@@ -19,11 +19,10 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Subscription service implementation with Option A flow:
- * - User starts with free plan (never expires)
- * - When upgrading, free plan becomes inactive, paid plan becomes active
- * - When paid plan expires, free plan automatically reactivates
- * - Only ONE subscription is active at any time
+ * Subscription service implementation with Option A flow: - User starts with
+ * free plan (never expires) - When upgrading, free plan becomes inactive, paid
+ * plan becomes active - When paid plan expires, free plan automatically
+ * reactivates - Only ONE subscription is active at any time
  */
 @Service
 @RequiredArgsConstructor
@@ -199,11 +198,16 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         SubscriptionPlan plan = sub.getPlan();
 
         return switch (feature.toUpperCase()) {
-            case "CV" -> sub.canUseCv();
-            case "API" -> sub.canUseApi();
-            case "WATERMARK" -> !Boolean.TRUE.equals(plan.getWatermark()); // false = no watermark
-            case "DASHBOARD" -> Boolean.TRUE.equals(plan.getDashboard());
-            default -> false;
+            case "CV" ->
+                sub.canUseCv();
+            case "API" ->
+                sub.canUseApi();
+            case "WATERMARK" ->
+                !Boolean.TRUE.equals(plan.getWatermark()); // false = no watermark
+            case "DASHBOARD" ->
+                Boolean.TRUE.equals(plan.getDashboard());
+            default ->
+                false;
         };
     }
 
@@ -231,7 +235,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 }
                 sub.incrementApiCount();
             }
-            default -> throw new BadRequestException("Unknown feature: " + feature);
+            default ->
+                throw new BadRequestException("Unknown feature: " + feature);
         }
 
         subscriptionRepository.save(sub);
@@ -332,7 +337,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         // Get the free plan
         SubscriptionPlan freePlan = planRepository.findByName(FREE_PLAN_NAME)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Free plan not found. Please create a subscription plan named 'free' in the database."));
+                "Free plan not found. Please create a subscription plan named 'free' in the database."));
 
         // Create permanent free subscription (never expires)
         UserSubscription freeSubscription = new UserSubscription();
@@ -386,8 +391,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     }
 
     /**
-     * Calculate end date based on plan and billing cycle
-     * Free plans never expire (100 years)
+     * Calculate end date based on plan and billing cycle Free plans never
+     * expire (100 years)
      */
     private LocalDateTime calculateEndDate(SubscriptionPlan plan, boolean isAnnual) {
         if (FREE_PLAN_NAME.equalsIgnoreCase(plan.getName())) {
@@ -397,5 +402,214 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         return isAnnual
                 ? LocalDateTime.now().plusYears(1)
                 : LocalDateTime.now().plusMonths(1);
+    }
+
+    // ==================== ADMIN PLAN MANAGEMENT ====================
+    @Override
+    @Transactional
+    public SubscriptionPlan createPlan(SubscriptionPlan plan) {
+        log.info("Creating new subscription plan: {}", plan.getName());
+
+        // Validate plan name is unique
+        if (planRepository.findByName(plan.getName()).isPresent()) {
+            throw new BadRequestException("Plan with name '" + plan.getName() + "' already exists");
+        }
+
+        // Validate pricing
+        if (plan.getMonthlyPrice() != null && plan.getMonthlyPrice().compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Monthly price cannot be negative");
+        }
+        if (plan.getAnnualPrice() != null && plan.getAnnualPrice().compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Annual price cannot be negative");
+        }
+
+        // Set defaults
+        if (plan.getActive() == null) {
+            plan.setActive(true);
+        }
+        if (plan.getWatermark() == null) {
+            plan.setWatermark(true);
+        }
+        if (plan.getDashboard() == null) {
+            plan.setDashboard(false);
+        }
+
+        SubscriptionPlan saved = planRepository.save(plan);
+        log.info("Subscription plan created successfully with ID: {}", saved.getId());
+        return saved;
+    }
+
+    @Override
+    @Transactional
+    public SubscriptionPlan updatePlan(Long planId, SubscriptionPlan updatedPlan) {
+        log.info("Updating subscription plan: {}", planId);
+
+        SubscriptionPlan existingPlan = planRepository.findById(planId)
+                .orElseThrow(() -> new ResourceNotFoundException("Plan not found with ID: " + planId));
+
+        // Get count of active subscriptions for this plan
+        long activeSubscriptionCount = getActiveSubscriptionCountForPlan(planId);
+
+        // If there are active subscriptions, validate that critical features aren't being reduced
+        if (activeSubscriptionCount > 0) {
+            validatePlanUpdate(existingPlan, updatedPlan);
+        }
+
+        // Update allowed fields
+        if (updatedPlan.getName() != null && !updatedPlan.getName().equals(existingPlan.getName())) {
+            // Check if new name is unique
+            if (planRepository.findByName(updatedPlan.getName()).isPresent()) {
+                throw new BadRequestException("Plan with name '" + updatedPlan.getName() + "' already exists");
+            }
+            existingPlan.setName(updatedPlan.getName());
+        }
+
+        if (updatedPlan.getDescription() != null) {
+            existingPlan.setDescription(updatedPlan.getDescription());
+        }
+
+        if (updatedPlan.getDetails() != null) {
+            existingPlan.setDetails(updatedPlan.getDetails());
+        }
+
+        if (updatedPlan.getCvLimit() != null) {
+            existingPlan.setCvLimit(updatedPlan.getCvLimit());
+        }
+
+        if (updatedPlan.getApiLimit() != null) {
+            existingPlan.setApiLimit(updatedPlan.getApiLimit());
+        }
+
+        if (updatedPlan.getWatermark() != null) {
+            existingPlan.setWatermark(updatedPlan.getWatermark());
+        }
+
+        if (updatedPlan.getDashboard() != null) {
+            existingPlan.setDashboard(updatedPlan.getDashboard());
+        }
+
+        if (updatedPlan.getMonthlyPrice() != null) {
+            if (updatedPlan.getMonthlyPrice().compareTo(BigDecimal.ZERO) < 0) {
+                throw new BadRequestException("Monthly price cannot be negative");
+            }
+            existingPlan.setMonthlyPrice(updatedPlan.getMonthlyPrice());
+        }
+
+        if (updatedPlan.getAnnualPrice() != null) {
+            if (updatedPlan.getAnnualPrice().compareTo(BigDecimal.ZERO) < 0) {
+                throw new BadRequestException("Annual price cannot be negative");
+            }
+            existingPlan.setAnnualPrice(updatedPlan.getAnnualPrice());
+        }
+
+        SubscriptionPlan saved = planRepository.save(existingPlan);
+        log.info("Subscription plan updated successfully: {}", planId);
+        return saved;
+    }
+
+    @Override
+    @Transactional
+    public SubscriptionPlan activatePlan(Long planId) {
+        log.info("Activating subscription plan: {}", planId);
+
+        SubscriptionPlan plan = planRepository.findById(planId)
+                .orElseThrow(() -> new ResourceNotFoundException("Plan not found with ID: " + planId));
+
+        plan.setActive(true);
+        SubscriptionPlan saved = planRepository.save(plan);
+        log.info("Subscription plan activated successfully: {}", planId);
+        return saved;
+    }
+
+    @Override
+    @Transactional
+    public SubscriptionPlan deactivatePlan(Long planId) {
+        log.info("Deactivating subscription plan: {}", planId);
+
+        SubscriptionPlan plan = planRepository.findById(planId)
+                .orElseThrow(() -> new ResourceNotFoundException("Plan not found with ID: " + planId));
+
+        // Prevent deactivating the free plan
+        if (FREE_PLAN_NAME.equalsIgnoreCase(plan.getName())) {
+            throw new BadRequestException("Cannot deactivate the free plan");
+        }
+
+        plan.setActive(false);
+        SubscriptionPlan saved = planRepository.save(plan);
+        log.info("Subscription plan deactivated successfully: {}. Existing subscriptions remain active.", planId);
+        return saved;
+    }
+
+    @Override
+    public List<SubscriptionPlan> getAllPlans() {
+        return planRepository.findAll();
+    }
+
+    @Override
+    public long getActiveSubscriptionCountForPlan(Long planId) {
+        return subscriptionRepository.countActiveSubscriptionsByPlanId(planId);
+    }
+
+    @Override
+    @Transactional
+    public void deletePlan(Long planId) {
+        log.info("Deleting subscription plan: {}", planId);
+
+        SubscriptionPlan plan = planRepository.findById(planId)
+                .orElseThrow(() -> new ResourceNotFoundException("Plan not found with ID: " + planId));
+
+        // Prevent deleting the free plan
+        if (FREE_PLAN_NAME.equalsIgnoreCase(plan.getName())) {
+            throw new BadRequestException("Cannot delete the free plan");
+        }
+
+        // Check if there are any active subscriptions
+        long activeSubscriptionCount = getActiveSubscriptionCountForPlan(planId);
+        if (activeSubscriptionCount > 0) {
+            throw new BadRequestException(
+                    "Cannot delete plan with active subscriptions. Please deactivate the plan instead.");
+        }
+
+        // Soft delete
+        plan.setIsDeleted(true);
+        planRepository.save(plan);
+        log.info("Subscription plan soft deleted successfully: {}", planId);
+    }
+
+    /**
+     * Validate that plan updates don't break existing active subscriptions
+     */
+    private void validatePlanUpdate(SubscriptionPlan existingPlan, SubscriptionPlan updatedPlan) {
+        // Prevent reducing limits if they were previously set
+        if (existingPlan.getCvLimit() != null && updatedPlan.getCvLimit() != null) {
+            if (updatedPlan.getCvLimit() < existingPlan.getCvLimit()) {
+                log.warn("Attempting to reduce CV limit from {} to {} for plan with active subscriptions",
+                        existingPlan.getCvLimit(), updatedPlan.getCvLimit());
+                throw new BadRequestException(
+                        "Cannot reduce CV limit for a plan with active subscriptions. Current: "
+                        + existingPlan.getCvLimit() + ", Requested: " + updatedPlan.getCvLimit());
+            }
+        }
+
+        if (existingPlan.getApiLimit() != null && updatedPlan.getApiLimit() != null) {
+            if (updatedPlan.getApiLimit() < existingPlan.getApiLimit()) {
+                log.warn("Attempting to reduce API limit from {} to {} for plan with active subscriptions",
+                        existingPlan.getApiLimit(), updatedPlan.getApiLimit());
+                throw new BadRequestException(
+                        "Cannot reduce API limit for a plan with active subscriptions. Current: "
+                        + existingPlan.getApiLimit() + ", Requested: " + updatedPlan.getApiLimit());
+            }
+        }
+
+        // Prevent removing features that were previously enabled
+        if (Boolean.FALSE.equals(existingPlan.getWatermark()) && Boolean.TRUE.equals(updatedPlan.getWatermark())) {
+            throw new BadRequestException(
+                    "Cannot add watermark to a plan that previously had it removed (active subscriptions exist)");
+        }
+
+        if (Boolean.TRUE.equals(existingPlan.getDashboard()) && Boolean.FALSE.equals(updatedPlan.getDashboard())) {
+            throw new BadRequestException(
+                    "Cannot remove dashboard access from a plan that previously had it (active subscriptions exist)");
+        }
     }
 }

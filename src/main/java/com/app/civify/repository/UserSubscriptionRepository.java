@@ -32,4 +32,7 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
 
     @Query("SELECT s FROM UserSubscription s WHERE s.user.id = :userId AND s.plan.name = :planName")
     Optional<UserSubscription> findByUserIdAndPlanName(@Param("userId") Long userId, @Param("planName") String planName);
+
+    @Query("SELECT COUNT(s) FROM UserSubscription s WHERE s.plan.id = :planId AND s.status = 'ACTIVE'")
+    long countActiveSubscriptionsByPlanId(@Param("planId") Long planId);
 }

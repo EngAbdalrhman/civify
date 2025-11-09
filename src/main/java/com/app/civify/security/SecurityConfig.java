@@ -1,5 +1,6 @@
 package com.app.civify.security;
 
+import com.app.civify.service.auth.TokenService;
 import com.app.civify.util.JwtUtil;
 import com.app.civify.util.RequestLoggingFilter;
 
@@ -27,6 +28,7 @@ public class SecurityConfig {
 
     private final CustomUserDetailsService userDetailsService;
     private final JwtUtil jwtUtil;
+    private final TokenService tokenService;
     private final CustomOAuth2UserService oAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final RequestLoggingFilter requestLoggingFilter;
@@ -51,7 +53,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        JwtAuthFilter jwtFilter = new JwtAuthFilter(jwtUtil, userDetailsService);
+        JwtAuthFilter jwtFilter = new JwtAuthFilter(jwtUtil, tokenService, userDetailsService);
 
         http
                 .csrf(csrf -> csrf.disable())

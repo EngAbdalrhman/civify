@@ -12,17 +12,23 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 
+import com.app.civify.service.i18n.MessageService;
 import com.app.civify.util.ApiResponse;
 
 import jakarta.persistence.EntityNotFoundException;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * Global exception handler to ensure consistent error responses across the API
+ * Supports internationalization (i18n) for error messages
  */
 @RestControllerAdvice
 @Slf4j
+@RequiredArgsConstructor
 public class GlobalExceptionHandler {
+
+    private final MessageService messageService;
 
     /**
      * Handle service exceptions
@@ -67,10 +73,11 @@ public class GlobalExceptionHandler {
         log.error("UNEXPECTED_EXCEPTION | requestId={} | message={} | stackTrace={}",
                 requestId, ex.getMessage(), ex);
 
+        String errorMessage = messageService.getMessage("error.unknown");
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .header("X-Request-ID", requestId)
-                .body(ApiResponse.error("An unexpected error occurred: " + ex.getMessage()));
+                .body(ApiResponse.error(errorMessage));
     }
 
     /**
@@ -106,9 +113,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleResourceNotFoundException(ResourceNotFoundException ex) {
         log.warn("Resource not found: {}", ex.getMessage());
 
+        // Use the exception message if it's a specific message, otherwise use generic localized message
+        String errorMessage = ex.getMessage() != null && !ex.getMessage().isEmpty()
+                ? ex.getMessage()
+                : messageService.getMessage("common.notfound");
+
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(ApiResponse.error(errorMessage));
     }
 
     /**
@@ -175,10 +187,14 @@ public class GlobalExceptionHandler {
 
         log.warn("UNAUTHORIZED_EXCEPTION | requestId={} | message={}", requestId, ex.getMessage());
 
+        String errorMessage = ex.getMessage() != null && !ex.getMessage().isEmpty()
+                ? ex.getMessage()
+                : messageService.getMessage("common.unauthorized");
+
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
                 .header("X-Request-ID", requestId)
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(ApiResponse.error(errorMessage));
     }
 
     /**
