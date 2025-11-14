@@ -6,6 +6,7 @@ import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -16,7 +17,9 @@ import java.util.List;
 @Table(name = "users")
 @EqualsAndHashCode(callSuper = true)
 @EntityListeners(com.app.civify.util.audit.UserAuditListener.class)
-public class User extends BaseEntity {
+public class User extends BaseEntity implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
