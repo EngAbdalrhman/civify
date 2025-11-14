@@ -1,12 +1,10 @@
 package com.app.civify.controller.v1;
 
-import com.app.civify.dto.user.UserMapper;
 import com.app.civify.dto.user.UserResponseDTO;
-import com.app.civify.entity.User;
-import com.app.civify.repository.UserRepository;
+import com.app.civify.service.user.AdminUserService;
+import com.app.civify.util.ApiResponse;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
-import com.app.civify.util.persistence.CommonService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -15,14 +13,11 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Admin controller for user management Provides endpoints for filtering and
@@ -37,20 +32,18 @@ import java.util.stream.Collectors;
 // @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AdminUserController {
 
-    private final UserRepository userRepository;
-    private final CommonService commonService;
-    private final UserMapper userMapper;
+    private final AdminUserService adminUserService;
 
     @Operation(
-            summary = "Get all users with filtering",
-            description = "Retrieves all users with optional filtering, sorting, and pagination. Admin only.",
+            summary = "Filter users with advanced criteria",
+            description = "Retrieves users with advanced filtering, sorting, and pagination. Admin only.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @ApiResponses(value = {
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
                 responseCode = "200",
-                description = "Users retrieved successfully",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = PagedResponse.class))
+                description = "Users filtered successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class))
         ),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
                 responseCode = "400",
@@ -59,71 +52,47 @@ public class AdminUserController {
         )
     })
     @PostMapping("/filter")
-    public ResponseEntity<PagedResponse<UserResponseDTO>> filterUsers(@Valid @RequestBody InputDataModel inputData) {
+    public ResponseEntity<ApiResponse<PagedResponse<UserResponseDTO>>> filterUsers(@Valid @RequestBody InputDataModel inputData) {
         log.info("Admin filtering users with criteria: {}", inputData);
 
-        try {
-            // Use CommonService to filter users
-            Page<User> userPage = commonService.filterEntities(userRepository, inputData);
+        PagedResponse<UserResponseDTO> pagedResponse = adminUserService.filterUsers(inputData);
 
-            // Convert to DTOs
-            List<UserResponseDTO> userDTOs = userPage.getContent().stream()
-                    .map(userMapper::toResponseDTO)
-                    .collect(Collectors.toList());
-
-            // Create paged response using the static factory method
-            PagedResponse<UserResponseDTO> response = new PagedResponse<>();
-            response.setContent(userDTOs);
-            response.setTotalElements(userPage.getTotalElements());
-            response.setTotalPages(userPage.getTotalPages());
-            response.setPage(userPage.getNumber());
-            response.setSize(userPage.getSize());
-            response.setFirst(userPage.isFirst());
-            response.setLast(userPage.isLast());
-            response.setHasNext(userPage.hasNext());
-            response.setHasPrevious(userPage.hasPrevious());
-
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Error filtering users: {}", e.getMessage(), e);
-            throw e;
-        }
+        return ResponseEntity.ok(ApiResponse.success("Users filtered successfully", pagedResponse));
     }
 
     @Operation(
-            summary = "Get all users (simple)",
-            description = "Retrieves all users without filtering. Admin only.",
+            summary = "Get all users with pagination",
+            description = "Retrieves all users with pagination (no filtering). Admin only.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @ApiResponses(value = {
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
                 responseCode = "200",
                 description = "Users retrieved successfully",
-                content = @Content(mediaType = "application/json")
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class))
         )
     })
     @GetMapping
-    public ResponseEntity<List<UserResponseDTO>> getAllUsers() {
-        log.info("Admin fetching all users");
+    public ResponseEntity<ApiResponse<PagedResponse<UserResponseDTO>>> getAllUsers(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        log.info("Admin fetching all users - page: {}, size: {}", page, size);
 
-        List<User> users = userRepository.findAll();
-        List<UserResponseDTO> userDTOs = users.stream()
-                .map(userMapper::toResponseDTO)
-                .collect(Collectors.toList());
+        PagedResponse<UserResponseDTO> pagedResponse = adminUserService.getAllUsers(page, size);
 
-        return ResponseEntity.ok(userDTOs);
+        return ResponseEntity.ok(ApiResponse.success("Users retrieved successfully", pagedResponse));
     }
 
     @Operation(
             summary = "Get user by ID",
-            description = "Retrieves a specific user by ID. Admin only.",
+            description = "Retrieves a specific user by ID with optional statistics. Admin only.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @ApiResponses(value = {
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
                 responseCode = "200",
                 description = "User retrieved successfully",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserResponseDTO.class))
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class))
         ),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
                 responseCode = "404",
@@ -132,12 +101,15 @@ public class AdminUserController {
         )
     })
     @GetMapping("/{userId}")
-    public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long userId) {
-        log.info("Admin fetching user with ID: {}", userId);
+    public ResponseEntity<ApiResponse<UserResponseDTO>> getUserById(
+            @PathVariable Long userId,
+            @RequestParam(defaultValue = "false") boolean includeStats) {
+        log.info("Admin fetching user with ID: {} (includeStats: {})", userId, includeStats);
 
-        return userRepository.findById(userId)
-                .map(userMapper::toResponseDTO)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        UserResponseDTO userDTO = includeStats
+                ? adminUserService.getUserByIdWithStats(userId)
+                : adminUserService.getUserById(userId);
+
+        return ResponseEntity.ok(ApiResponse.success("User retrieved successfully", userDTO));
     }
 }
