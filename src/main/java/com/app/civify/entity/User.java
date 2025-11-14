@@ -15,6 +15,7 @@ import java.util.List;
 @AllArgsConstructor
 @Table(name = "users")
 @EqualsAndHashCode(callSuper = true)
+@EntityListeners(com.app.civify.util.audit.UserAuditListener.class)
 public class User extends BaseEntity {
 
     @Id
