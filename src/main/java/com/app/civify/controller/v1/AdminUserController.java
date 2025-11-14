@@ -71,13 +71,15 @@ public class AdminUserController {
                     .map(userMapper::toResponseDTO)
                     .collect(Collectors.toList());
 
-            // Create paged response
+            // Create paged response using the static factory method
             PagedResponse<UserResponseDTO> response = new PagedResponse<>();
             response.setContent(userDTOs);
             response.setTotalElements(userPage.getTotalElements());
             response.setTotalPages(userPage.getTotalPages());
-            response.setCurrentPage(userPage.getNumber());
-            response.setPageSize(userPage.getSize());
+            response.setPage(userPage.getNumber());
+            response.setSize(userPage.getSize());
+            response.setFirst(userPage.isFirst());
+            response.setLast(userPage.isLast());
             response.setHasNext(userPage.hasNext());
             response.setHasPrevious(userPage.hasPrevious());
 

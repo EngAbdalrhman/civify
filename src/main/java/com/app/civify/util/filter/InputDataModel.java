@@ -21,7 +21,7 @@ public class InputDataModel {
     private LogicalOperation operation = LogicalOperation.AND; // Operation between groups (default AND)
     private List<SortCriteria> sorts = new ArrayList<>();
     private int page = 0;
-    private int size = 20; // offset
+    private int size = 10; // offset
 
     // Convenience methods for adding filters
     public InputDataModel addFilter(String fieldName, FilterOperation operation, Object value) {
