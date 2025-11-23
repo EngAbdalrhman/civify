@@ -1,5 +1,6 @@
 package com.app.civify.service.subscription;
 
+import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.dto.subscription.PriceCalculationResponse;
 import com.app.civify.entity.SubscriptionPlan;
 import com.app.civify.entity.UserSubscription;
@@ -30,7 +31,7 @@ public interface SubscriptionService {
     // Payment and checkout
     PriceCalculationResponse calculateTotalPrice(Long planId, boolean isAnnual, String promoCode);
 
-    String initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode);
+    PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway);
 
     // Usage tracking
     boolean canUserUseFeature(Long userId, String feature); // CV, API, WATERMARK, DASHBOARD

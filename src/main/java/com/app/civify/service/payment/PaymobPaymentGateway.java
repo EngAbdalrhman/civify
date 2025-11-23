@@ -1,5 +1,7 @@
 package com.app.civify.service.payment;
 
+import com.app.civify.dto.payment.PaymentCallbackResult;
+import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.paymob.PaymobAuthResponse;
 import com.app.civify.dto.payment.paymob.PaymobOrderResponse;
 import com.app.civify.dto.payment.paymob.PaymobPaymentKeyResponse;
@@ -58,13 +60,13 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
     @Override
     public boolean isEnabled() {
-        return apiKey != null && !apiKey.isEmpty()
-                && integrationId != null && !integrationId.isEmpty();
+        return apiKey != null && !apiKey.isEmpty() && !apiKey.contains("your_paymob_api_key_here")
+                && integrationId != null && !integrationId.isEmpty() && !integrationId.contains("your_integration_id_here");
     }
 
     @Override
     @Transactional
-    public String createPayment(Long userId, double amount, Map<String, Object> metadata) {
+    public PaymentCreationResult createPayment(Long userId, double amount, Map<String, Object> metadata) {
         if (!isEnabled()) {
             throw new RuntimeException("Paymob gateway is not configured properly. Please check api-key and integration-id in application.properties");
         }
@@ -108,7 +110,15 @@ public class PaymobPaymentGateway implements PaymentGateway {
             log.info("Paymob payment created successfully for user {} with order ID {} and payment key {}",
                     userId, orderId, paymentKey);
 
-            return paymentKey;
+            // Paymob uses iframe, so we can construct the URL here or let frontend do it.
+            // To be consistent with Fawaterak, we should return the URL.
+            String paymentUrl = getPaymentUrl(paymentKey);
+
+            return PaymentCreationResult.builder()
+                    .paymentKey(paymentKey)
+                    .paymentUrl(paymentUrl)
+                    .orderId(orderId)
+                    .build();
 
         } catch (Exception e) {
             log.error("Error creating Paymob payment for user {}: {}", userId, e.getMessage(), e);
@@ -152,7 +162,10 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
     @Override
     @Transactional
-    public boolean handleCallback(Map<String, Object> callbackData) {
+    public PaymentCallbackResult handleCallback(Map<String, Object> callbackData) {
+        PaymentCallbackResult result = new PaymentCallbackResult();
+        result.setGatewayName(getGatewayName());
+
         try {
             log.info("Handling Paymob payment callback");
             log.debug("Callback data: {}", callbackData);
@@ -163,11 +176,17 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
             if (orderId == null || orderId.isEmpty()) {
                 log.warn("Order ID missing in callback data");
-                return false;
+                result.setSuccess(false);
+                result.setMessage("Order ID missing");
+                return result;
             }
+            
+            result.setOrderId(orderId);
 
             PaymentTransaction transaction = paymentRepository.findByOrderId(orderId)
                     .orElseThrow(() -> new RuntimeException("Payment transaction not found for order: " + orderId));
+            
+            result.setTransactionId(transaction.getPaymentKey());
 
             // Parse callback success status
             boolean isSuccessful = parseCallbackSuccess(callbackData);
@@ -177,19 +196,35 @@ public class PaymobPaymentGateway implements PaymentGateway {
                 transaction.setCompletedAt(LocalDateTime.now());
                 log.info("Paymob payment callback processed successfully for user {} - Order: {}",
                         transaction.getUserId(), orderId);
+                result.setSuccess(true);
+                result.setMessage("Payment completed");
             } else {
                 transaction.setStatus(PaymentStatus.FAILED);
                 log.warn("Paymob payment callback indicates failure for user {} - Order: {}",
                         transaction.getUserId(), orderId);
+                result.setSuccess(false);
+                result.setMessage("Payment failed");
             }
 
             paymentRepository.save(transaction);
-            return true;
+            return result;
 
         } catch (Exception e) {
             log.error("Error handling Paymob payment callback: {}", e.getMessage(), e);
-            return false;
+            result.setSuccess(false);
+            result.setMessage("Error: " + e.getMessage());
+            return result;
         }
+    }
+
+    @Override
+    public String getPaymentUrl(String paymentKey) {
+        if (iframeId != null && !iframeId.isEmpty()) {
+            return String.format("https://accept.paymob.com/api/acceptance/iframes/%s?payment_token=%s",
+                    iframeId, paymentKey);
+        }
+        // Default iframe URL
+        return String.format("https://accept.paymob.com/api/acceptance/iframes/IFRAME_ID?payment_token=%s", paymentKey);
     }
 
     /**
@@ -376,15 +411,5 @@ public class PaymobPaymentGateway implements PaymentGateway {
         return null;
     }
 
-    /**
-     * Get Paymob iframe URL for payment
-     */
-    public String getPaymentUrl(String paymentKey) {
-        if (iframeId != null && !iframeId.isEmpty()) {
-            return String.format("https://accept.paymob.com/api/acceptance/iframes/%s?payment_token=%s",
-                    iframeId, paymentKey);
-        }
-        // Default iframe URL
-        return String.format("https://accept.paymob.com/api/acceptance/iframes/IFRAME_ID?payment_token=%s", paymentKey);
-    }
+
 }

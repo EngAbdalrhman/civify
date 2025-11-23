@@ -1,5 +1,7 @@
 package com.app.civify.service.payment;
 
+import com.app.civify.dto.payment.PaymentCallbackResult;
+import com.app.civify.dto.payment.PaymentCreationResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,9 +20,17 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PaymentGatewayManager {
 
     private final Map<String, PaymentGateway> gateways = new ConcurrentHashMap<>();
+    private final List<PaymentGateway> allGateways;
 
-    @Value("${payment.default.gateway:paymob}")
+    @Value("${payment.default.gateway:fawaterak}")
     private String defaultGateway;
+
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        for (PaymentGateway gateway : allGateways) {
+            registerGateway(gateway);
+        }
+    }
 
     /**
      * Register a payment gateway
@@ -70,14 +80,17 @@ public class PaymentGatewayManager {
     /**
      * Create payment using default gateway
      */
-    public String createPayment(Long userId, double amount, Map<String, Object> metadata) {
+    public PaymentCreationResult createPayment(Long userId, double amount, Map<String, Object> metadata) {
         return getDefaultGateway().createPayment(userId, amount, metadata);
     }
 
     /**
      * Create payment using specific gateway
      */
-    public String createPayment(String gatewayName, Long userId, double amount, Map<String, Object> metadata) {
+    public PaymentCreationResult createPayment(String gatewayName, Long userId, double amount, Map<String, Object> metadata) {
+        if (gatewayName == null || gatewayName.isEmpty()) {
+            return createPayment(userId, amount, metadata);
+        }
         return getGateway(gatewayName).createPayment(userId, amount, metadata);
     }
 
@@ -90,10 +103,25 @@ public class PaymentGatewayManager {
     }
 
     /**
-     * Handle callback using default gateway
+     * Handle callback using specific gateway
      */
-    public boolean handleCallback(Map<String, Object> callbackData) {
-        // Try to determine gateway from callback data or use default
-        return getDefaultGateway().handleCallback(callbackData);
+    public PaymentCallbackResult handleCallback(String gatewayName, Map<String, Object> callbackData) {
+        if (gatewayName == null || gatewayName.isEmpty()) {
+            // Try to determine gateway from callback data or use default
+            // This is tricky without gateway name, so we might default to Paymob or try all?
+            // For now, let's use default
+            return getDefaultGateway().handleCallback(callbackData);
+        }
+        return getGateway(gatewayName).handleCallback(callbackData);
+    }
+
+    /**
+     * Get list of enabled gateways
+     */
+    public List<String> getEnabledGateways() {
+        return gateways.values().stream()
+                .filter(PaymentGateway::isEnabled)
+                .map(PaymentGateway::getGatewayName)
+                .toList();
     }
 }

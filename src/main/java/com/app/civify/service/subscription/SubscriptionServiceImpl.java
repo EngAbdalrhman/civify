@@ -1,5 +1,7 @@
 package com.app.civify.service.subscription;
 
+import com.app.civify.dto.payment.PaymentCreationResult;
+import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.dto.subscription.PriceCalculationResponse;
 import com.app.civify.entity.*;
 import com.app.civify.entity.enums.SubscriptionStatus;
@@ -166,8 +168,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     @Override
     @Transactional
-    public String initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode) {
-        log.info("Initiating payment for user {} with plan {}", userId, planId);
+    public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway) {
+        log.info("Initiating payment for user {} with plan {} using gateway {}", userId, planId, gateway);
 
         // Create subscription first (with PENDING status)
         UserSubscription subscription = createSubscription(userId, planId, promoCode, isAnnual);
@@ -176,14 +178,23 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         PriceCalculationResponse priceCalc = calculateTotalPrice(planId, isAnnual, promoCode);
 
         // Create payment transaction
-        String paymentKey = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue());
+        PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), gateway);
 
         // Link payment to subscription
-        subscription.setPaymentTransactionId(paymentKey);
+        subscription.setPaymentTransactionId(paymentResult.getPaymentKey());
         subscriptionRepository.save(subscription);
 
-        log.info("Payment initiated successfully for user {} with payment key {}", userId, paymentKey);
-        return paymentKey;
+        log.info("Payment initiated successfully for user {} with payment key {}", userId, paymentResult.getPaymentKey());
+        
+        return PaymentInitiationResponse.builder()
+                .paymentKey(paymentResult.getPaymentKey())
+                .paymentUrl(paymentResult.getPaymentUrl())
+                .orderId(paymentResult.getOrderId())
+                .subscriptionId(subscription.getId())
+                .amount(priceCalc.getTotalPrice())
+                .currency("EGP")
+                .message("Payment initiated successfully")
+                .build();
     }
 
     @Override

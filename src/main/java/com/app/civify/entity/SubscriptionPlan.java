@@ -47,25 +47,25 @@ public class SubscriptionPlan extends BaseEntity {
     /**
      * Features included in this plan with their limits
      */
-    @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<PlanFeatureLimit> featureLimits = new ArrayList<>();
 
     /**
      * Pricing options for different billing cycles
      */
-    @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<PlanPricing> pricingOptions = new ArrayList<>();
 
     /**
      * Discounts available for this plan
      */
-    @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<PlanDiscount> discounts = new ArrayList<>();
 
     /**
      * Integrations available in this plan
      */
-    @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<PlanIntegration> integrations = new ArrayList<>();
 
     // ==================== HELPER METHODS ====================

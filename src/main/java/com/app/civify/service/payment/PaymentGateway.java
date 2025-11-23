@@ -1,5 +1,7 @@
 package com.app.civify.service.payment;
 
+import com.app.civify.dto.payment.PaymentCallbackResult;
+import com.app.civify.dto.payment.PaymentCreationResult;
 import java.util.Map;
 
 /**
@@ -11,11 +13,11 @@ public interface PaymentGateway {
      * Create a payment transaction
      *
      * @param userId User ID
-     * @param amount Amount in the gateway's currency (e.g., cents for Paymob)
+     * @param amount Amount in the gateway's currency
      * @param metadata Additional metadata for the payment
-     * @return Payment key or transaction ID
+     * @return PaymentCreationResult containing key and URL
      */
-    String createPayment(Long userId, double amount, Map<String, Object> metadata);
+    PaymentCreationResult createPayment(Long userId, double amount, Map<String, Object> metadata);
 
     /**
      * Verify a payment transaction
@@ -29,9 +31,17 @@ public interface PaymentGateway {
      * Handle payment callback/webhook
      *
      * @param callbackData Callback data from the gateway
-     * @return true if callback processed successfully
+     * @return PaymentCallbackResult with status and details
      */
-    boolean handleCallback(Map<String, Object> callbackData);
+    PaymentCallbackResult handleCallback(Map<String, Object> callbackData);
+
+    /**
+     * Get the payment URL for a given payment key/token
+     *
+     * @param paymentKey Payment key or token
+     * @return Full URL to redirect the user to
+     */
+    String getPaymentUrl(String paymentKey);
 
     /**
      * Get the gateway name

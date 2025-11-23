@@ -88,6 +88,7 @@ public class User extends BaseEntity implements Serializable {
 
     // Relationships
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private List<UserSubscription> subscriptions;
 
     // Helper methods for security
@@ -108,6 +109,6 @@ public class User extends BaseEntity implements Serializable {
     }
 
     public GrantedAuthority getAuthority() {
-        return new SimpleGrantedAuthority("ROLE_" + role.name());
+        return new SimpleGrantedAuthority(role.name());
     }
 }

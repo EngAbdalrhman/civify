@@ -1,6 +1,7 @@
 package com.app.civify.controller.v1;
 
 import com.app.civify.repository.UserRepository;
+import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.service.payment.PaymentService;
 import com.app.civify.service.subscription.SubscriptionService;
 import lombok.RequiredArgsConstructor;
@@ -47,55 +48,60 @@ public class PaymentController {
     })
     @PostMapping("/initiate")
     @PreAuthorize("hasAnyRole('USER', 'LICENSED_USER', 'ADMIN')")
-    public ResponseEntity<Map<String, String>> initiatePayment(
+    public ResponseEntity<PaymentInitiationResponse> initiatePayment(
             @RequestParam Long planId,
             @RequestParam(required = false) String promoCode,
             @RequestParam(defaultValue = "false") boolean isAnnual,
+            @RequestParam(required = false) String gateway,
             Authentication authentication) {
 
         try {
             Long userId = getUserIdFromAuthentication(authentication);
-            String paymentKey = subscriptionService.initiatePayment(userId, planId, isAnnual, promoCode);
+            PaymentInitiationResponse response = subscriptionService.initiatePayment(userId, planId, isAnnual, promoCode, gateway);
 
-            return ResponseEntity.ok(Map.of(
-                    "paymentKey", paymentKey,
-                    "message", "Payment initiated successfully"
-            ));
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error initiating payment: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", e.getMessage()
-            ));
+            return ResponseEntity.badRequest().body(PaymentInitiationResponse.builder()
+                    .message(e.getMessage())
+                    .build());
         }
     }
 
     @Operation(
             summary = "Handle payment webhook",
-            description = "Processes payment webhooks from Paymob gateway. This endpoint is public and called automatically by Paymob."
+            description = "Processes payment webhooks from payment gateways. This endpoint is public and called automatically by the gateway."
     )
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Webhook processed successfully")
     })
-    @PostMapping("/webhook")
-    public ResponseEntity<String> handlePaymentWebhook(@RequestBody Map<String, Object> payload) {
+    @PostMapping("/webhook/{gateway}")
+    public ResponseEntity<String> handlePaymentWebhook(
+            @PathVariable String gateway,
+            @RequestBody Map<String, Object> payload) {
         try {
-            log.info("Received payment webhook: {}", payload);
+            log.info("Received payment webhook for gateway {}: {}", gateway, payload);
 
-            String orderId = (String) payload.get("order_id");
-            String success = (String) payload.get("success");
-
-            if ("true".equals(success)) {
-                // Find the payment transaction and activate subscription
-                String paymentKey = (String) payload.get("payment_key");
-                subscriptionService.activateSubscription(paymentKey);
-            }
-
-            paymentService.handlePaymentCallback(orderId, payload);
+            // Extract order ID (gateway specific logic handled in service)
+            // We pass null for orderId here as it will be extracted by the gateway implementation
+            paymentService.handlePaymentCallback(gateway, null, payload);
+            
             return ResponseEntity.ok("Webhook processed successfully");
         } catch (Exception e) {
             log.error("Error processing payment webhook: {}", e.getMessage());
             return ResponseEntity.ok("Webhook received"); // Return 200 to avoid retries
         }
+    }
+
+    @Operation(
+            summary = "Get enabled gateways",
+            description = "Returns a list of enabled payment gateways."
+    )
+    @GetMapping("/config")
+    public ResponseEntity<Map<String, Object>> getPaymentConfig() {
+        return ResponseEntity.ok(Map.of(
+                "enabledGateways", paymentService.getEnabledGateways()
+        ));
     }
 
     @Operation(

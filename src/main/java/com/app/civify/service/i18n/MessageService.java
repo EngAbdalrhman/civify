@@ -26,7 +26,7 @@ public class MessageService {
      * @return Localized message
      */
     public String getMessage(String key) {
-        return getMessage(key, null);
+        return getMessage(key, (Object[]) null);
     }
 
     /**

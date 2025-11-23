@@ -20,7 +20,7 @@ public class UserPrincipal implements UserDetails {
         if (user == null || user.getRole() == null) {
             return List.of();
         }
-        return List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+        return List.of(new SimpleGrantedAuthority(user.getRole().name()));
     }
 
     @Override

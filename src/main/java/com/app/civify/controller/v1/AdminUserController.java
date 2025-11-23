@@ -29,7 +29,7 @@ import jakarta.validation.Valid;
 @RequestMapping("/admin/users")
 @RequiredArgsConstructor
 @Tag(name = "Admin User Management", description = "Admin endpoints for user management and filtering")
-// @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AdminUserController {
 
     private final AdminUserService adminUserService;

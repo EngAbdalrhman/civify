@@ -23,7 +23,7 @@ public class JwtUtil {
     private final long accessTokenExpiration;
 
     public JwtUtil(@Value("${jwt.secret}") String secret,
-            @Value("${jwt.access-token-expiration:604800000}") long accessTokenExpiration) {
+            @Value("${jwt.access-token-expiration:60480000000}") long accessTokenExpiration) {
         this.secret = secret;
         this.accessTokenExpiration = accessTokenExpiration;
     }

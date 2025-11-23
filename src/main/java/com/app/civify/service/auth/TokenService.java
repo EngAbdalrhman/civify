@@ -12,6 +12,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.Date;
 import java.util.Set;
 import java.util.UUID;
 
@@ -36,7 +37,7 @@ public class TokenService {
     @Value("${jwt.refresh-token-expiration:2592000000}") // 30 days default
     private long refreshTokenExpiration;
 
-    @Value("${jwt.access-token-expiration:900000}") // 15 minutes default
+    @Value("${jwt.access-token-expiration:9000000}") // 150 minutes default
     private long accessTokenExpiration;
 
     private static final String REFRESH_TOKEN_PREFIX = "refresh:";
