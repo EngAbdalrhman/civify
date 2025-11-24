@@ -21,7 +21,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
-@RestController
 @ApiV1Controller
 @RequestMapping("/payments")
 @RequiredArgsConstructor
@@ -85,7 +84,7 @@ public class PaymentController {
             // Extract order ID (gateway specific logic handled in service)
             // We pass null for orderId here as it will be extracted by the gateway implementation
             paymentService.handlePaymentCallback(gateway, null, payload);
-            
+
             return ResponseEntity.ok("Webhook processed successfully");
         } catch (Exception e) {
             log.error("Error processing payment webhook: {}", e.getMessage());

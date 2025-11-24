@@ -23,7 +23,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
-@RestController
 @ApiV1Controller
 @RequestMapping("/subscriptions")
 @RequiredArgsConstructor

@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
  * Admin controller for managing subscription plans All endpoints require ADMIN
  * role
  */
-@RestController
 @ApiV1Controller
 @RequestMapping("/admin/plans")
 @RequiredArgsConstructor

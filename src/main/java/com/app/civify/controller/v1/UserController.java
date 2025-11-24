@@ -18,7 +18,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
-@RestController
 @ApiV1Controller
 @RequestMapping("/users")
 @Tag(name = "Users", description = "User management endpoints")

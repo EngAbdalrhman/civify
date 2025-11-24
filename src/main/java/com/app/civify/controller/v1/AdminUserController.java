@@ -24,8 +24,7 @@ import jakarta.validation.Valid;
  * viewing users
  */
 @Slf4j
-@RestController
-// @ApiV1Controller
+@ApiV1Controller
 @RequestMapping("/admin/users")
 @RequiredArgsConstructor
 @Tag(name = "Admin User Management", description = "Admin endpoints for user management and filtering")

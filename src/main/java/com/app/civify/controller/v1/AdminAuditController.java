@@ -15,12 +15,12 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * Admin controller for audit log management
- * Provides endpoints for viewing and filtering audit logs
+ * Admin controller for audit log management Provides endpoints for viewing and
+ * filtering audit logs
  */
 @Slf4j
-@RestController
-@RequestMapping("/v1/admin/audit")
+@ApiV1Controller
+@RequestMapping("/admin/audit")
 @RequiredArgsConstructor
 @Tag(name = "Admin - Audit Logs", description = "Admin endpoints for audit log management")
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
@@ -29,24 +29,24 @@ public class AdminAuditController {
     private final AuditService auditService;
 
     @Operation(
-        summary = "Get audit logs with filtering",
-        description = "Retrieve audit logs with advanced filtering, pagination, and sorting. Admin only.",
-        security = @SecurityRequirement(name = "bearer-jwt")
+            summary = "Get audit logs with filtering",
+            description = "Retrieve audit logs with advanced filtering, pagination, and sorting. Admin only.",
+            security = @SecurityRequirement(name = "bearer-jwt")
     )
     @PostMapping("/search")
     public ResponseEntity<PagedResponse<AuditLogDTO>> searchAuditLogs(
             @RequestBody AuditLogRequest request) {
         log.info("Admin searching audit logs with filters: entityType={}, entityId={}, action={}",
                 request.getEntityType(), request.getEntityId(), request.getAction());
-        
+
         PagedResponse<AuditLogDTO> response = auditService.getAuditHistory(request);
         return ResponseEntity.ok(response);
     }
 
     @Operation(
-        summary = "Get audit logs for specific entity",
-        description = "Retrieve all audit logs for a specific entity by type and ID. Admin only.",
-        security = @SecurityRequirement(name = "bearer-jwt")
+            summary = "Get audit logs for specific entity",
+            description = "Retrieve all audit logs for a specific entity by type and ID. Admin only.",
+            security = @SecurityRequirement(name = "bearer-jwt")
     )
     @GetMapping("/{entityType}/{entityId}")
     public ResponseEntity<PagedResponse<AuditLogDTO>> getAuditLogsForEntity(
@@ -58,17 +58,17 @@ public class AdminAuditController {
             @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Page size")
             @RequestParam(defaultValue = "20") int size) {
-        
+
         log.info("Admin retrieving audit logs for {}/{}", entityType, entityId);
-        
+
         PagedResponse<AuditLogDTO> response = auditService.getAuditHistory(entityType, entityId, page, size);
         return ResponseEntity.ok(response);
     }
 
     @Operation(
-        summary = "Get audit logs by entity type",
-        description = "Retrieve all audit logs for a specific entity type. Admin only.",
-        security = @SecurityRequirement(name = "bearer-jwt")
+            summary = "Get audit logs by entity type",
+            description = "Retrieve all audit logs for a specific entity type. Admin only.",
+            security = @SecurityRequirement(name = "bearer-jwt")
     )
     @GetMapping("/{entityType}")
     public ResponseEntity<PagedResponse<AuditLogDTO>> getAuditLogsByType(
@@ -78,17 +78,17 @@ public class AdminAuditController {
             @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Page size")
             @RequestParam(defaultValue = "20") int size) {
-        
+
         log.info("Admin retrieving audit logs for entity type: {}", entityType);
-        
+
         PagedResponse<AuditLogDTO> response = auditService.getAuditHistoryByType(entityType, page, size);
         return ResponseEntity.ok(response);
     }
 
     @Operation(
-        summary = "Get latest audit log for entity",
-        description = "Retrieve the most recent audit log for a specific entity. Admin only.",
-        security = @SecurityRequirement(name = "bearer-jwt")
+            summary = "Get latest audit log for entity",
+            description = "Retrieve the most recent audit log for a specific entity. Admin only.",
+            security = @SecurityRequirement(name = "bearer-jwt")
     )
     @GetMapping("/{entityType}/{entityId}/latest")
     public ResponseEntity<AuditLogDTO> getLatestAuditLog(
@@ -96,9 +96,9 @@ public class AdminAuditController {
             @PathVariable String entityType,
             @Parameter(description = "Entity ID")
             @PathVariable String entityId) {
-        
+
         log.info("Admin retrieving latest audit log for {}/{}", entityType, entityId);
-        
+
         AuditLogDTO auditLog = auditService.getLatestAudit(entityType, entityId);
         if (auditLog == null) {
             return ResponseEntity.notFound().build();
@@ -107,9 +107,9 @@ public class AdminAuditController {
     }
 
     @Operation(
-        summary = "Get all audit logs",
-        description = "Retrieve all audit logs with pagination. Admin only.",
-        security = @SecurityRequirement(name = "bearer-jwt")
+            summary = "Get all audit logs",
+            description = "Retrieve all audit logs with pagination. Admin only.",
+            security = @SecurityRequirement(name = "bearer-jwt")
     )
     @GetMapping
     public ResponseEntity<PagedResponse<AuditLogDTO>> getAllAuditLogs(
@@ -121,17 +121,16 @@ public class AdminAuditController {
             @RequestParam(defaultValue = "performedAt") String sortBy,
             @Parameter(description = "Sort direction (ASC/DESC)")
             @RequestParam(defaultValue = "DESC") String sortDirection) {
-        
+
         log.info("Admin retrieving all audit logs (page={}, size={})", page, size);
-        
+
         AuditLogRequest request = new AuditLogRequest();
         request.setPage(page);
         request.setSize(size);
         request.setSortBy(sortBy);
         request.setSortDirection(sortDirection);
-        
+
         PagedResponse<AuditLogDTO> response = auditService.getAuditHistory(request);
         return ResponseEntity.ok(response);
     }
 }
-

@@ -18,7 +18,6 @@ import lombok.extern.slf4j.Slf4j;
  * Login with optional 2FA - OAuth2 integration - Token refresh and logout
  */
 @RestController
-@ApiV1Controller
 @RequestMapping("/auth")
 @RequiredArgsConstructor
 @Slf4j

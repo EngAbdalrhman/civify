@@ -48,7 +48,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * "MATCH_EXACT", "value": "/api/v1/cv/generate"} ], "operation": "OR" } ],
  * "operation": "OR" } }
  */
-@RestController
 @ApiV1Controller
 @RequestMapping("/logs")
 @RequiredArgsConstructor

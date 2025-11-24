@@ -1,6 +1,7 @@
 package com.app.civify.security;
 
-import com.app.civify.service.auth.TokenService;
+import com.app.civify.security.authenticationProvider.JWTAuthenticationProvider;
+import com.app.civify.security.filter.JwtValidationFilter;
 import com.app.civify.util.JwtUtil;
 import com.app.civify.util.RequestLoggingFilter;
 
@@ -8,9 +9,9 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -18,6 +19,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
@@ -27,11 +29,10 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final CustomUserDetailsService userDetailsService;
-    private final JwtUtil jwtUtil;
-    private final TokenService tokenService;
     private final CustomOAuth2UserService oAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final RequestLoggingFilter requestLoggingFilter;
+    private final JwtUtil jwtUtil;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -47,13 +48,18 @@ public class SecurityConfig {
     }
 
     @Bean
+    public JWTAuthenticationProvider jwtAuthenticationProvider() {
+        return new JWTAuthenticationProvider(jwtUtil, userDetailsService);
+    }
+
+    @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        JwtAuthFilter jwtFilter = new JwtAuthFilter(jwtUtil, tokenService, userDetailsService);
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationConfiguration authConfig) throws Exception {
+        JwtValidationFilter jwtValidationFilter = new JwtValidationFilter(authenticationManager(authConfig));
 
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource())) // Enable CORS
@@ -73,8 +79,16 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
+                .authenticationProvider(jwtAuthenticationProvider())
                 .addFilterBefore(requestLoggingFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtValidationFilter, UsernamePasswordAuthenticationFilter.class)
+                .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                .oauth2Login(oauth2 -> oauth2
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .userService(oAuth2UserService)
+                        )
+                        .successHandler(oAuth2SuccessHandler)
+                );
 
         return http.build();
     }

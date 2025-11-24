@@ -5,7 +5,6 @@ import com.app.civify.repository.UserRepository;
 import com.app.civify.security.model.Role;
 import com.app.civify.service.auth.TokenService;
 import com.app.civify.service.subscription.SubscriptionService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -17,8 +16,6 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * OAuth2 success handler for Google login
@@ -35,7 +32,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     private final TokenService tokenService;
     private final UserRepository userRepository;
     private final SubscriptionService subscriptionService;
-    private final ObjectMapper objectMapper;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
@@ -90,18 +86,13 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         // Generate tokens
         TokenService.AuthTokenPair tokens = tokenService.createAuthTokens(user);
 
-        // Build response
-        Map<String, Object> responseBody = new HashMap<>();
-        responseBody.put("accessToken", tokens.getAccessToken());
-        responseBody.put("refreshToken", tokens.getRefreshToken());
-        responseBody.put("requires2FA", false);
-        responseBody.put("message", "Login successful");
+        // Redirect to frontend with tokens
+        String targetUrl = "http://localhost:9002/auth/callback" +
+                "?accessToken=" + tokens.getAccessToken() +
+                "&refreshToken=" + tokens.getRefreshToken();
 
-        // Write JSON response
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        response.getWriter().write(objectMapper.writeValueAsString(responseBody));
+        response.sendRedirect(targetUrl);
 
-        log.info("OAuth2 tokens generated for user: {}", email);
+        log.info("Redirecting to frontend: {}", targetUrl);
     }
 }

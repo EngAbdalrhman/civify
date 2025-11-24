@@ -13,7 +13,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
-@RestController
 @ApiV1Controller
 @RequestMapping("/cvs")
 @Tag(name = "CV Management", description = "CV upload and tailoring endpoints")
