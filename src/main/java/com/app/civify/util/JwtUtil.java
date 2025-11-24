@@ -66,6 +66,18 @@ public class JwtUtil {
     }
 
     /**
+     * Generate token from username with specified expiry duration in minutes
+     */
+    public String generateToken(String username, long expiryMinutes) {
+        return Jwts.builder()
+                .setSubject(username)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + expiryMinutes * 60 * 1000)) // convert minutes to milliseconds
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    /**
      * Validate token against username
      */
     public boolean validateToken(String token, String username) {
@@ -144,16 +156,9 @@ public class JwtUtil {
                 .getBody();
     }
 
-    // Generate JWT Token
-    public String generateToken(String username, long expiryMinutes) {
-        return Jwts.builder()
-                .setSubject(username)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + expiryMinutes * 60 * 1000)) //in milliseconds
-                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
-                .compact();
-    }
-
+    /**
+     * Validate and extract username from token
+     */
     public String validateAndExtractUsername(String token) {
         try {
             return Jwts.parser()
@@ -165,6 +170,4 @@ public class JwtUtil {
             return null; // Invalid or expired JWT
         }
     }
-
-
 }
