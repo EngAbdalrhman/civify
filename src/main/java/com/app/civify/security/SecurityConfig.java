@@ -1,26 +1,29 @@
 package com.app.civify.security;
 
 import com.app.civify.security.authenticationProvider.JWTAuthenticationProvider;
+import com.app.civify.security.filter.JWTAuthenticationFilter;
+import com.app.civify.security.filter.JWTRefreshFilter;
 import com.app.civify.security.filter.JwtValidationFilter;
 import com.app.civify.util.JwtUtil;
 import com.app.civify.util.RequestLoggingFilter;
-
 import lombok.RequiredArgsConstructor;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import java.util.Arrays;
 
 @Configuration
 @EnableWebSecurity
@@ -29,10 +32,10 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final CustomUserDetailsService userDetailsService;
+    private final JwtUtil jwtUtil;
     private final CustomOAuth2UserService oAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final RequestLoggingFilter requestLoggingFilter;
-    private final JwtUtil jwtUtil;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -47,19 +50,38 @@ public class SecurityConfig {
         return p;
     }
 
-    @Bean
     public JWTAuthenticationProvider jwtAuthenticationProvider() {
         return new JWTAuthenticationProvider(jwtUtil, userDetailsService);
     }
 
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
+    public DaoAuthenticationProvider daoAuthenticationProvider() {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailsService);
+        provider.setPasswordEncoder(passwordEncoder());
+        return provider;
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationConfiguration authConfig) throws Exception {
-        JwtValidationFilter jwtValidationFilter = new JwtValidationFilter(authenticationManager(authConfig));
+    public AuthenticationManager authenticationManager() {
+        return new ProviderManager(Arrays.asList(
+                daoAuthenticationProvider(),
+                jwtAuthenticationProvider()
+        ));
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationManager authenticationManager) throws Exception {
+
+
+        // Authentication filter responsible for login
+        JWTAuthenticationFilter jwtAuthFilter = new JWTAuthenticationFilter(authenticationManager, jwtUtil);
+
+        // Validation filter for checking JWT in every request
+        JwtValidationFilter jwtValidationFilter = new JwtValidationFilter(authenticationManager);
+
+        // refresh filter for checking JWT in every request
+        JWTRefreshFilter jwtRefreshFilter = new JWTRefreshFilter(jwtUtil, authenticationManager);
+
 
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource())) // Enable CORS
@@ -78,17 +100,19 @@ public class SecurityConfig {
                 .requestMatchers("/v1/admin/**").hasAuthority("ROLE_ADMIN")
                 .anyRequest().authenticated()
                 )
-                .authenticationProvider(authenticationProvider())
-                .authenticationProvider(jwtAuthenticationProvider())
-                .addFilterBefore(requestLoggingFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(jwtValidationFilter, UsernamePasswordAuthenticationFilter.class)
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class) // generate token filter
+                .addFilterAfter(jwtValidationFilter, JWTAuthenticationFilter.class) // validate token filter
+                .addFilterAfter(jwtRefreshFilter, JwtValidationFilter.class) // refresh token filter
                 .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .oauth2Login(oauth2 -> oauth2
                         .userInfoEndpoint(userInfo -> userInfo
                                 .userService(oAuth2UserService)
                         )
                         .successHandler(oAuth2SuccessHandler)
-                );
+                );;
+
 
         return http.build();
     }
