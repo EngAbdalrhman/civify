@@ -14,6 +14,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "users")
+@Builder
 @EqualsAndHashCode(callSuper = true)
 public class User extends BaseEntity {
 
