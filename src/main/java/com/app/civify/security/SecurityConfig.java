@@ -1,5 +1,10 @@
 package com.app.civify.security;
 
+import com.app.civify.security.authenticationProvider.JWTAuthenticationProvider;
+import com.app.civify.security.filter.JWTAuthenticationFilter;
+import com.app.civify.security.filter.JWTRefreshFilter;
+import com.app.civify.security.filter.JwtValidationFilter;
+import com.app.civify.security.handler.OAuth2AuthenticationSuccessHandler;
 import com.app.civify.util.JwtUtil;
 import com.app.civify.util.RequestLoggingFilter;
 
@@ -8,16 +13,21 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import java.util.Arrays;
 
 @Configuration
 @EnableWebSecurity
@@ -43,15 +53,44 @@ public class SecurityConfig {
         p.setPasswordEncoder(passwordEncoder());
         return p;
     }
-
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
+    // @Bean
+    public JWTAuthenticationProvider jwtAuthenticationProvider() {
+        return new JWTAuthenticationProvider(jwtUtil, userDetailsService);
     }
 
+    // @Bean
+    public DaoAuthenticationProvider daoAuthenticationProvider() {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailsService);
+        provider.setPasswordEncoder(passwordEncoder());
+        return provider;
+    }
+
+    // @Bean
+
+
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        JwtAuthFilter jwtFilter = new JwtAuthFilter(jwtUtil, userDetailsService);
+    public AuthenticationManager authenticationManager() {
+        return new ProviderManager(Arrays.asList(
+                daoAuthenticationProvider(),
+                jwtAuthenticationProvider()
+        ));
+    }
+
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationManager authenticationManager , OAuth2AuthenticationSuccessHandler successHandler) throws Exception {
+
+
+        // Authentication filter responsible for login
+        JWTAuthenticationFilter jwtAuthFilter = new JWTAuthenticationFilter(authenticationManager, jwtUtil);
+
+        // Validation filter for checking JWT in every request
+        JwtValidationFilter jwtValidationFilter = new JwtValidationFilter(authenticationManager);
+
+        // refresh filter for checking JWT in every request
+        JWTRefreshFilter jwtRefreshFilter = new JWTRefreshFilter(jwtUtil, authenticationManager);
+
 
         http
                 .csrf(csrf -> csrf.disable())
@@ -67,9 +106,13 @@ public class SecurityConfig {
                 .requestMatchers("/v1/admin/**").hasAuthority("ROLE_ADMIN")
                 .anyRequest().authenticated()
                 )
-                .authenticationProvider(authenticationProvider())
-                .addFilterBefore(requestLoggingFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .oauth2Login(oauth -> oauth.successHandler(successHandler))
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class) // generate token filter
+                .addFilterAfter(jwtValidationFilter, JWTAuthenticationFilter.class) // validate token filter
+                .addFilterAfter(jwtRefreshFilter, JwtValidationFilter.class); // refresh token filter
+
 
         return http.build();
     }
