@@ -123,6 +123,7 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(java.util.List.of("http://localhost:9002", "http://localhost:3000")); // Frontend URLs
         configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(java.util.List.of("*"));
+        configuration.setExposedHeaders(java.util.List.of("Authorization", "Set-Cookie"));
         configuration.setAllowCredentials(true);
 
         org.springframework.web.cors.UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();

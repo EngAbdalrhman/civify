@@ -161,12 +161,13 @@ public class JwtUtil {
      */
     public String validateAndExtractUsername(String token) {
         try {
-            return Jwts.parser()
+            return Jwts.parserBuilder()
                     .setSigningKey(getSigningKey())
+                    .build()
                     .parseClaimsJws(token)
                     .getBody()
                     .getSubject();
-        } catch (JwtException e) {
+        } catch (JwtException | IllegalArgumentException e) {
             return null; // Invalid or expired JWT
         }
     }
