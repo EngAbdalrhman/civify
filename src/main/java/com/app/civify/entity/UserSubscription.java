@@ -7,10 +7,13 @@ import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 
+import org.hibernate.annotations.Where;
+
 @Entity
 @Data
 @Table(name = "user_subscriptions")
 @EqualsAndHashCode(callSuper = true)
+@Where(clause = "is_deleted = false")
 public class UserSubscription extends BaseEntity {
 
     @Id

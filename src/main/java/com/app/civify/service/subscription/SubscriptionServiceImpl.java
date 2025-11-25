@@ -185,14 +185,14 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         subscriptionRepository.save(subscription);
 
         log.info("Payment initiated successfully for user {} with payment key {}", userId, paymentResult.getPaymentKey());
-        
+
         return PaymentInitiationResponse.builder()
                 .paymentKey(paymentResult.getPaymentKey())
                 .paymentUrl(paymentResult.getPaymentUrl())
                 .orderId(paymentResult.getOrderId())
                 .subscriptionId(subscription.getId())
                 .amount(priceCalc.getTotalPrice())
-                .currency("EGP")
+                .currency("EGP") // TODO detect via ip the nationality and currency egp or usd or sar or aed
                 .message("Payment initiated successfully")
                 .build();
     }

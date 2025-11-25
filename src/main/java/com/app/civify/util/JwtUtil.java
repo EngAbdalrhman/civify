@@ -21,14 +21,10 @@ import java.util.function.Function;
 @Component
 public class JwtUtil {
 
-    private final String secret;
-    private final long accessTokenExpiration;
-
-    public JwtUtil(@Value("${jwt.secret}") String secret,
-            @Value("${jwt.access-token-expiration:60480000000}") long accessTokenExpiration) {
-        this.secret = secret;
-        this.accessTokenExpiration = accessTokenExpiration;
-    }
+    @Value("${jwt.secret}")
+    private String secret;
+    // @Value("${jwt.access-token-expiration}")
+    private final long accessTokenExpiration = JwtConstants.ACCESS_TOKEN_EXPIRATION_MINUTES;
 
     private Key getSigningKey() {
         byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
