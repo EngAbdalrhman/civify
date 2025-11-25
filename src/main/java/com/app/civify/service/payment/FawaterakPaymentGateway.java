@@ -36,6 +36,15 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     @Value("${payment.fawaterak.provider-key:}")
     private String providerKey; // Used for some integrations, but API key is main auth
 
+    @Value("${payment.redirect.success-url}")
+    private String successUrl;
+
+    @Value("${payment.redirect.fail-url}")
+    private String failUrl;
+
+    @Value("${payment.redirect.pending-url}")
+    private String pendingUrl;
+
     @Override
     public String getGatewayName() {
         return "fawaterak";
@@ -257,11 +266,10 @@ public class FawaterakPaymentGateway implements PaymentGateway {
 
     private Map<String, String> buildRedirectionUrls() {
         Map<String, String> urls = new HashMap<>();
-        // TODO: Make these configurable via application.properties
-        String baseUrl = "http://localhost:9002"; 
-        urls.put("successUrl", baseUrl + "/dashboard/payment/success");
-        urls.put("failUrl", baseUrl + "/dashboard/payment/fail");
-        urls.put("pendingUrl", baseUrl + "/dashboard/payment/pending");
+        // Include gateway parameter to help frontend identify the payment gateway
+        urls.put("successUrl", successUrl + "?gateway=fawaterak");
+        urls.put("failUrl", failUrl + "?gateway=fawaterak");
+        urls.put("pendingUrl", pendingUrl + "?gateway=fawaterak");
         return urls;
     }
 }
