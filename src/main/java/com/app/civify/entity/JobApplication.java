@@ -18,21 +18,27 @@ public class JobApplication extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(nullable = false, length = 255)
+    @Column(nullable = false)
     private String cvId; // Reference to CV document ID
 
-    @Column(nullable = false, length = 255)
+    @Column(nullable = false)
     private String jobTitle;
 
-    @Column(nullable = false, length = 255)
+    @Column(nullable = false)
     private String company;
 
-    @Column(length = 5000, columnDefinition = "TEXT")
+    @Column(columnDefinition = "TEXT")
     private String jobDescription;
 
-    @Column(length = 5000, columnDefinition = "TEXT")
+    @Column(columnDefinition = "TEXT")
+    private String tailoredCV;
+
+    @Column(columnDefinition = "TEXT")
     private String coverLetter;
 
-    @Column(nullable = false, length = 50)
-    private String applicationStatus = "pending";
+    @Column(nullable = false)
+    private String applicationStatus = "draft"; // draft, applied, interview, rejected, accepted
+
+    @Column(columnDefinition = "TEXT")
+    private String notes;
 }
