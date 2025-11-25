@@ -24,7 +24,8 @@ public class JwtUtil {
     @Value("${jwt.secret}")
     private String secret;
     // @Value("${jwt.access-token-expiration}")
-    private final long accessTokenExpiration = JwtConstants.ACCESS_TOKEN_EXPIRATION_MINUTES;
+    private final long accessTokenExpiration = JwtConstants.ACCESS_TOKEN_EXPIRATION_MINUTES * 60 * 1000; // Convert minutes to milliseconds
+
 
     private Key getSigningKey() {
         byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
