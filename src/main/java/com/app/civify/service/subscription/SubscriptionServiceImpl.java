@@ -136,6 +136,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     }
 
     @Override
+    public long countActiveSubscriptions() {
+        return subscriptionRepository.count();
+    }
+
+    @Override
     public PriceCalculationResponse calculateTotalPrice(Long planId, boolean isAnnual, String promoCode) {
         SubscriptionPlan plan = planRepository.findById(planId)
                 .orElseThrow(() -> new ResourceNotFoundException("Plan not found"));

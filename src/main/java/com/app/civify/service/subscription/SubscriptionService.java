@@ -28,6 +28,8 @@ public interface SubscriptionService {
 
     List<UserSubscription> getUserSubscriptions(Long userId);
 
+    long countActiveSubscriptions();
+
     // Payment and checkout
     PriceCalculationResponse calculateTotalPrice(Long planId, boolean isAnnual, String promoCode);
 

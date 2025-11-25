@@ -2,13 +2,13 @@ package com.app.civify.service.auth;
 
 import com.app.civify.entity.User;
 import com.app.civify.repository.UserRepository;
+import com.app.civify.service.cache.CacheService;
 import com.app.civify.util.otp.OtpNotificationFactory;
 import com.app.civify.util.otp.OtpNotificationStrategy;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -18,16 +18,17 @@ import java.util.Random;
 /**
  * @author Abdalrhman Mostafa <amabdo30@gmail.com>
  * @details Enhanced OTP service with Redis storage and strategy pattern
- * notifications
+ * notifications. Now with automatic fallback to in-memory cache when Redis is unavailable.
  * @since 1.0.0
- * @version 1.0.0
+ * @version 1.1.0
  * @date 2025-01-25
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OtpService {
 
-    private final StringRedisTemplate redis;
+    private final CacheService cacheService;
     private final UserRepository userRepository;
     private final OtpNotificationFactory notificationFactory;
     private final Random random = new Random();
@@ -53,24 +54,27 @@ public class OtpService {
         String attemptKey = getAttemptKey(username);
 
         // Store OTP with expiry
-        redis.opsForValue().set(otpKey, code, OTP_EXPIRY);
+        cacheService.set(otpKey, code, OTP_EXPIRY);
 
         // Increment attempt counter
-        redis.opsForValue().increment(attemptKey);
-        redis.expire(attemptKey, RATE_LIMIT_WINDOW);
+        cacheService.increment(attemptKey);
+        cacheService.expire(attemptKey, RATE_LIMIT_WINDOW);
 
         // Send OTP via appropriate strategy
         OtpNotificationStrategy strategy = notificationFactory.getStrategy("EMAIL");
         strategy.sendOtp(user, code);
+        
+        log.info("OTP generated for user: {} using cache mode: {}", username, cacheService.getCacheMode());
     }
 
     public boolean verify(String username, String code) {
         String otpKey = getOtpKey(username);
-        String stored = redis.opsForValue().get(otpKey);
+        String stored = cacheService.get(otpKey);
 
         if (stored != null && stored.equals(code)) {
-            redis.delete(otpKey);
-            redis.delete(getAttemptKey(username));
+            cacheService.delete(otpKey);
+            cacheService.delete(getAttemptKey(username));
+            log.info("OTP verified successfully for user: {}", username);
             return true;
         }
         return false;
@@ -78,7 +82,7 @@ public class OtpService {
 
     private boolean isRateLimited(String username) {
         String attemptKey = getAttemptKey(username);
-        String attempts = redis.opsForValue().get(attemptKey);
+        String attempts = cacheService.get(attemptKey);
         return attempts != null && Integer.parseInt(attempts) >= MAX_ATTEMPTS;
     }
 
@@ -92,6 +96,7 @@ public class OtpService {
 
     @Scheduled(fixedRate = 300000) // Runs every 5 minutes
     public void clearExpiredOtps() {
-        // Redis TTL handles expiry automatically, but we can add cleanup logic here if needed
+        // Cache service handles expiry automatically (Redis TTL or in-memory cleanup)
+        log.debug("OTP cleanup check - cache mode: {}", cacheService.getCacheMode());
     }
 }
