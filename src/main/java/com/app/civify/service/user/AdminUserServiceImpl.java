@@ -4,6 +4,8 @@ import com.app.civify.dto.user.UserMapper;
 import com.app.civify.dto.user.UserResponseDTO;
 import com.app.civify.entity.User;
 import com.app.civify.exception.ResourceNotFoundException;
+import com.app.civify.repository.ApiUsageLogRepository;
+import com.app.civify.repository.CvRepository;
 import com.app.civify.repository.UserRepository;
 import com.app.civify.repository.UserSubscriptionRepository;
 import com.app.civify.util.filter.InputDataModel;
@@ -33,6 +35,8 @@ public class AdminUserServiceImpl implements AdminUserService {
     
     private final UserRepository userRepository;
     private final UserSubscriptionRepository subscriptionRepository;
+    private final CvRepository cvRepository;
+    private final ApiUsageLogRepository apiUsageLogRepository;
     private final CommonService commonService;
     private final UserMapper userMapper;
     
@@ -47,6 +51,29 @@ public class AdminUserServiceImpl implements AdminUserService {
         List<UserResponseDTO> userDTOs = userPage.getContent().stream()
                 .map(userMapper::toResponseDTO)
                 .collect(Collectors.toList());
+
+        // Populate additional stats for each user
+        String currentMonth = java.time.LocalDate.now().toString().substring(0, 7); // YYYY-MM
+
+        for (UserResponseDTO dto : userDTOs) {
+            // CV Count
+            dto.setCvCount((int) cvRepository.countByUserId(dto.getId()));
+
+            // API Usage Count
+            dto.setApiUsageCount(Math.toIntExact(apiUsageLogRepository.countByUserIdAndMonth(dto.getId(), currentMonth)));
+
+            // Plan
+            List<com.app.civify.entity.UserSubscription> activeSubs = subscriptionRepository.findByUserIdAndStatus(
+                    dto.getId(), 
+                    com.app.civify.entity.enums.SubscriptionStatus.ACTIVE
+            );
+            
+            if (!activeSubs.isEmpty()) {
+                dto.setPlan(activeSubs.get(0).getPlan().getName());
+            } else {
+                dto.setPlan("free");
+            }
+        }
         
         // Create and populate paged response
         PagedResponse<UserResponseDTO> response = new PagedResponse<>();

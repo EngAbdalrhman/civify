@@ -94,5 +94,14 @@ public class UserResponseDTO {
     
     @Schema(description = "Total number of subscriptions", example = "3")
     private Long totalSubscriptionCount;
+
+    @Schema(description = "Current subscription plan", example = "premium")
+    private String plan;
+
+    @Schema(description = "Number of CVs created", example = "2")
+    private Integer cvCount;
+
+    @Schema(description = "API usage count for current month", example = "150")
+    private Integer apiUsageCount;
 }
 
