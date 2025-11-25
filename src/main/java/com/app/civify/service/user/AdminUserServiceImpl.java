@@ -31,21 +31,20 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class AdminUserServiceImpl implements AdminUserService {
+public class AdminUserServiceImpl extends CommonService implements AdminUserService {
     
     private final UserRepository userRepository;
     private final UserSubscriptionRepository subscriptionRepository;
     private final CvRepository cvRepository;
     private final ApiUsageLogRepository apiUsageLogRepository;
-    private final CommonService commonService;
     private final UserMapper userMapper;
     
     @Override
     public PagedResponse<UserResponseDTO> filterUsers(InputDataModel inputData) {
         log.debug("Filtering users with criteria: {}", inputData);
         
-        // Use CommonService to filter entities
-        Page<User> userPage = commonService.filterEntities(userRepository, inputData);
+        // Use CommonService (inherited) to filter entities
+        Page<User> userPage = filterEntities(userRepository, inputData);
         
         // Convert entities to DTOs
         List<UserResponseDTO> userDTOs = userPage.getContent().stream()

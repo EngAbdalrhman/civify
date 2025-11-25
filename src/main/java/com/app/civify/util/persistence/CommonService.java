@@ -64,7 +64,11 @@ public class CommonService {
      * Create specification from InputDataModel (handles filters + filterGroups)
      * Structure: filters (AND) + filterGroups with operation between them
      */
-    private <T> Specification<T> createSpecificationFromInputData(InputDataModel inputData) {
+    /**
+     * Create specification from InputDataModel (handles filters + filterGroups)
+     * Structure: filters (AND) + filterGroups with operation between them
+     */
+    public <T> Specification<T> createSpecificationFromInputData(InputDataModel inputData) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> allPredicates = new ArrayList<>();
 
@@ -267,14 +271,45 @@ public class CommonService {
     }
 
     /**
-     * Get path for nested fields
+     * Get path for nested fields, handling joins for collections
      */
     private <T> jakarta.persistence.criteria.Path<Object> getPath(jakarta.persistence.criteria.Root<T> root, String fieldName) {
-        String[] parts = fieldName.split("\\.");
-        jakarta.persistence.criteria.Path<Object> path = root.get(parts[0]);
+        if (!fieldName.contains(".")) {
+            return root.get(fieldName);
+        }
 
-        for (int i = 1; i < parts.length; i++) {
-            path = path.get(parts[i]);
+        String[] parts = fieldName.split("\\.");
+        jakarta.persistence.criteria.From<?, ?> current = root;
+        jakarta.persistence.criteria.Path<Object> path = null;
+
+        for (int i = 0; i < parts.length; i++) {
+            String part = parts[i];
+            
+            if (i < parts.length - 1) {
+                // Check if we need to join
+                // We try to reuse existing joins if possible to avoid duplicate joins
+                boolean joinFound = false;
+                for (jakarta.persistence.criteria.Join<?, ?> join : current.getJoins()) {
+                    if (join.getAttribute().getName().equals(part)) {
+                        current = join;
+                        joinFound = true;
+                        break;
+                    }
+                }
+                
+                if (!joinFound) {
+                    // Create new join
+                    // Default to LEFT join to include parents even if child is missing (though for filtering usually we want matches)
+                    // But for "subscriptions.plan.name", if user has no subscription, we don't want them if we filter by plan name.
+                    // However, if we filter "subscriptions.plan.name != 'free'", we might want them?
+                    // Let's stick to LEFT join for flexibility, but for filtering usually INNER is implied by WHERE clause.
+                    // JPA default join is INNER. Let's use LEFT to be safe against missing children if that's desired, 
+                    // but for "field = value" it acts like inner.
+                    current = current.join(part, jakarta.persistence.criteria.JoinType.LEFT);
+                }
+            } else {
+                path = current.get(part);
+            }
         }
 
         return path;
