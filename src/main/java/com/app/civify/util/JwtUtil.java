@@ -75,6 +75,19 @@ public class JwtUtil {
     }
 
     /**
+     * Generate refresh token (long lived)
+     */
+    public String generateRefreshToken(User user, long expirationMillis) {
+        return Jwts.builder()
+                .setSubject(user.getUsername())
+                .claim("type", "refresh")
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + expirationMillis))
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    /**
      * Validate token against username
      */
     public boolean validateToken(String token, String username) {

@@ -50,7 +50,7 @@ public class TokenService {
      */
     public AuthTokenPair createAuthTokens(User user) {
         String accessToken = jwtUtil.generateToken(user);
-        String refreshToken = generateRefreshToken(user.getUsername());
+        String refreshToken = generateRefreshToken(user);
 
         // Track this refresh token for the user (for revoke all functionality)
         trackUserToken(user.getUsername(), refreshToken);
@@ -60,60 +60,70 @@ public class TokenService {
     }
 
     /**
-     * Generate new UUID refresh token and store in Redis Uses cryptographically
-     * secure random UUID
+     * Generate new JWT refresh token (stateless but blacklisted)
      */
-    private String generateRefreshToken(String username) {
-        String token = UUID.randomUUID().toString();
-        long daysToExpire = refreshTokenExpiration / (24 * 60 * 60 * 1000);
-        cacheService.set(getRefreshKey(token), username, Duration.ofDays(daysToExpire));
-        log.debug("Generated refresh token for user: {}, expires in {} days", username, daysToExpire);
+    private String generateRefreshToken(User user) {
+        String token = jwtUtil.generateRefreshToken(user, refreshTokenExpiration);
+        // We don't strictly need to store it for validation (it's a JWT),
+        // but we can track it for "logout all" if needed.
+        // For now, we rely on JWT signature + blacklist check.
+        log.debug("Generated JWT refresh token for user: {}", user.getUsername());
         return token;
     }
 
     /**
-     * Refresh access token using refresh token Implements refresh token
-     * rotation for security (old token is deleted)
-     *
-     * @throws BadRequestException if refresh token is invalid or expired
+     * Refresh access token using refresh token
+     * Implements refresh token rotation
      */
     public AuthTokenPair refreshAccessToken(String refreshToken, User user) {
-        String key = getRefreshKey(refreshToken);
-        String username = cacheService.get(key);
-
-        if (username == null) {
-            log.warn("Refresh token not found or expired for user: {}", user.getUsername());
-            throw new BadRequestException("Invalid or expired refresh token");
+        // 1. Check if token is blacklisted
+        if (isRefreshTokenBlacklisted(refreshToken)) {
+             log.warn("Refresh token is blacklisted for user: {}", user.getUsername());
+             throw new BadRequestException("Invalid or expired refresh token");
         }
 
-        if (!username.equals(user.getUsername())) {
-            log.error("Refresh token mismatch! Token belongs to: {}, but user is: {}", username, user.getUsername());
-            throw new BadRequestException("Refresh token does not belong to user");
+        // 2. Validate JWT signature and expiration
+        if (!jwtUtil.validateToken(refreshToken, user.getUsername())) {
+             log.warn("Invalid refresh token signature/expiry for user: {}", user.getUsername());
+             throw new BadRequestException("Invalid or expired refresh token");
         }
 
-        // Rotate refresh token (delete old, issue new) - prevents token reuse attacks
-        cacheService.delete(key);
-        untrackUserToken(user.getUsername(), refreshToken);
+        // 3. Rotate: Blacklist the old token
+        blacklistRefreshToken(refreshToken);
 
-        log.info("Refreshed access token for user: {}", username);
+        log.info("Refreshed access token for user: {}", user.getUsername());
 
-        // Generate new token pair
+        // 4. Generate new pair
         return createAuthTokens(user);
     }
 
     /**
-     * Revoke refresh token (logout from single device)
+     * Revoke refresh token (logout)
      */
     public void revokeRefreshToken(String refreshToken) {
-        String key = getRefreshKey(refreshToken);
-        String username = cacheService.get(key);
+        blacklistRefreshToken(refreshToken);
+        log.info("Revoked refresh token");
+    }
 
-        cacheService.delete(key);
+    private void blacklistRefreshToken(String token) {
+        try {
+            Date expirationDate = jwtUtil.extractExpiration(token);
+            long expirationTime = expirationDate.getTime();
+            long currentTime = System.currentTimeMillis();
+            long ttlMillis = expirationTime - currentTime;
 
-        if (username != null) {
-            untrackUserToken(username, refreshToken);
-            log.info("Revoked refresh token for user: {}", username);
+            if (ttlMillis > 0) {
+                String blacklistKey = getRefreshKey(token); // Reuse prefix
+                cacheService.set(blacklistKey, "revoked", Duration.ofMillis(ttlMillis));
+            }
+        } catch (Exception e) {
+            log.error("Failed to blacklist refresh token", e);
         }
+    }
+
+    private boolean isRefreshTokenBlacklisted(String token) {
+        String blacklistKey = getRefreshKey(token);
+        return cacheService.get(blacklistKey) != null;
     }
 
     /**
