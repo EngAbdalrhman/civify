@@ -6,12 +6,15 @@ import com.app.civify.service.user.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+
+import com.app.civify.dto.user.UserDto;
 
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -20,14 +23,11 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
 @ApiV1Controller
 @RequestMapping("/users")
+@RequiredArgsConstructor
 @Tag(name = "Users", description = "User management endpoints")
 public class UserController {
 
     private final UserService userService;
-
-    public UserController(UserService userService) {
-        this.userService = userService;
-    }
 
     @Operation(
             summary = "Get current user profile",
@@ -36,13 +36,13 @@ public class UserController {
     )
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "User profile retrieved successfully",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = User.class))),
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserDto.class))),
         @ApiResponse(responseCode = "401", description = "Unauthorized",
                 content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/me")
-    public ResponseEntity<User> me() {
-        return ResponseEntity.ok(userService.getCurrentUser());
+    public ResponseEntity<UserDto> me() {
+        return ResponseEntity.ok(userService.getMyUser());
     }
 
     @Operation(
