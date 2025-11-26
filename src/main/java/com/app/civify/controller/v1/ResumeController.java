@@ -1,4 +1,4 @@
-package com.app.civify.controller;
+package com.app.civify.controller.v1;
 
 import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.dto.resume.ResumeDto;
@@ -12,7 +12,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/resumes")
+@ApiV1Controller
+@RequestMapping("/resumes")
 @RequiredArgsConstructor
 public class ResumeController {
 

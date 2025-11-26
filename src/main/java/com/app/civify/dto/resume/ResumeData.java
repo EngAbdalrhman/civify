@@ -44,6 +44,7 @@ public class ResumeData implements Serializable {
         private List<SectionItem> items = new ArrayList<>();
         private boolean isVisible = true;
         private int order;
+        private String style;
     }
 
     @Data

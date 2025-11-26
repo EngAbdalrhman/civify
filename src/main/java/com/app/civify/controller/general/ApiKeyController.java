@@ -1,4 +1,4 @@
-package com.app.civify.controller.v1;
+package com.app.civify.controller.general;
 
 import com.app.civify.entity.ApiKey;
 import com.app.civify.entity.User;
