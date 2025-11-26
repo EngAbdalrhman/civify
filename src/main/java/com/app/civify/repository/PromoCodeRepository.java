@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.util.Optional;
 
 @Repository
-public interface PromoCodeRepository extends JpaRepository<PromoCode, Long> {
+public interface PromoCodeRepository extends JpaRepository<PromoCode, Long>, org.springframework.data.jpa.repository.JpaSpecificationExecutor<PromoCode> {
 
     Optional<PromoCode> findByCodeAndActiveTrue(String code);
 }

@@ -37,7 +37,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     private final SubscriptionService subscriptionService;
 
     @Value("${app.frontend.base-url}")
-    public String frontendUrl;
+    private String frontendUrl;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,

@@ -2,7 +2,7 @@ package com.app.civify.controller.v1;
 
 import com.app.civify.dto.user.UserResponseDTO;
 import com.app.civify.service.user.AdminUserService;
-import com.app.civify.util.ApiResponse;
+import com.app.civify.util.CommonResponse;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,7 +42,7 @@ public class AdminUserController {
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
                 responseCode = "200",
                 description = "Users filtered successfully",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class))
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))
         ),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
                 responseCode = "400",
@@ -51,12 +51,12 @@ public class AdminUserController {
         )
     })
     @PostMapping("/filter")
-    public ResponseEntity<ApiResponse<PagedResponse<UserResponseDTO>>> filterUsers(@Valid @RequestBody InputDataModel inputData) {
+    public ResponseEntity<CommonResponse<PagedResponse<UserResponseDTO>>> filterUsers(@Valid @RequestBody InputDataModel inputData) {
         log.info("Admin filtering users with criteria: {}", inputData);
 
         PagedResponse<UserResponseDTO> pagedResponse = adminUserService.filterUsers(inputData);
 
-        return ResponseEntity.ok(ApiResponse.success("Users filtered successfully", pagedResponse));
+        return ResponseEntity.ok(CommonResponse.success("Users filtered successfully", pagedResponse));
     }
 
     @Operation(
@@ -68,18 +68,18 @@ public class AdminUserController {
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
                 responseCode = "200",
                 description = "Users retrieved successfully",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class))
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))
         )
     })
     @GetMapping
-    public ResponseEntity<ApiResponse<PagedResponse<UserResponseDTO>>> getAllUsers(
+    public ResponseEntity<CommonResponse<PagedResponse<UserResponseDTO>>> getAllUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         log.info("Admin fetching all users - page: {}, size: {}", page, size);
 
         PagedResponse<UserResponseDTO> pagedResponse = adminUserService.getAllUsers(page, size);
 
-        return ResponseEntity.ok(ApiResponse.success("Users retrieved successfully", pagedResponse));
+        return ResponseEntity.ok(CommonResponse.success("Users retrieved successfully", pagedResponse));
     }
 
     @Operation(
@@ -91,7 +91,7 @@ public class AdminUserController {
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
                 responseCode = "200",
                 description = "User retrieved successfully",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class))
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))
         ),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
                 responseCode = "404",
@@ -100,7 +100,7 @@ public class AdminUserController {
         )
     })
     @GetMapping("/{userId}")
-    public ResponseEntity<ApiResponse<UserResponseDTO>> getUserById(
+    public ResponseEntity<CommonResponse<UserResponseDTO>> getUserById(
             @PathVariable Long userId,
             @RequestParam(defaultValue = "false") boolean includeStats) {
         log.info("Admin fetching user with ID: {} (includeStats: {})", userId, includeStats);
@@ -109,7 +109,7 @@ public class AdminUserController {
                 ? adminUserService.getUserByIdWithStats(userId)
                 : adminUserService.getUserById(userId);
 
-        return ResponseEntity.ok(ApiResponse.success("User retrieved successfully", userDTO));
+        return ResponseEntity.ok(CommonResponse.success("User retrieved successfully", userDTO));
     }
     @Operation(
             summary = "Update user limits",
@@ -120,7 +120,7 @@ public class AdminUserController {
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
                 responseCode = "200",
                 description = "User limits updated successfully",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class))
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))
         ),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
                 responseCode = "404",
@@ -129,7 +129,7 @@ public class AdminUserController {
         )
     })
     @PutMapping("/{userId}/limits")
-    public ResponseEntity<ApiResponse<UserResponseDTO>> updateUserLimits(
+    public ResponseEntity<CommonResponse<UserResponseDTO>> updateUserLimits(
             @PathVariable Long userId,
             @RequestParam(required = false) Integer cvLimit,
             @RequestParam(required = false) Integer apiLimit) {
@@ -137,6 +137,6 @@ public class AdminUserController {
 
         UserResponseDTO userDTO = adminUserService.updateUserLimits(userId, cvLimit, apiLimit);
 
-        return ResponseEntity.ok(ApiResponse.success("User limits updated successfully", userDTO));
+        return ResponseEntity.ok(CommonResponse.success("User limits updated successfully", userDTO));
     }
 }

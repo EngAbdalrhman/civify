@@ -37,10 +37,10 @@ public class SecurityConfig {
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
 
     @Value("${app.frontend.base-url}")
-    public String frontendUrl;
+    private String frontendUrl;
 
     @Value("${payment.fawaterak.base-url}")
-    public String paymentGateway;
+    private String paymentGateway;
 
     @Bean
     public PasswordEncoder passwordEncoder() {

@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 
 import com.app.civify.service.i18n.MessageService;
-import com.app.civify.util.ApiResponse;
+import com.app.civify.util.CommonResponse;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +38,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ServiceException.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public ResponseEntity<ApiResponse<Void>> handleServiceException(ServiceException ex, WebRequest request) {
+    public ResponseEntity<CommonResponse<Void>> handleServiceException(ServiceException ex, WebRequest request) {
         String requestId = request.getHeader("X-Request-ID");
         if (requestId == null) {
             requestId = "unknown";
@@ -51,7 +51,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .header("X-Request-ID", requestId)
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(CommonResponse.error(ex.getMessage()));
     }
 
     /**
@@ -63,7 +63,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public ResponseEntity<ApiResponse<Void>> handleException(Exception ex, WebRequest request) {
+    public ResponseEntity<CommonResponse<Void>> handleException(Exception ex, WebRequest request) {
         String requestId = request.getHeader("X-Request-ID");
         if (requestId == null) {
             requestId = "unknown";
@@ -77,7 +77,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .header("X-Request-ID", requestId)
-                .body(ApiResponse.error(errorMessage));
+                .body(CommonResponse.error(errorMessage));
     }
 
     /**
@@ -88,7 +88,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(EntityNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ResponseEntity<ApiResponse<Void>> handleEntityNotFoundException(EntityNotFoundException ex, WebRequest request) {
+    public ResponseEntity<CommonResponse<Void>> handleEntityNotFoundException(EntityNotFoundException ex, WebRequest request) {
         String requestId = request.getHeader("X-Request-ID");
         if (requestId == null) {
             requestId = "unknown";
@@ -99,7 +99,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
                 .header("X-Request-ID", requestId)
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(CommonResponse.error(ex.getMessage()));
     }
 
     /**
@@ -110,7 +110,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ResourceNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ResponseEntity<ApiResponse<Void>> handleResourceNotFoundException(ResourceNotFoundException ex) {
+    public ResponseEntity<CommonResponse<Void>> handleResourceNotFoundException(ResourceNotFoundException ex) {
         log.warn("Resource not found: {}", ex.getMessage());
 
         // Use the exception message if it's a specific message, otherwise use generic localized message
@@ -120,7 +120,7 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.error(errorMessage));
+                .body(CommonResponse.error(errorMessage));
     }
 
     /**
@@ -131,12 +131,12 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ResourceAlreadyExistsException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
-    public ResponseEntity<ApiResponse<Void>> handleResourceAlreadyExistsException(ResourceAlreadyExistsException ex) {
+    public ResponseEntity<CommonResponse<Void>> handleResourceAlreadyExistsException(ResourceAlreadyExistsException ex) {
         log.warn("Resource already exists: {}", ex.getMessage());
 
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(CommonResponse.error(ex.getMessage()));
     }
 
     /**
@@ -147,12 +147,12 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ResponseEntity<ApiResponse<Void>> handleIllegalArgumentException(IllegalArgumentException ex) {
+    public ResponseEntity<CommonResponse<Void>> handleIllegalArgumentException(IllegalArgumentException ex) {
         log.warn("Illegal argument: {}", ex.getMessage());
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(CommonResponse.error(ex.getMessage()));
     }
 
     /**
@@ -163,12 +163,12 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(BadRequestException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ResponseEntity<ApiResponse<Void>> handleBadRequestException(BadRequestException ex) {
+    public ResponseEntity<CommonResponse<Void>> handleBadRequestException(BadRequestException ex) {
         log.warn("Bad request: {}", ex.getMessage());
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(CommonResponse.error(ex.getMessage()));
     }
 
     /**
@@ -179,7 +179,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(UnauthorizedException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
-    public ResponseEntity<ApiResponse<Void>> handleUnauthorizedException(UnauthorizedException ex, WebRequest request) {
+    public ResponseEntity<CommonResponse<Void>> handleUnauthorizedException(UnauthorizedException ex, WebRequest request) {
         String requestId = request.getHeader("X-Request-ID");
         if (requestId == null) {
             requestId = "unknown";
@@ -194,7 +194,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
                 .header("X-Request-ID", requestId)
-                .body(ApiResponse.error(errorMessage));
+                .body(CommonResponse.error(errorMessage));
     }
 
     /**
@@ -205,7 +205,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ResponseEntity<ApiResponse<Map<String, String>>> handleMethodArgumentNotValidException(
+    public ResponseEntity<CommonResponse<Map<String, String>>> handleMethodArgumentNotValidException(
             MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach((error) -> {
@@ -218,7 +218,7 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error("Validation failed", errors));
+                .body(CommonResponse.error("Validation failed", errors));
     }
 
     /**
@@ -229,13 +229,13 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ValidationException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationException(
+    public ResponseEntity<CommonResponse<Map<String, String>>> handleValidationException(
             ValidationException ex) {
         log.warn("Custom validation failed: {}", ex.getErrors());
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(ex.getMessage(), ex.getErrors()));
+                .body(CommonResponse.error(ex.getMessage(), ex.getErrors()));
     }
 
     /**
@@ -246,12 +246,12 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(AuthorizationException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
-    public ResponseEntity<ApiResponse<Void>> handleAuthorizationException(AuthorizationException ex) {
+    public ResponseEntity<CommonResponse<Void>> handleAuthorizationException(AuthorizationException ex) {
         log.warn("Authorization exception: {}", ex.getMessage());
 
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(CommonResponse.error(ex.getMessage()));
     }
 
     /**
@@ -262,11 +262,11 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(com.app.civify.exception.EntityNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ResponseEntity<ApiResponse<Void>> handleCustomEntityNotFoundException(com.app.civify.exception.EntityNotFoundException ex) {
+    public ResponseEntity<CommonResponse<Void>> handleCustomEntityNotFoundException(com.app.civify.exception.EntityNotFoundException ex) {
         log.warn("Custom entity not found: {}", ex.getMessage());
 
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(CommonResponse.error(ex.getMessage()));
     }
 }

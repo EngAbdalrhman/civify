@@ -6,7 +6,8 @@ import com.app.civify.dto.plan.PlanMapper;
 import com.app.civify.dto.plan.PlanUpdateRequest;
 import com.app.civify.entity.SubscriptionPlan;
 import com.app.civify.service.subscription.SubscriptionService;
-import com.app.civify.util.ApiResponse;
+import com.app.civify.util.CommonResponse;
+import com.app.civify.util.filter.PagedResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -48,7 +49,7 @@ public class AdminPlanController {
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
                 responseCode = "200",
                 description = "Plans filtered successfully",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class))
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))
         ),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
                 responseCode = "400",
@@ -57,12 +58,12 @@ public class AdminPlanController {
         )
     })
     @PostMapping("/filter")
-    public ResponseEntity<ApiResponse<com.app.civify.util.filter.PagedResponse<SubscriptionPlan>>> filterPlans(@Valid @RequestBody com.app.civify.util.filter.InputDataModel inputData) {
+    public ResponseEntity<CommonResponse<PagedResponse<SubscriptionPlan>>> filterPlans(@Valid @RequestBody com.app.civify.util.filter.InputDataModel inputData) {
         log.info("Admin filtering plans with criteria: {}", inputData);
 
         com.app.civify.util.filter.PagedResponse<SubscriptionPlan> pagedResponse = subscriptionService.filterPlans(inputData);
 
-        return ResponseEntity.ok(ApiResponse.success("Plans filtered successfully", pagedResponse));
+        return ResponseEntity.ok(CommonResponse.success("Plans filtered successfully", pagedResponse));
     }
 
     @Operation(
@@ -143,7 +144,7 @@ public class AdminPlanController {
         )
     })
     @PostMapping
-    public ResponseEntity<ApiResponse<PlanDetailResponse>> createPlan(@Valid @RequestBody PlanCreateRequest request) {
+    public ResponseEntity<CommonResponse<PlanDetailResponse>> createPlan(@Valid @RequestBody PlanCreateRequest request) {
         log.info("Admin creating new subscription plan: {}", request.getName());
 
         try {
@@ -166,12 +167,12 @@ public class AdminPlanController {
 
             return ResponseEntity
                     .status(HttpStatus.CREATED)
-                    .body(ApiResponse.success("Plan created successfully", response));
+                    .body(CommonResponse.success("Plan created successfully", response));
         } catch (Exception e) {
             log.error("Error creating plan: {}", e.getMessage());
             return ResponseEntity
                     .badRequest()
-                    .body(ApiResponse.error(e.getMessage()));
+                    .body(CommonResponse.error(e.getMessage()));
         }
     }
 
@@ -198,7 +199,7 @@ public class AdminPlanController {
         )
     })
     @PutMapping("/{planId}")
-    public ResponseEntity<ApiResponse<PlanDetailResponse>> updatePlan(
+    public ResponseEntity<CommonResponse<PlanDetailResponse>> updatePlan(
             @PathVariable Long planId,
             @Valid @RequestBody PlanUpdateRequest request) {
         log.info("Admin updating subscription plan: {}", planId);
@@ -241,12 +242,12 @@ public class AdminPlanController {
             SubscriptionPlan updated = subscriptionService.updatePlan(planId, updatedPlan);
             PlanDetailResponse response = planMapper.toDetailResponse(updated);
 
-            return ResponseEntity.ok(ApiResponse.success("Plan updated successfully", response));
+            return ResponseEntity.ok(CommonResponse.success("Plan updated successfully", response));
         } catch (Exception e) {
             log.error("Error updating plan: {}", e.getMessage());
             return ResponseEntity
                     .badRequest()
-                    .body(ApiResponse.error(e.getMessage()));
+                    .body(CommonResponse.error(e.getMessage()));
         }
     }
 
@@ -268,17 +269,17 @@ public class AdminPlanController {
         )
     })
     @PatchMapping("/{planId}/activate")
-    public ResponseEntity<ApiResponse<SubscriptionPlan>> activatePlan(@PathVariable Long planId) {
+    public ResponseEntity<CommonResponse<SubscriptionPlan>> activatePlan(@PathVariable Long planId) {
         log.info("Admin activating subscription plan: {}", planId);
 
         try {
             SubscriptionPlan activated = subscriptionService.activatePlan(planId);
-            return ResponseEntity.ok(ApiResponse.success("Plan activated successfully", activated));
+            return ResponseEntity.ok(CommonResponse.success("Plan activated successfully", activated));
         } catch (Exception e) {
             log.error("Error activating plan: {}", e.getMessage());
             return ResponseEntity
                     .badRequest()
-                    .body(ApiResponse.error(e.getMessage()));
+                    .body(CommonResponse.error(e.getMessage()));
         }
     }
 
@@ -305,17 +306,17 @@ public class AdminPlanController {
         )
     })
     @PatchMapping("/{planId}/deactivate")
-    public ResponseEntity<ApiResponse<SubscriptionPlan>> deactivatePlan(@PathVariable Long planId) {
+    public ResponseEntity<CommonResponse<SubscriptionPlan>> deactivatePlan(@PathVariable Long planId) {
         log.info("Admin deactivating subscription plan: {}", planId);
 
         try {
             SubscriptionPlan deactivated = subscriptionService.deactivatePlan(planId);
-            return ResponseEntity.ok(ApiResponse.success("Plan deactivated successfully", deactivated));
+            return ResponseEntity.ok(CommonResponse.success("Plan deactivated successfully", deactivated));
         } catch (Exception e) {
             log.error("Error deactivating plan: {}", e.getMessage());
             return ResponseEntity
                     .badRequest()
-                    .body(ApiResponse.error(e.getMessage()));
+                    .body(CommonResponse.error(e.getMessage()));
         }
     }
 
@@ -342,17 +343,17 @@ public class AdminPlanController {
         )
     })
     @DeleteMapping("/{planId}")
-    public ResponseEntity<ApiResponse<Void>> deletePlan(@PathVariable Long planId) {
+    public ResponseEntity<CommonResponse<Void>> deletePlan(@PathVariable Long planId) {
         log.info("Admin deleting subscription plan: {}", planId);
 
         try {
             subscriptionService.deletePlan(planId);
-            return ResponseEntity.ok(ApiResponse.success("Plan deleted successfully", null));
+            return ResponseEntity.ok(CommonResponse.success("Plan deleted successfully", null));
         } catch (Exception e) {
             log.error("Error deleting plan: {}", e.getMessage());
             return ResponseEntity
                     .badRequest()
-                    .body(ApiResponse.error(e.getMessage()));
+                    .body(CommonResponse.error(e.getMessage()));
         }
     }
 }

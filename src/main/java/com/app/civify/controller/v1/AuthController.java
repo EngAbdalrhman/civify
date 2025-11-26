@@ -4,7 +4,7 @@ import com.app.civify.dto.auth.AuthRequest;
 import com.app.civify.dto.auth.AuthResponse;
 import com.app.civify.service.auth.AuthService;
 import com.app.civify.service.auth.EmailVerificationService;
-import com.app.civify.util.ApiResponse;
+import com.app.civify.util.CommonResponse;
 
 import lombok.RequiredArgsConstructor;
 
@@ -41,16 +41,16 @@ public class AuthController {
      * Verify email with token from email link
      */
     @GetMapping("/verify-email")
-    public ResponseEntity<ApiResponse> verifyEmail(@RequestParam("token") String token) {
+    public ResponseEntity<CommonResponse> verifyEmail(@RequestParam("token") String token) {
         boolean verified = emailVerificationService.verifyEmail(token);
 
         if (verified) {
-            return ResponseEntity.ok(ApiResponse.success(
+            return ResponseEntity.ok(CommonResponse.success(
                     "Email verified successfully! You can now login.",
                     null
             ));
         } else {
-            return ResponseEntity.badRequest().body(ApiResponse.error(
+            return ResponseEntity.badRequest().body(CommonResponse.error(
                     "Invalid or expired verification token"
             ));
         }
@@ -60,11 +60,11 @@ public class AuthController {
      * Resend verification email
      */
     @PostMapping("/resend-verification")
-    public ResponseEntity<ApiResponse> resendVerification(@RequestParam("email") String email) {
+    public ResponseEntity<CommonResponse> resendVerification(@RequestParam("email") String email) {
         log.info("Processing resend verification email request for email: {}", email);
         emailVerificationService.resendVerificationEmail(email);
         log.info("Verification email resent successfully for email: {}", email);
-        return ResponseEntity.ok(ApiResponse.success(
+        return ResponseEntity.ok(CommonResponse.success(
                 "Verification email sent! Please check your inbox.",
                 null
         ));
@@ -115,7 +115,7 @@ public class AuthController {
      * Logout - blacklists access token and revokes refresh token
      */
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse> logout(
+    public ResponseEntity<CommonResponse> logout(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestParam("refreshToken") String refreshToken) {
 
@@ -126,24 +126,24 @@ public class AuthController {
         }
 
         authService.logout(accessToken, refreshToken);
-        return ResponseEntity.ok(ApiResponse.success("Logged out successfully", null));
+        return ResponseEntity.ok(CommonResponse.success("Logged out successfully", null));
     }
 
     /**
      * Enable 2FA for user
      */
     @PostMapping("/enable-2fa")
-    public ResponseEntity<ApiResponse> enable2FA(@RequestParam("username") String username) {
+    public ResponseEntity<CommonResponse> enable2FA(@RequestParam("username") String username) {
         authService.enable2fa(username);
-        return ResponseEntity.ok(ApiResponse.success("2FA enabled successfully", null));
+        return ResponseEntity.ok(CommonResponse.success("2FA enabled successfully", null));
     }
 
     /**
      * Disable 2FA for user
      */
     @PostMapping("/disable-2fa")
-    public ResponseEntity<ApiResponse> disable2FA(@RequestParam("username") String username) {
+    public ResponseEntity<CommonResponse> disable2FA(@RequestParam("username") String username) {
         authService.disable2fa(username);
-        return ResponseEntity.ok(ApiResponse.success("2FA disabled successfully", null));
+        return ResponseEntity.ok(CommonResponse.success("2FA disabled successfully", null));
     }
 }
