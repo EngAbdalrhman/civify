@@ -3,9 +3,9 @@ package com.app.civify.security;
 import com.app.civify.entity.User;
 import com.app.civify.repository.UserRepository;
 import com.app.civify.security.model.Role;
+import com.app.civify.service.auth.TokenService;
 import com.app.civify.service.subscription.SubscriptionService;
 import com.app.civify.util.JwtConstants;
-import com.app.civify.util.JwtUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,16 +25,16 @@ import java.io.IOException;
  * - Auto-verifies email (Google already verified it)
  * - Creates user if doesn't exist
  * - Creates FREE subscription
- * - Returns tokens using same method as standard login
+ * - Returns tokens using TokenService for consistency
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
-    private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
     private final SubscriptionService subscriptionService;
+    private final TokenService tokenService;
 
     @Value("${app.frontend.base-url}")
     private String frontendUrl;
@@ -89,12 +89,12 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         user.setLastLoginAt(java.time.LocalDateTime.now());
         userRepository.save(user);
 
-        // Generate tokens using SAME method as standard login
-        String accessToken = jwtUtil.generateToken(user.getUsername(), JwtConstants.ACCESS_TOKEN_EXPIRATION_MINUTES);
-        String refreshToken = jwtUtil.generateToken(user.getUsername(), JwtConstants.REFRESH_TOKEN_EXPIRATION_MINUTES);
+        // Generate tokens using TokenService for proper lifecycle management
+        // This ensures consistency with standard login and refresh token rotation
+        TokenService.AuthTokenPair tokens = tokenService.createAuthTokens(user);
 
-        // Set Refresh Token in HttpOnly Cookie (same as standard login)
-        Cookie refreshCookie = new Cookie(JwtConstants.REFRESH_TOKEN_COOKIE_NAME, refreshToken);
+        // Set Refresh Token in HttpOnly Cookie
+        Cookie refreshCookie = new Cookie(JwtConstants.REFRESH_TOKEN_COOKIE_NAME, tokens.getRefreshToken());
         refreshCookie.setHttpOnly(true);
         refreshCookie.setSecure(false); // Set to true in production with HTTPS
         refreshCookie.setPath(JwtConstants.REFRESH_TOKEN_COOKIE_PATH);
@@ -103,7 +103,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
         // Redirect to frontend with access token only (refresh token is in cookie)
         String targetUrl = frontendUrl + "/auth/callback" +
-                "?accessToken=" + accessToken;
+                "?accessToken=" + tokens.getAccessToken();
 
         response.sendRedirect(targetUrl);
 
