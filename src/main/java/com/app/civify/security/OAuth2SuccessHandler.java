@@ -11,6 +11,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -34,6 +35,9 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
     private final SubscriptionService subscriptionService;
+
+    @Value("${app.frontend.base-url}")
+    private final String frontendUrl;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
@@ -98,7 +102,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         response.addCookie(refreshCookie);
 
         // Redirect to frontend with access token only (refresh token is in cookie)
-        String targetUrl = "http://localhost:9002/auth/callback" +
+        String targetUrl = frontendUrl + "/auth/callback" +
                 "?accessToken=" + accessToken;
 
         response.sendRedirect(targetUrl);

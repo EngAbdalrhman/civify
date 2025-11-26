@@ -5,8 +5,8 @@ import com.app.civify.security.filter.JWTAuthenticationFilter;
 import com.app.civify.security.filter.JWTRefreshFilter;
 import com.app.civify.security.filter.JwtValidationFilter;
 import com.app.civify.util.JwtUtil;
-import com.app.civify.util.RequestLoggingFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -35,7 +35,12 @@ public class SecurityConfig {
     private final JwtUtil jwtUtil;
     private final CustomOAuth2UserService oAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
-    private final RequestLoggingFilter requestLoggingFilter;
+
+    @Value("${payment.fawaterak.base-url}")
+    private final String paymentGateway;
+
+    @Value("${app.frontend.base-url}")
+    private final String frontendUrl;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -88,17 +93,17 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .headers(h -> h.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'")))
                 .authorizeHttpRequests(auth -> auth
-                // Authentication
-                .requestMatchers("/auth", "/auth/**").permitAll()
-                // Documentation endpoints
-                .requestMatchers("/civify-docs-ui", "/civify-docs-api", "/swagger-ui/**").permitAll()
-                // Public API endpoints
-                .requestMatchers("/health").permitAll()
-                .requestMatchers("/v1/subscriptions/**", "/subscriptions/**").permitAll() // Allow public access to plans
-                .requestMatchers("/v1/payments/config", "/payments/config").permitAll() // Allow public access to payment config
-                // Admin endpoints
-                .requestMatchers("/v1/admin/**").hasAuthority("ROLE_ADMIN")
-                .anyRequest().authenticated()
+                        // Authentication
+                        .requestMatchers("/auth", "/auth/**").permitAll()
+                        // Documentation endpoints
+                        .requestMatchers("/civify-docs-ui", "/civify-docs-api", "/swagger-ui/**").permitAll()
+                        // Public API endpoints
+                        .requestMatchers("/health").permitAll()
+                        .requestMatchers("/v1/subscriptions/**", "/subscriptions/**").permitAll() // Allow public access to plans
+                        .requestMatchers("/v1/payments/config", "/payments/config").permitAll() // Allow public access to payment config
+                        // Admin endpoints
+                        .requestMatchers("/v1/admin/**").hasAuthority("ROLE_ADMIN")
+                        .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -111,7 +116,8 @@ public class SecurityConfig {
                                 .userService(oAuth2UserService)
                         )
                         .successHandler(oAuth2SuccessHandler)
-                );;
+                );
+        ;
 
 
         return http.build();
@@ -120,7 +126,7 @@ public class SecurityConfig {
     @Bean
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
         org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
-        configuration.setAllowedOrigins(java.util.List.of("http://localhost:9002", "http://localhost:3000")); // Frontend URLs
+        configuration.setAllowedOrigins(java.util.List.of(frontendUrl, paymentGateway));
         configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(java.util.List.of("*"));
         configuration.setExposedHeaders(java.util.List.of("Authorization", "Set-Cookie"));
