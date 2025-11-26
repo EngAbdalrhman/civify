@@ -36,19 +36,18 @@ public class SecurityConfig {
     private final CustomOAuth2UserService oAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
 
-    @Value("${payment.fawaterak.base-url}")
-    private final String paymentGateway;
-
     @Value("${app.frontend.base-url}")
-    private final String frontendUrl;
+    public String frontendUrl;
+
+    @Value("${payment.fawaterak.base-url}")
+    public String paymentGateway;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    @Bean
-    public DaoAuthenticationProvider authenticationProvider() {
+    public DaoAuthenticationProvider daoAuthenticationProvider() {
         DaoAuthenticationProvider p = new DaoAuthenticationProvider();
         p.setUserDetailsService(userDetailsService);
         p.setPasswordEncoder(passwordEncoder());
@@ -59,12 +58,6 @@ public class SecurityConfig {
         return new JWTAuthenticationProvider(jwtUtil, userDetailsService);
     }
 
-    public DaoAuthenticationProvider daoAuthenticationProvider() {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(userDetailsService);
-        provider.setPasswordEncoder(passwordEncoder());
-        return provider;
-    }
 
     @Bean
     public AuthenticationManager authenticationManager() {
