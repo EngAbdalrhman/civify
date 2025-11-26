@@ -91,9 +91,24 @@ public class AuthController {
     /**
      * Refresh access token using refresh token
      */
+    /**
+     * Refresh access token using refresh token (from param or cookie)
+     */
     @PostMapping("/refresh")
-    public ResponseEntity<AuthResponse> refresh(@RequestParam("refreshToken") String refreshToken) {
-        return ResponseEntity.ok(authService.refresh(refreshToken));
+    public ResponseEntity<AuthResponse> refresh(
+            @RequestParam(value = "refreshToken", required = false) String refreshToken,
+            @CookieValue(value = "refreshToken", required = false) String refreshTokenCookie) {
+        
+        String tokenToUse = refreshToken;
+        if (tokenToUse == null || tokenToUse.isEmpty()) {
+            tokenToUse = refreshTokenCookie;
+        }
+
+        if (tokenToUse == null || tokenToUse.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        return ResponseEntity.ok(authService.refresh(tokenToUse));
     }
 
     /**

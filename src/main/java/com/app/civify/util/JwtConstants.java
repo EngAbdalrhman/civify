@@ -12,14 +12,14 @@ public class JwtConstants {
     // Access token expiration: 15 minutes (in minutes)
     public static final long ACCESS_TOKEN_EXPIRATION_MINUTES = 15;
 
-    // Refresh token expiration: 7 days (in minutes)
-    public static final long REFRESH_TOKEN_EXPIRATION_MINUTES = 7 * 24 * 60;
+    // Refresh token expiration: 30 days (in minutes)
+    public static final long REFRESH_TOKEN_EXPIRATION_MINUTES = 30 * 24 * 60;
 
     // JWT token generation endpoint
     public static final String GENERATE_TOKEN_ENDPOINT = "/generate-token";
 
     // Refresh token cookie settings
     public static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
-    public static final String REFRESH_TOKEN_COOKIE_PATH = "/refresh-token";
-    public static final int REFRESH_TOKEN_COOKIE_MAX_AGE = 7 * 24 * 60 * 60; // 7 days in seconds
+    public static final String REFRESH_TOKEN_COOKIE_PATH = "/"; // Allow cookie for all paths
+    public static final int REFRESH_TOKEN_COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days in seconds
 }
