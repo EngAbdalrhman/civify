@@ -10,8 +10,11 @@ import com.app.civify.exception.ResourceNotFoundException;
 import com.app.civify.repository.*;
 import com.app.civify.security.model.Role;
 import com.app.civify.service.payment.PaymentService;
+import com.app.civify.util.filter.InputDataModel;
+import com.app.civify.util.filter.PagedResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,10 +29,11 @@ import java.util.Optional;
  * plan becomes active - When paid plan expires, free plan automatically
  * reactivates - Only ONE subscription is active at any time
  */
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class SubscriptionServiceImpl implements SubscriptionService {
+public class SubscriptionServiceImpl extends com.app.civify.util.persistence.CommonService implements SubscriptionService {
 
     private final SubscriptionPlanRepository planRepository;
     private final UserSubscriptionRepository subscriptionRepository;
@@ -53,6 +57,25 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     @Override
     public Optional<SubscriptionPlan> getPlanByName(String name) {
         return planRepository.findByName(name);
+    }
+
+    @Override
+    public PagedResponse<SubscriptionPlan> filterPlans(InputDataModel inputData) {
+        log.debug("Filtering plans with criteria: {}", inputData);
+        Page<SubscriptionPlan> page = filterEntities(planRepository, inputData);
+        
+        PagedResponse<SubscriptionPlan> response = new PagedResponse<>();
+        response.setContent(page.getContent());
+        response.setPage(page.getNumber());
+        response.setSize(page.getSize());
+        response.setTotalElements(page.getTotalElements());
+        response.setTotalPages(page.getTotalPages());
+        response.setFirst(page.isFirst());
+        response.setLast(page.isLast());
+        response.setHasNext(page.hasNext());
+        response.setHasPrevious(page.hasPrevious());
+        
+        return response;
     }
 
     @Override
@@ -212,12 +235,25 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
         UserSubscription sub = subscription.get();
         SubscriptionPlan plan = sub.getPlan();
+        User user = sub.getUser();
 
         return switch (feature.toUpperCase()) {
-            case "CV" ->
-                sub.canUseCv();
-            case "API" ->
-                sub.canUseApi();
+            case "CV" -> {
+                // Check custom limit first
+                if (user.getCvLimit() != null) {
+                    sub.resetUsageIfNewMonth(); // Ensure usage is reset before checking
+                    yield sub.getCurrentCvCount() < user.getCvLimit();
+                }
+                yield sub.canUseCv();
+            }
+            case "API" -> {
+                // Check custom limit first
+                if (user.getApiRateLimit() != null) {
+                    sub.resetUsageIfNewMonth(); // Ensure usage is reset before checking
+                    yield sub.getCurrentApiCount() < user.getApiRateLimit();
+                }
+                yield sub.canUseApi();
+            }
             case "WATERMARK" ->
                 !Boolean.TRUE.equals(plan.getWatermark()); // false = no watermark
             case "DASHBOARD" ->
@@ -240,13 +276,13 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
         switch (feature.toUpperCase()) {
             case "CV" -> {
-                if (!sub.canUseCv()) {
+                if (!canUserUseFeature(userId, "CV")) {
                     throw new BadRequestException("CV generation limit reached for current subscription");
                 }
                 sub.incrementCvCount();
             }
             case "API" -> {
-                if (!sub.canUseApi()) {
+                if (!canUserUseFeature(userId, "API")) {
                     throw new BadRequestException("API call limit reached for current subscription");
                 }
                 sub.incrementApiCount();

@@ -40,21 +40,47 @@ public class AdminPlanController {
     private final PlanMapper planMapper;
 
     @Operation(
-            summary = "Get all subscription plans (including inactive)",
-            description = "Retrieves all subscription plans including inactive ones with full details. Admin only.",
+            summary = "Filter plans with advanced criteria",
+            description = "Retrieves plans with advanced filtering, sorting, and pagination. Admin only.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @ApiResponses(value = {
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
                 responseCode = "200",
-                description = "Plans retrieved successfully",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = PlanDetailResponse.class))
+                description = "Plans filtered successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class))
         ),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                responseCode = "403",
-                description = "Forbidden - Admin access required",
+                responseCode = "400",
+                description = "Invalid filter criteria",
                 content = @Content(mediaType = "application/json")
         )
+    })
+    @PostMapping("/filter")
+    public ResponseEntity<ApiResponse<com.app.civify.util.filter.PagedResponse<SubscriptionPlan>>> filterPlans(@Valid @RequestBody com.app.civify.util.filter.InputDataModel inputData) {
+        log.info("Admin filtering plans with criteria: {}", inputData);
+
+        com.app.civify.util.filter.PagedResponse<SubscriptionPlan> pagedResponse = subscriptionService.filterPlans(inputData);
+
+        return ResponseEntity.ok(ApiResponse.success("Plans filtered successfully", pagedResponse));
+    }
+
+    @Operation(
+            summary = "Get all subscription plans (including inactive)",
+            description = "Retrieves all subscription plans including inactive ones with full details. Admin only.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "Plans retrieved successfully",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PlanDetailResponse.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "Forbidden - Admin access required",
+                    content = @Content(mediaType = "application/json")
+            )
     })
     @GetMapping
     public ResponseEntity<List<PlanDetailResponse>> getAllPlans() {

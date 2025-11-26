@@ -111,4 +111,32 @@ public class AdminUserController {
 
         return ResponseEntity.ok(ApiResponse.success("User retrieved successfully", userDTO));
     }
+    @Operation(
+            summary = "Update user limits",
+            description = "Updates custom limits (CV and API) for a user. Admin only.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "200",
+                description = "User limits updated successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class))
+        ),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "404",
+                description = "User not found",
+                content = @Content(mediaType = "application/json")
+        )
+    })
+    @PutMapping("/{userId}/limits")
+    public ResponseEntity<ApiResponse<UserResponseDTO>> updateUserLimits(
+            @PathVariable Long userId,
+            @RequestParam(required = false) Integer cvLimit,
+            @RequestParam(required = false) Integer apiLimit) {
+        log.info("Admin updating limits for user {}: CV={}, API={}", userId, cvLimit, apiLimit);
+
+        UserResponseDTO userDTO = adminUserService.updateUserLimits(userId, cvLimit, apiLimit);
+
+        return ResponseEntity.ok(ApiResponse.success("User limits updated successfully", userDTO));
+    }
 }

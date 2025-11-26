@@ -96,4 +96,8 @@ public interface SubscriptionService {
      * Only allowed if no active subscriptions exist
      */
     void deletePlan(Long planId);
+    /**
+     * Filter plans with pagination and sorting (Admin only)
+     */
+    com.app.civify.util.filter.PagedResponse<SubscriptionPlan> filterPlans(com.app.civify.util.filter.InputDataModel inputData);
 }

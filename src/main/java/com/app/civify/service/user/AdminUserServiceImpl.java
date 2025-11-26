@@ -147,5 +147,20 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
         
         return userMapper.toResponseDTOWithStats(user, activeSubscriptionCount, totalSubscriptionCount);
     }
+    @Override
+    @Transactional
+    public UserResponseDTO updateUserLimits(Long userId, Integer cvLimit, Integer apiLimit) {
+        log.info("Updating limits for user {}: CV={}, API={}", userId, cvLimit, apiLimit);
+        
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + userId));
+        
+        user.setCvLimit(cvLimit);
+        user.setApiRateLimit(apiLimit);
+        
+        User savedUser = userRepository.save(user);
+        
+        return getUserByIdWithStats(savedUser.getId());
+    }
 }
 

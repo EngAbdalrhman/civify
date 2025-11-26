@@ -1,6 +1,8 @@
 package com.app.civify.entity;
 
 import com.app.civify.entity.enums.SubscriptionStatus;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -22,7 +24,7 @@ public class UserSubscription extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JsonIgnore
     private User user;
 
     @ManyToOne(fetch = FetchType.EAGER)
@@ -111,7 +113,7 @@ public class UserSubscription extends BaseEntity {
     /**
      * Reset usage counters if it's a new month
      */
-    private void resetUsageIfNewMonth() {
+    public void resetUsageIfNewMonth() {
         LocalDateTime now = LocalDateTime.now();
         if (usageResetDate == null || now.isAfter(usageResetDate)) {
             currentCvCount = 0;
