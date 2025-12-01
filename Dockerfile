@@ -11,7 +11,7 @@ RUN ./mvnw dependency:go-offline
 # Copy source code and build
 COPY src ./src
 ARG PROFILE=dev
-RUN ./mvnw clean package -P${PROFILE} -DskipTests -Dgraphqlcodegen.skip=true
+RUN ./mvnw clean package -P${PROFILE} -DskipTests
 
 # Stage 2: Run the application
 # Use JRE instead of JDK for smaller image and security (no source code)

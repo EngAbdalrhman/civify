@@ -1,0 +1,2 @@
+# This file ensures the graphql-client directory is tracked by Git
+# It can be removed once you add actual GraphQL schema files here
