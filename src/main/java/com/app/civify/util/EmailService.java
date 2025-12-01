@@ -42,6 +42,26 @@ public class EmailService {
         mailSender.send(message);
     }
 
+    /**
+     * Send HTML email
+     * @param to recipient email address
+     * @param subject email subject
+     * @param htmlBody HTML content of the email
+     */
+    public void sendHtmlEmail(String to, String subject, String htmlBody) {
+        MimeMessage message = mailSender.createMimeMessage();
+        
+        try {
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(htmlBody, true); // true indicates HTML
+            mailSender.send(message);
+        } catch (MessagingException e) {
+            throw new RuntimeException("Failed to send HTML email", e);
+        }
+    }
+
     public void sendEmail(String to, String subject, String text, String qrCodeBase64) {
         MimeMessage message = mailSender.createMimeMessage();
 

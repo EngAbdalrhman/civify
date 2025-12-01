@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Email - Civify</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7fa;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px;
+            text-align: center;
+            color: #ffffff;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+        .header p {
+            margin: 8px 0 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 40px 30px;
+            color: #333333;
+            line-height: 1.6;
+        }
+        .greeting {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin: 0 0 20px;
+        }
+        .message {
+            font-size: 15px;
+            color: #555555;
+            margin: 0 0 30px;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 16px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            text-align: center;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+        }
+        .button-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .alternative-link {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #666666;
+        }
+        .alternative-link p {
+            margin: 0 0 10px;
+            font-weight: 600;
+            color: #333333;
+        }
+        .alternative-link a {
+            color: #667eea;
+            word-break: break-all;
+        }
+        .expiration-notice {
+            margin-top: 25px;
+            padding: 15px;
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #856404;
+        }
+        .footer {
+            padding: 30px;
+            background-color: #f8f9fa;
+            text-align: center;
+            font-size: 13px;
+            color: #6c757d;
+            border-top: 1px solid #e9ecef;
+        }
+        .footer p {
+            margin: 5px 0;
+        }
+        .security-notice {
+            margin-top: 25px;
+            font-size: 14px;
+            color: #666666;
+            font-style: italic;
+        }
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                margin: 20px;
+                border-radius: 8px;
+            }
+            .content {
+                padding: 30px 20px;
+            }
+            .header {
+                padding: 30px 20px;
+            }
+            .header h1 {
+                font-size: 24px;
+            }
+            .cta-button {
+                display: block;
+                padding: 14px 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🎯 Civify</h1>
+            <p>Welcome to Your Professional Journey</p>
+        </div>
+
+        <!-- Main Content -->
+        <div class="content">
+            <p class="greeting">Dear {{username}},</p>
+            
+            <p class="message">
+                Thank you for registering with <strong>Civify</strong>! We're excited to have you on board. 
+                To complete your registration and unlock all features, please verify your email address.
+            </p>
+
+            <!-- CTA Button -->
+            <div class="button-container">
+                <a href="{{verificationLink}}" class="cta-button">Verify Email Address</a>
+            </div>
+
+            <!-- Expiration Notice -->
+            <div class="expiration-notice">
+                ⏰ <strong>Important:</strong> This verification link will expire in 24 hours.
+            </div>
+
+            <!-- Alternative Link -->
+            <div class="alternative-link">
+                <p>If the button above doesn't work, copy and paste this link into your browser:</p>
+                <a href="{{verificationLink}}">{{verificationLink}}</a>
+            </div>
+
+            <!-- Security Notice -->
+            <p class="security-notice">
+                If you didn't create this account, please ignore this email. Your security is important to us.
+            </p>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p><strong>The Civify Team</strong></p>
+            <p>Building professional futures, one resume at a time.</p>
+            <p style="margin-top: 15px; font-size: 12px;">
+                © 2024 Civify. All rights reserved.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
