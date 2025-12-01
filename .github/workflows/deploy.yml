@@ -2,7 +2,7 @@ name: Deploy to Dokploy
 
 on:
   push:
-    branches: [ "staging" ]
+    branches: [ "Staging" ]
   workflow_dispatch:
 
 env:
