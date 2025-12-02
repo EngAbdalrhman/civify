@@ -40,10 +40,20 @@ public class EmailVerificationService {
     @Value("${app.backend.base-url:http://localhost:8077}")
     private String backendBaseUrl;
 
+    @Value("${email.verification.enabled:true}")
+    private boolean emailVerificationEnabled;
+
+
     /**
      * Generate and send email verification
      */
     public void sendVerificationEmail(User user) {
+        // Skip sending verification email if email verification is disabled
+        if (!emailVerificationEnabled) {
+            log.info("Email verification is disabled. Skipping verification email for user: {}", user.getUsername());
+            return;
+        }
+
         // Generate verification token
         String token = UUID.randomUUID().toString();
 
@@ -62,6 +72,7 @@ public class EmailVerificationService {
         emailService.sendHtmlEmail(user.getEmail(), subject, htmlBody);
         log.info("Verification email sent to {} using cache mode: {}", user.getEmail(), cacheService.getCacheMode());
     }
+
 
     /**
      * Load and populate HTML email template

@@ -6,8 +6,11 @@ import com.app.civify.entity.User;
 import com.app.civify.exception.BadRequestException;
 import com.app.civify.repository.UserRepository;
 import com.app.civify.security.model.Role;
+import com.app.civify.service.subscription.SubscriptionService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +30,10 @@ public class AuthServiceImpl implements AuthService {
     private final TokenService tokenService;
     private final OtpService otpService;
     private final EmailVerificationService emailVerificationService;
+    private final SubscriptionService subscriptionService;
+
+    @Value("${email.verification.enabled:true}")
+    private boolean emailVerificationEnabled;
 
     /**
      * Register new user - Sends verification email, does NOT return tokens
@@ -46,27 +53,41 @@ public class AuthServiceImpl implements AuthService {
             throw new BadRequestException("Email already exists");
         }
 
-        // Create new user (email NOT verified yet)
+        // Create new user
         User user = new User();
         user.setUsername(req.getUsername());
         user.setEmail(req.getEmail());
         user.setPassword(passwordEncoder.encode(req.getPassword()));
         user.setRole(Role.ROLE_USER);
-        user.setIsEmailVerified(false); // Must verify email first!
+        
+        // Set verification status based on toggle
+        // If verification is disabled, user is auto-verified
+        user.setIsEmailVerified(!emailVerificationEnabled);
+        
         user.setTwoFactorEnabled(false);
         userRepository.save(user);
 
-        // Send verification email
-        emailVerificationService.sendVerificationEmail(user);
-
-        log.info("User registered successfully: {}. Verification email sent.", req.getUsername());
-
-        // Return response without tokens - must verify email first
-        return AuthResponse.builder()
-                .message("Registration successful! Please check your email to verify your account.")
-                .requires2FA(false)
-                .build();
+        if (emailVerificationEnabled) {
+            // Send verification email
+            emailVerificationService.sendVerificationEmail(user);
+            log.info("User registered successfully: {}. Verification email sent.", req.getUsername());
+            
+            return AuthResponse.builder()
+                    .message("Registration successful! Please check your email to verify your account.")
+                    .requires2FA(false)
+                    .build();
+        } else {
+            // If verification is disabled, create free subscription immediately
+            subscriptionService.createDefaultFreeSubscription(user.getId());
+            log.info("User registered successfully: {}. Auto-verified (dev mode).", req.getUsername());
+            
+            return AuthResponse.builder()
+                    .message("Registration successful! You can now login.")
+                    .requires2FA(false)
+                    .build();
+        }
     }
+
 
     /**
      * Login with username/password or email/password
@@ -104,8 +125,8 @@ public class AuthServiceImpl implements AuthService {
             throw new BadRequestException("Invalid username/email or password");
         }
 
-        // Check if email is verified
-        if (!user.getIsEmailVerified()) {
+        // Check if email is verified (only if verification is enabled)
+        if (emailVerificationEnabled && !user.getIsEmailVerified()) {
             log.warn("Login attempt with unverified email: {}", user.getUsername());
             throw new BadRequestException("Please verify your email before logging in. Check your inbox for verification link.");
         }
