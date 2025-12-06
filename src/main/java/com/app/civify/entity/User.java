@@ -90,6 +90,10 @@ public class User extends BaseEntity implements Serializable {
     @Column(unique = true, nullable = false, length = 100)
     private String username;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "group_id")
+    private Group group;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role = Role.ROLE_USER;

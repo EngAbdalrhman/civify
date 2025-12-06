@@ -2,10 +2,12 @@ package com.app.civify.service.auth;
 
 import com.app.civify.dto.auth.AuthRequest;
 import com.app.civify.dto.auth.AuthResponse;
+import com.app.civify.entity.Group;
 import com.app.civify.entity.User;
 import com.app.civify.exception.BadRequestException;
+import com.app.civify.repository.GroupRepository;
 import com.app.civify.repository.UserRepository;
-import com.app.civify.security.model.Role;
+import com.app.civify.service.bloomfilter.BloomFilterService;
 import com.app.civify.service.subscription.SubscriptionService;
 
 import lombok.RequiredArgsConstructor;
@@ -29,8 +31,10 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
     private final OtpService otpService;
+    private final GroupRepository groupRepository;
     private final EmailVerificationService emailVerificationService;
     private final SubscriptionService subscriptionService;
+    private final BloomFilterService bloomFilterService;
 
     @Value("${email.verification.enabled:true}")
     private boolean emailVerificationEnabled;
@@ -43,22 +47,27 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse register(AuthRequest req) {
         log.info("Registering new user: {}", req.getUsername());
 
-        // Check if username already exists
-        if (userRepository.findByUsername(req.getUsername()).isPresent()) {
-            throw new BadRequestException("Username already exists");
+        if (bloomFilterService.mightHaveUsername(req.getUsername())) {
+            if (userRepository.findByUsername(req.getUsername()).isPresent()) {
+                throw new BadRequestException("Username already exists");
+            }
+        }
+        if (bloomFilterService.mightHaveEmail(req.getEmail())) {
+            if (userRepository.findByEmail(req.getEmail()).isPresent()) {
+                throw new BadRequestException("Email already exists");
+            }
         }
 
-        // Check if email already exists
-        if (userRepository.findByEmail(req.getEmail()).isPresent()) {
-            throw new BadRequestException("Email already exists");
-        }
+        Group viewerGroup = groupRepository.findByName("VIEWER")
+                .orElseThrow(() -> new RuntimeException("VIEWER group not found. Please seed it."));
 
         // Create new user
         User user = new User();
         user.setUsername(req.getUsername());
         user.setEmail(req.getEmail());
         user.setPassword(passwordEncoder.encode(req.getPassword()));
-        user.setRole(Role.ROLE_USER);
+        user.setGroup(viewerGroup);
+
         
         // Set verification status based on toggle
         // If verification is disabled, user is auto-verified
@@ -66,6 +75,9 @@ public class AuthServiceImpl implements AuthService {
         
         user.setTwoFactorEnabled(false);
         userRepository.save(user);
+
+        bloomFilterService.addUsername(req.getUsername());
+        bloomFilterService.addEmail(req.getEmail());
 
         if (emailVerificationEnabled) {
             // Send verification email
