@@ -16,7 +16,7 @@ public class JwtConstants {
     public static final long REFRESH_TOKEN_EXPIRATION_MINUTES = 30 * 24 * 60;
 
     // JWT token generation endpoint
-    public static final String GENERATE_TOKEN_ENDPOINT = "/generate-token";
+    public static final String GENERATE_TOKEN_ENDPOINT = "/login";
 
     // Refresh token cookie settings
     public static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";

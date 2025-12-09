@@ -76,14 +76,6 @@ public class AuthController {
     }
 
     /**
-     * Login with username/password
-     */
-    @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@RequestBody AuthRequest request) {
-        return ResponseEntity.ok(authService.login(request));
-    }
-
-    /**
      * Verify 2FA OTP
      */
     @PostMapping("/verify-otp")

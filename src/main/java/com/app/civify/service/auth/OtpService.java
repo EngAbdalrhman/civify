@@ -36,7 +36,7 @@ public class OtpService {
     // Rate limiting: max 3 OTP attempts per 15 minutes
     private static final int MAX_ATTEMPTS = 3;
     private static final Duration RATE_LIMIT_WINDOW = Duration.ofMinutes(15);
-    private static final Duration OTP_EXPIRY = Duration.ofMinutes(5);
+    private static final Duration OTP_EXPIRY = Duration.ofMinutes(30); // Increased for email delivery delays
 
 
 

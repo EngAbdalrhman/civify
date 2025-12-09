@@ -316,7 +316,7 @@ public class PasswordRecoveryService {
                                 <div class="warning-box">
                                     <p style="margin: 0;"><strong>⚠️ Security Information:</strong></p>
                                     <ul style="margin: 10px 0 0 0;">
-                                        <li><strong>Valid for 5 minutes only</strong></li>
+                                        <li><strong>Valid for 30 minutes only</strong></li>
                                         <li>Maximum 3 reset attempts within 15 minutes</li>
                                         <li>All active sessions will be logged out after password reset</li>
                                         <li>Never share this code with anyone</li>
@@ -326,7 +326,7 @@ public class PasswordRecoveryService {
                                 <p style="margin-top: 25px;"><strong>Didn't request this?</strong></p>
                                 <p>If you didn't request a password reset, please ignore this email. Your account is secure and no changes have been made.</p>
                                 
-                                <p style="margin-top: 25px;">For security reasons, this verification code will expire in <strong>5 minutes</strong>.</p>
+                                <p style="margin-top: 25px;">For security reasons, this verification code will expire in <strong>30 minutes</strong>.</p>
                             </div>
                             
                             <div class="footer">

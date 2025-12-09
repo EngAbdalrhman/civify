@@ -64,7 +64,7 @@ public class EmailOtpStrategy implements OtpNotificationStrategy {
                             <div class="warning-box">
                                 <p style="margin: 0;"><strong>⚠️ Important Security Information:</strong></p>
                                 <ul>
-                                    <li><span class="highlight">Valid for 5 minutes only</span></li>
+                                    <li><span class="highlight">Valid for 30 minutes only</span></li>
                                     <li>Maximum 3 verification attempts within 15 minutes</li>
                                     <li>Never share this code with anyone</li>
                                     <li>Civify staff will never ask for this code</li>
@@ -74,7 +74,7 @@ public class EmailOtpStrategy implements OtpNotificationStrategy {
                             <p style="margin-top: 25px;"><strong>Didn't request this code?</strong></p>
                             <p>If you didn't sign up for Civify, please ignore this email. Your information is safe.</p>
                             
-                            <p style="margin-top: 25px; color: #666;">For security reasons, this verification code will expire in <strong>5 minutes</strong>.</p>
+                            <p style="margin-top: 25px; color: #666;">For security reasons, this verification code will expire in <strong>30 minutes</strong>.</p>
                         </div>
                         
                         <div class="footer">
