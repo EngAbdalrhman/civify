@@ -13,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -189,18 +191,35 @@ public class AuthController {
     }
 
     /**
-     * Reset password using OTP verification
-     * Accepts email or username + OTP + new password
+     * Step 1: Verify OTP for password reset
+     * Returns a temporary reset token valid for 5 minutes
+     */
+    @PostMapping("/verify-reset-otp")
+    public ResponseEntity<CommonResponse> verifyResetOtp(
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String username,
+            @RequestParam String otp) {
+        
+        log.info("Processing OTP verification for password reset");
+        String resetToken = passwordRecoveryService.verifyOtpForPasswordReset(email, username, otp);
+        
+        return ResponseEntity.ok(CommonResponse.success(
+                "OTP verified successfully. You may now reset your password.",
+                Map.of("resetToken", resetToken)
+        ));
+    }
+
+    /**
+     * Step 2: Reset password using temporary reset token
+     * The reset token is obtained from step 1 (verify OTP)
      */
     @PostMapping("/reset-password")
     public ResponseEntity<CommonResponse> resetPassword(
-            @RequestParam(required = false) String email,
-            @RequestParam(required = false) String username,
-            @RequestParam String otp,
+            @RequestParam String resetToken,
             @RequestParam String newPassword) {
         
-        log.info("Processing password reset request");
-        passwordRecoveryService.resetPasswordWithOtp(email, username, otp, newPassword);
+        log.info("Processing password reset with token");
+        passwordRecoveryService.resetPasswordWithToken(resetToken, newPassword);
         
         return ResponseEntity.ok(CommonResponse.success(
                 "Password reset successful! Please login with your new password.",

@@ -8,6 +8,7 @@ import com.app.civify.exception.BadRequestException;
 import com.app.civify.repository.GroupRepository;
 import com.app.civify.repository.UserRepository;
 import com.app.civify.util.EmailService;
+import com.app.civify.service.cache.CacheService;
 import com.app.civify.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,7 @@ public class PasswordRecoveryService {
     private final PermissionsEncryptionService permissionsEncryptionService;
     private final JwtUtil jwtUtil;
     private final EmailService emailService;
+    private final CacheService cacheService;
 
     /**
      * Initiate password reset - sends OTP to user's email
@@ -94,15 +96,16 @@ public class PasswordRecoveryService {
     }
 
     /**
-     * Reset password using OTP verification
+     * Step 1: Verify OTP and generate password reset token
+     * Returns a temporary token valid for 5 minutes
      * 
      * @param email User's email (optional if username provided)
      * @param username User's username (optional if email provided)
      * @param otp OTP code from email
-     * @param newPassword New password
+     * @return Temporary password reset token
      */
     @Transactional
-    public void resetPasswordWithOtp(String email, String username, String otp, String newPassword) {
+    public String verifyOtpForPasswordReset(String email, String username, String otp) {
         // Validate inputs
         if ((email == null || email.trim().isEmpty()) 
             && (username == null || username.trim().isEmpty())) {
@@ -113,12 +116,8 @@ public class PasswordRecoveryService {
             throw new BadRequestException("OTP is required");
         }
 
-        if (newPassword == null || newPassword.length() < 8) {
-            throw new BadRequestException("Password must be at least 8 characters long");
-        }
-
         // Find user
-        User user = null;
+        User user;
         if (email != null && !email.trim().isEmpty()) {
             user = userRepository.findByEmail(email)
                     .orElseThrow(() -> new BadRequestException("Invalid credentials"));
@@ -132,12 +131,49 @@ public class PasswordRecoveryService {
             throw new BadRequestException("Invalid or expired OTP");
         }
 
-        // Validate password strength (basic validation)
+        // Generate temporary password reset token (valid for 5 minutes)
+        String resetToken = generatePasswordResetToken(user.getUsername());
+        
+        log.info("OTP verified successfully for user: {}, reset token generated", user.getUsername());
+        return resetToken;
+    }
+
+    /**
+     * Step 2: Reset password using the temporary reset token
+     * 
+     * @param resetToken Temporary token from step 1
+     * @param newPassword New password
+     */
+    @Transactional
+    public void resetPasswordWithToken(String resetToken, String newPassword) {
+        // Validate inputs
+        if (resetToken == null || resetToken.trim().isEmpty()) {
+            throw new BadRequestException("Reset token is required");
+        }
+
+        if (newPassword == null || newPassword.length() < 8) {
+            throw new BadRequestException("Password must be at least 8 characters long");
+        }
+
+        // Verify and extract username from reset token
+        String username = verifyPasswordResetToken(resetToken);
+        if (username == null) {
+            throw new BadRequestException("Invalid or expired reset token");
+        }
+
+        // Find user
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new BadRequestException("User not found"));
+
+        // Validate password strength
         validatePasswordStrength(newPassword);
 
         // Update password
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+
+        // Invalidate the reset token (one-time use)
+        invalidatePasswordResetToken(resetToken);
 
         // Security: Revoke all refresh tokens to logout from all devices
         try {
@@ -147,7 +183,36 @@ public class PasswordRecoveryService {
             log.warn("Failed to revoke all tokens (may not be fully implemented yet): {}", e.getMessage());
         }
 
-        log.info("Password reset successful for user: {}", user.getUsername());
+        log.info("Password reset successful for user: {}", username);
+    }
+
+    /**
+     * Generate a temporary password reset token (valid for 5 minutes)
+     */
+    private String generatePasswordResetToken(String username) {
+        String token = java.util.UUID.randomUUID().toString();
+        String tokenKey = "password_reset_token:" + token;
+        
+        // Store username against token in cache with 5-minute expiry
+        cacheService.set(tokenKey, username, java.time.Duration.ofMinutes(5));
+        
+        return token;
+    }
+
+    /**
+     * Verify password reset token and return username
+     */
+    private String verifyPasswordResetToken(String token) {
+        String tokenKey = "password_reset_token:" + token;
+        return cacheService.get(tokenKey);
+    }
+
+    /**
+     * Invalidate password reset token (one-time use)
+     */
+    private void invalidatePasswordResetToken(String token) {
+        String tokenKey = "password_reset_token:" + token;
+        cacheService.delete(tokenKey);
     }
 
     /**
