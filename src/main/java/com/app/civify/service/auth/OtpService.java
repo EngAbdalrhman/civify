@@ -67,6 +67,36 @@ public class OtpService {
         log.info("OTP generated for user: {} using cache mode: {}", username, cacheService.getCacheMode());
     }
 
+    /**
+     * Generate OTP without sending email - for custom email templates
+     * Returns the generated OTP code
+     */
+    public String generateOtpOnly(String username) {
+        // Verify user exists (will throw if not found)
+        userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Check rate limiting
+        if (isRateLimited(username)) {
+            throw new RuntimeException("Too many OTP requests. Please try again later.");
+        }
+
+        String code = String.format("%06d", random.nextInt(1_000_000));
+        String otpKey = getOtpKey(username);
+        String attemptKey = getAttemptKey(username);
+
+        // Store OTP with expiry
+        cacheService.set(otpKey, code, OTP_EXPIRY);
+
+        // Increment attempt counter
+        cacheService.increment(attemptKey);
+        cacheService.expire(attemptKey, RATE_LIMIT_WINDOW);
+
+        log.info("OTP generated (no email sent) for user: {} using cache mode: {}", username, cacheService.getCacheMode());
+        
+        return code;
+    }
+
     public boolean verify(String username, String code) {
         String otpKey = getOtpKey(username);
         String stored = cacheService.get(otpKey);

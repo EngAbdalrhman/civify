@@ -2,8 +2,10 @@ package com.app.civify.controller.general;
 
 import com.app.civify.dto.auth.AuthRequest;
 import com.app.civify.dto.auth.AuthResponse;
+import com.app.civify.dto.auth.PermissionsResponse;
 import com.app.civify.service.auth.AuthService;
 import com.app.civify.service.auth.EmailVerificationService;
+import com.app.civify.service.auth.PasswordRecoveryService;
 import com.app.civify.util.CommonResponse;
 
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final EmailVerificationService emailVerificationService;
+    private final PasswordRecoveryService passwordRecoveryService;
 
     /**
      * Register new user - sends verification email
@@ -145,5 +148,63 @@ public class AuthController {
     public ResponseEntity<CommonResponse> disable2FA(@RequestParam("username") String username) {
         authService.disable2fa(username);
         return ResponseEntity.ok(CommonResponse.success("2FA disabled successfully", null));
+    }
+
+    /**
+     * Get user permissions (encrypted and plain)
+     * Requires valid JWT in Authorization header
+     */
+    @GetMapping("/permissions")
+    public ResponseEntity<PermissionsResponse> getUserPermissions(
+            @RequestHeader("Authorization") String authHeader) {
+        
+        // Extract token from "Bearer <token>" header
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return ResponseEntity.status(401).build();
+        }
+        
+        String token = authHeader.substring(7);
+        PermissionsResponse response = passwordRecoveryService.getUserPermissions(token);
+        
+        log.info("Permissions retrieved for user from token");
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Initiate password reset - sends OTP to user's email
+     * Accepts either email or username
+     */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<CommonResponse> forgotPassword(
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String username) {
+        
+        log.info("Processing forgot password request");
+        passwordRecoveryService.initiatePasswordReset(email, username);
+        
+        return ResponseEntity.ok(CommonResponse.success(
+                "If an account exists with this email/username, you will receive a password reset OTP shortly.",
+                null
+        ));
+    }
+
+    /**
+     * Reset password using OTP verification
+     * Accepts email or username + OTP + new password
+     */
+    @PostMapping("/reset-password")
+    public ResponseEntity<CommonResponse> resetPassword(
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String username,
+            @RequestParam String otp,
+            @RequestParam String newPassword) {
+        
+        log.info("Processing password reset request");
+        passwordRecoveryService.resetPasswordWithOtp(email, username, otp, newPassword);
+        
+        return ResponseEntity.ok(CommonResponse.success(
+                "Password reset successful! Please login with your new password.",
+                null
+        ));
     }
 }

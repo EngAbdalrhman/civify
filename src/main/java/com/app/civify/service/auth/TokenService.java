@@ -202,8 +202,17 @@ public class TokenService {
     }
 
     /**
-     * Extract role from access token
+     * Extract group from access token
      */
+    public String extractGroup(String token) {
+        return jwtUtil.extractGroup(token);
+    }
+
+    /**
+     * Extract role from access token (Deprecated - use extractGroup)
+     * @deprecated Use {@link #extractGroup(String)} instead
+     */
+    @Deprecated
     public String extractRole(String token) {
         return jwtUtil.extractRole(token);
     }

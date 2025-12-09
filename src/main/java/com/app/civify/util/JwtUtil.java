@@ -37,11 +37,14 @@ public class JwtUtil {
      * overloading!
      */
     public String generateToken(User user) {
+        // Extract group name safely, fallback to "USER" if group not assigned
+        String groupName = user.getGroup() != null ? user.getGroup().getName() : "USER";
+        
         return Jwts.builder()
                 .setSubject(user.getUsername())
                 .claim("userId", user.getId())
                 .claim("email", user.getEmail())
-                .claim("role", user.getRole().name())
+                .claim("group", groupName) // Changed from "role" to "group" with actual group name
                 .claim("emailVerified", user.getIsEmailVerified())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + accessTokenExpiration))
@@ -127,9 +130,23 @@ public class JwtUtil {
     }
 
     /**
-     * Extract role from token
+     * Extract group from token
      */
+    public String extractGroup(String token) {
+        return extractClaim(token, claims -> claims.get("group", String.class));
+    }
+
+    /**
+     * Extract role from token (Deprecated - use extractGroup)
+     * @deprecated Use {@link #extractGroup(String)} instead
+     */
+    @Deprecated
     public String extractRole(String token) {
+        // Try new "group" claim first, fallback to legacy "role" claim for backward compatibility
+        String group = extractClaim(token, claims -> claims.get("group", String.class));
+        if (group != null) {
+            return group;
+        }
         return extractClaim(token, claims -> claims.get("role", String.class));
     }
 
