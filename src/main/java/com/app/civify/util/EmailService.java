@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -33,9 +33,13 @@ import lombok.RequiredArgsConstructor;
 public class EmailService {
 
     private final JavaMailSender mailSender;
+    
+    @Value("${default.email:${spring.mail.username}}")
+    private String defaultFromEmail;
 
     public void sendEmail(String to, String subject, String body) {
         SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(defaultFromEmail);
         message.setTo(to);
         message.setSubject(subject);
         message.setText(body);
@@ -53,6 +57,7 @@ public class EmailService {
         
         try {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(defaultFromEmail);
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(htmlBody, true); // true indicates HTML
@@ -67,6 +72,7 @@ public class EmailService {
 
         try {
             MimeMessageHelper helper = new MimeMessageHelper(message, true);
+            helper.setFrom(defaultFromEmail);
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(text, true);
