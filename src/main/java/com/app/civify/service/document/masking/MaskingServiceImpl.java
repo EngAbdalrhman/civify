@@ -136,10 +136,11 @@ public class MaskingServiceImpl implements MaskingService {
     private String defaultModel;
 
     private static final String NER_PROMPT = """
-        Analyze the following text and identify all personal names.
-        Return ONLY a JSON array of strings containing the names found.
-        Example: ["John Doe", "Jane Smith"]
-        
+        Analyze the following text and identify all personal names (people's full names or partial names).
+        Return ONLY a JSON array of strings containing the names found, nothing else.
+        Do not include any explanation or markdown formatting.
+        Example response: ["John Doe", "Jane Smith"]
+
         Text:
         %s
         """;
@@ -149,28 +150,65 @@ public class MaskingServiceImpl implements MaskingService {
             // Use AI to find names (NER)
             String prompt = String.format(NER_PROMPT, text);
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
-            
-            String jsonArray = cleanJsonResponse(response);
-            List<String> names = objectMapper.readValue(jsonArray, new com.fasterxml.jackson.core.type.TypeReference<List<String>>(){});
-            
+
+            // Extract actual content from Gemini response structure
+            String contentText = extractContentFromGeminiResponse(response);
+            String jsonArray = cleanJsonResponse(contentText);
+
+            List<String> names = objectMapper.readValue(jsonArray, new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {
+            });
+
             String maskedText = text;
             for (String name : names) {
-                if (name.length() < 3) continue; // Skip very short matches
-                
-                // Find and mask all occurrences
-                maskedText = maskNamePattern(maskedText, 
-                    java.util.regex.Pattern.quote(name), 
-                    0, 
-                    language.equals("ar") ? "[الاسم_محذوف]" : "[NAME_REDACTED]", 
-                    entities, 
-                    MaskType.NAME);
+                if (name == null || name.length() < 2) {
+                    continue; // Skip very short matches
+                }
+                // Find and mask all occurrences (case insensitive)
+                String replacement = language.equals("ar") ? "[الاسم_محذوف]" : "[NAME_REDACTED]";
+                maskedText = maskedText.replaceAll("(?i)" + java.util.regex.Pattern.quote(name), replacement);
+
+                entities.add(MaskedEntity.builder()
+                        .type(MaskType.NAME.name())
+                        .originalValue(name)
+                        .maskedValue(replacement)
+                        .build());
             }
             return maskedText;
-            
+
         } catch (Exception e) {
             log.warn("AI Name detection failed, falling back to heuristic: {}", e.getMessage());
             // Fallback to original heuristic
             return maskNamesHeuristic(text, language, entities);
+        }
+    }
+
+    /**
+     * Extract the actual text content from Gemini API response structure.
+     */
+    private String extractContentFromGeminiResponse(String response) {
+        try {
+            var root = objectMapper.readTree(response);
+
+            // Gemini response structure: { "candidates": [{ "content": { "parts": [{ "text": "..." }] } }] }
+            var candidates = root.get("candidates");
+            if (candidates != null && candidates.isArray() && candidates.size() > 0) {
+                var content = candidates.get(0).get("content");
+                if (content != null) {
+                    var parts = content.get("parts");
+                    if (parts != null && parts.isArray() && parts.size() > 0) {
+                        var textNode = parts.get(0).get("text");
+                        if (textNode != null) {
+                            return textNode.asText();
+                        }
+                    }
+                }
+            }
+
+            // If not in Gemini structure, return as-is
+            return response;
+        } catch (Exception e) {
+            log.debug("Could not parse as Gemini response, using raw response: {}", e.getMessage());
+            return response;
         }
     }
 
@@ -194,56 +232,116 @@ public class MaskingServiceImpl implements MaskingService {
 
     @Override
     public com.app.civify.dto.resume.ResumeData maskResumeData(com.app.civify.dto.resume.ResumeData resumeData, MaskRequest request) {
-        if (resumeData == null) return null;
-        
+        if (resumeData == null) {
+            return null;
+        }
+
         List<MaskedEntity> entities = new ArrayList<>();
         String language = resumeData.getMetadata() != null ? resumeData.getMetadata().getLanguage() : "en";
-        
-        // Mask Personal Info
+        boolean isArabic = "ar".equals(language);
+
+        // Mask Personal Info - directly replace known PII fields
         var info = resumeData.getPersonalInfo();
         if (info != null) {
-            // Mask Name
-            if (info.getFullName() != null) {
-                info.setFullName(maskNames(info.getFullName(), language, entities));
+            // Mask Name - direct replacement since we know it's a name field
+            if (info.getFullName() != null && !info.getFullName().isEmpty()) {
+                String originalName = info.getFullName();
+                String replacement = isArabic ? "[الاسم_محذوف]" : "[NAME_REDACTED]";
+                info.setFullName(replacement);
+                entities.add(MaskedEntity.builder()
+                        .type(MaskType.NAME.name())
+                        .originalValue(originalName)
+                        .maskedValue(replacement)
+                        .build());
             }
-            
-            // Mask Email
-            if (info.getEmail() != null) {
-                info.setEmail(applyPattern(info.getEmail(), MaskingPattern.EMAIL_ENGLISH, entities));
+
+            // Mask Email - direct replacement
+            if (info.getEmail() != null && !info.getEmail().isEmpty()) {
+                String originalEmail = info.getEmail();
+                String replacement = isArabic ? "[البريد_محذوف]" : "[EMAIL_REDACTED]";
+                info.setEmail(replacement);
+                entities.add(MaskedEntity.builder()
+                        .type(MaskType.EMAIL.name())
+                        .originalValue(originalEmail)
+                        .maskedValue(replacement)
+                        .build());
             }
-            
-            // Mask Phone
-            if (info.getPhone() != null) {
-                String maskedPhone = applyPattern(info.getPhone(), MaskingPattern.PHONE_INTERNATIONAL, entities);
-                if (maskedPhone.equals(info.getPhone()) && "ar".equals(language)) {
-                    maskedPhone = applyPattern(info.getPhone(), MaskingPattern.PHONE_ARABIC, entities);
-                }
-                info.setPhone(maskedPhone);
+
+            // Mask Phone - direct replacement
+            if (info.getPhone() != null && !info.getPhone().isEmpty()) {
+                String originalPhone = info.getPhone();
+                String replacement = isArabic ? "[رقم_الهاتف_محذوف]" : "[PHONE_REDACTED]";
+                info.setPhone(replacement);
+                entities.add(MaskedEntity.builder()
+                        .type(MaskType.PHONE.name())
+                        .originalValue(originalPhone)
+                        .maskedValue(replacement)
+                        .build());
             }
-            
-            // Mask Address
-            if (info.getAddress() != null) {
-                String maskedAddress = applyPattern(info.getAddress(), MaskingPattern.ADDRESS_ENGLISH, entities);
-                if (maskedAddress.equals(info.getAddress()) && "ar".equals(language)) {
-                    maskedAddress = applyPattern(info.getAddress(), MaskingPattern.ADDRESS_ARABIC, entities);
-                }
-                info.setAddress(maskedAddress);
+
+            // Mask Address - direct replacement
+            if (info.getAddress() != null && !info.getAddress().isEmpty()) {
+                String originalAddress = info.getAddress();
+                String replacement = isArabic ? "[العنوان_محذوف]" : "[ADDRESS_REDACTED]";
+                info.setAddress(replacement);
+                entities.add(MaskedEntity.builder()
+                        .type(MaskType.ADDRESS.name())
+                        .originalValue(originalAddress)
+                        .maskedValue(replacement)
+                        .build());
             }
-            
-            // Mask Social Links
-            if (info.getLinkedin() != null) {
-                info.setLinkedin(applyPattern(info.getLinkedin(), MaskingPattern.LINKEDIN, entities));
+
+            // Mask LinkedIn - direct replacement
+            if (info.getLinkedin() != null && !info.getLinkedin().isEmpty()) {
+                String originalLinkedin = info.getLinkedin();
+                String replacement = "[LINKEDIN_REDACTED]";
+                info.setLinkedin(replacement);
+                entities.add(MaskedEntity.builder()
+                        .type(MaskType.SOCIAL_PROFILES.name())
+                        .originalValue(originalLinkedin)
+                        .maskedValue(replacement)
+                        .build());
+            }
+
+            // Mask GitHub
+            if (info.getGithub() != null && !info.getGithub().isEmpty()) {
+                String originalGithub = info.getGithub();
+                String replacement = "[GITHUB_REDACTED]";
+                info.setGithub(replacement);
+                entities.add(MaskedEntity.builder()
+                        .type(MaskType.SOCIAL_PROFILES.name())
+                        .originalValue(originalGithub)
+                        .maskedValue(replacement)
+                        .build());
+            }
+
+            // Mask Website
+            if (info.getWebsite() != null && !info.getWebsite().isEmpty()) {
+                String originalWebsite = info.getWebsite();
+                String replacement = "[WEBSITE_REDACTED]";
+                info.setWebsite(replacement);
+                entities.add(MaskedEntity.builder()
+                        .type(MaskType.SOCIAL_PROFILES.name())
+                        .originalValue(originalWebsite)
+                        .maskedValue(replacement)
+                        .build());
             }
         }
-        
+
+        log.info("Masked {} PII entities in resume data", entities.size());
         return resumeData;
     }
 
     private String cleanJsonResponse(String response) {
         String cleaned = response.trim();
-        if (cleaned.startsWith("```json")) cleaned = cleaned.substring(7);
-        else if (cleaned.startsWith("```")) cleaned = cleaned.substring(3);
-        if (cleaned.endsWith("```")) cleaned = cleaned.substring(0, cleaned.length() - 3);
+        if (cleaned.startsWith("```json")) {
+            cleaned = cleaned.substring(7);
+        } else if (cleaned.startsWith("```")) {
+            cleaned = cleaned.substring(3);
+        }
+        if (cleaned.endsWith("```")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 3);
+        }
         return cleaned.trim();
     }
 
