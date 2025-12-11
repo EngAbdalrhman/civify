@@ -165,11 +165,8 @@ public class CvParsingService {
     private ResumeData parseTextWithAi(String text) {
         try {
             String prompt = String.format(CV_PARSE_PROMPT, text);
-            
-            // Build JSON request with generation config for JSON mode
-            String requestBody = buildGeminiRequest(prompt);
-            
-            String response = aiService.callModel(requestBody, defaultProvider, defaultModel);
+
+            String response = aiService.callModel(prompt, defaultProvider, defaultModel);
 
             if (response == null || response.isEmpty()) {
                 log.error("Empty response from AI");
@@ -178,7 +175,10 @@ public class CvParsingService {
 
             // Parse Gemini response structure to get the actual content
             String contentText = extractContentFromGeminiResponse(response);
-            
+
+            // Clean markdown code blocks if present
+            contentText = cleanMarkdownJson(contentText);
+
             // Parse the content JSON to ResumeData
             return objectMapper.readValue(contentText, ResumeData.class);
 
@@ -188,33 +188,40 @@ public class CvParsingService {
         }
     }
 
-    private String buildGeminiRequest(String prompt) {
-        // Escape special characters in prompt for JSON
-        String escapedPrompt = prompt.replace("\"", "\\\"")
-                                   .replace("\n", "\\n")
-                                   .replace("\r", "\\r")
-                                   .replace("\t", "\\t");
+    /**
+     * Remove markdown code blocks from JSON response. AI models sometimes wrap
+     * JSON in ```json ... ``` blocks.
+     */
+    private String cleanMarkdownJson(String text) {
+        if (text == null) {
+            return null;
+        }
 
-        return String.format("""
-            {
-                "contents": [{
-                    "parts": [{"text": "%s"}]
-                }],
-                "generationConfig": {
-                    "responseMimeType": "application/json"
-                }
-            }
-            """, escapedPrompt);
+        String cleaned = text.trim();
+
+        // Remove ```json or ``` prefix
+        if (cleaned.startsWith("```json")) {
+            cleaned = cleaned.substring(7);
+        } else if (cleaned.startsWith("```")) {
+            cleaned = cleaned.substring(3);
+        }
+
+        // Remove trailing ```
+        if (cleaned.endsWith("```")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 3);
+        }
+
+        return cleaned.trim();
     }
 
     private String extractContentFromGeminiResponse(String response) {
         try {
             var root = objectMapper.readTree(response);
             var candidates = root.path("candidates");
-            if (candidates.isArray() && candidates.size() > 0) {
+            if (candidates.isArray() && !candidates.isEmpty()) {
                 var content = candidates.get(0).path("content");
                 var parts = content.path("parts");
-                if (parts.isArray() && parts.size() > 0) {
+                if (parts.isArray() && !parts.isEmpty()) {
                     return parts.get(0).path("text").asText();
                 }
             }

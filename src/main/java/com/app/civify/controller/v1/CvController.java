@@ -1,21 +1,23 @@
 package com.app.civify.controller.v1;
 
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-
+import com.app.civify.dto.document.CvParseRequest;
+import com.app.civify.dto.document.CvParseResponse;
+import com.app.civify.dto.document.MaskRequest;
+import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.document.CvParsingService;
 import com.app.civify.service.document.masking.MaskingService;
-
+import com.app.civify.service.document.pdf.PdfGenerationService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @ApiV1Controller
 @RequestMapping("/cvs")
@@ -25,7 +27,7 @@ public class CvController {
 
     private final CvParsingService cvParsingService;
     private final MaskingService maskingService;
-    private final com.app.civify.service.document.pdf.PdfGenerationService pdfGenerationService;
+    private final PdfGenerationService pdfGenerationService;
 
     @Operation(
             summary = "Upload CV file",
@@ -41,21 +43,21 @@ public class CvController {
                 content = @Content(mediaType = "application/json"))
     })
     @PostMapping(value = "/upload", consumes = "multipart/form-data")
-    public ResponseEntity<com.app.civify.dto.document.CvParseResponse> upload(
+    public ResponseEntity<CvParseResponse> upload(
             @RequestPart("file") MultipartFile file,
             @RequestParam(value = "language", required = false) String language,
             @RequestParam(value = "save", defaultValue = "true") boolean save) {
         
-        var request = com.app.civify.dto.document.CvParseRequest.builder()
+        var request = CvParseRequest.builder()
                 .language(language)
                 .saveToDatabase(save)
                 .build();
                 
         // Get authenticated user ID
         Long userId = null;
-        var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof com.app.civify.security.UserPrincipal) {
-            userId = ((com.app.civify.security.UserPrincipal) authentication.getPrincipal()).getId();
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal) {
+            userId = ((UserPrincipal) authentication.getPrincipal()).getId();
         }
         
         return ResponseEntity.ok(cvParsingService.parseCv(file, request, userId));
@@ -73,16 +75,16 @@ public class CvController {
             
         try {
             // 1. Parse the CV to get structured data
-            var parseRequest = com.app.civify.dto.document.CvParseRequest.builder()
+            var parseRequest = CvParseRequest.builder()
                     .language(language)
                     .saveToDatabase(false) // Don't save intermediate parsing
                     .build();
             
             // Get user ID if available (optional for masking tool)
             Long userId = null;
-            var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-            if (authentication != null && authentication.getPrincipal() instanceof com.app.civify.security.UserPrincipal) {
-                userId = ((com.app.civify.security.UserPrincipal) authentication.getPrincipal()).getId();
+            var authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal) {
+                userId = ((UserPrincipal) authentication.getPrincipal()).getId();
             }
 
             var parseResponse = cvParsingService.parseCv(file, parseRequest, userId);
@@ -91,7 +93,7 @@ public class CvController {
             }
 
             // 2. Mask the structured data
-            var maskRequest = com.app.civify.dto.document.MaskRequest.builder().build();
+            var maskRequest = MaskRequest.builder().build();
             var maskedData = maskingService.maskResumeData(parseResponse.getResumeData(), maskRequest);
 
             // 3. Generate PDF

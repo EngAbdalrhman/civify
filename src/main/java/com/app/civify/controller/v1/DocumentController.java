@@ -25,6 +25,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Set;
+
 /**
  * Controller for document processing operations including CV parsing and
  * masking.
@@ -175,7 +177,7 @@ public class DocumentController {
             description = "Returns a list of supported MIME types for document processing."
     )
     @GetMapping("/supported-types")
-    public ResponseEntity<CommonResponse<java.util.Set<String>>> getSupportedTypes() {
+    public ResponseEntity<CommonResponse<Set<String>>> getSupportedTypes() {
         return ResponseEntity.ok(CommonResponse.success(documentProcessorService.getSupportedMimeTypes()));
     }
 }
