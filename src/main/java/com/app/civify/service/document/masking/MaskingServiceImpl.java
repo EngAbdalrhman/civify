@@ -192,6 +192,53 @@ public class MaskingServiceImpl implements MaskingService {
         return maskedText;
     }
 
+    @Override
+    public com.app.civify.dto.resume.ResumeData maskResumeData(com.app.civify.dto.resume.ResumeData resumeData, MaskRequest request) {
+        if (resumeData == null) return null;
+        
+        List<MaskedEntity> entities = new ArrayList<>();
+        String language = resumeData.getMetadata() != null ? resumeData.getMetadata().getLanguage() : "en";
+        
+        // Mask Personal Info
+        var info = resumeData.getPersonalInfo();
+        if (info != null) {
+            // Mask Name
+            if (info.getFullName() != null) {
+                info.setFullName(maskNames(info.getFullName(), language, entities));
+            }
+            
+            // Mask Email
+            if (info.getEmail() != null) {
+                info.setEmail(applyPattern(info.getEmail(), MaskingPattern.EMAIL_ENGLISH, entities));
+            }
+            
+            // Mask Phone
+            if (info.getPhone() != null) {
+                String maskedPhone = applyPattern(info.getPhone(), MaskingPattern.PHONE_INTERNATIONAL, entities);
+                if (maskedPhone.equals(info.getPhone()) && "ar".equals(language)) {
+                    maskedPhone = applyPattern(info.getPhone(), MaskingPattern.PHONE_ARABIC, entities);
+                }
+                info.setPhone(maskedPhone);
+            }
+            
+            // Mask Address
+            if (info.getAddress() != null) {
+                String maskedAddress = applyPattern(info.getAddress(), MaskingPattern.ADDRESS_ENGLISH, entities);
+                if (maskedAddress.equals(info.getAddress()) && "ar".equals(language)) {
+                    maskedAddress = applyPattern(info.getAddress(), MaskingPattern.ADDRESS_ARABIC, entities);
+                }
+                info.setAddress(maskedAddress);
+            }
+            
+            // Mask Social Links
+            if (info.getLinkedin() != null) {
+                info.setLinkedin(applyPattern(info.getLinkedin(), MaskingPattern.LINKEDIN, entities));
+            }
+        }
+        
+        return resumeData;
+    }
+
     private String cleanJsonResponse(String response) {
         String cleaned = response.trim();
         if (cleaned.startsWith("```json")) cleaned = cleaned.substring(7);

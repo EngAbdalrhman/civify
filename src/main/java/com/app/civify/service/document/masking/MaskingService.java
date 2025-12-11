@@ -26,5 +26,13 @@ public interface MaskingService {
      * @return MaskResponse with masked text and optionally masked PDF
      */
     MaskResponse maskDocument(byte[] fileData, String mimeType, MaskRequest request);
+    /**
+     * Mask sensitive information in structured ResumeData.
+     *
+     * @param resumeData The structured resume data
+     * @param request Masking configuration
+     * @return The masked ResumeData
+     */
+    com.app.civify.dto.resume.ResumeData maskResumeData(com.app.civify.dto.resume.ResumeData resumeData, com.app.civify.dto.document.MaskRequest request);
 }
 

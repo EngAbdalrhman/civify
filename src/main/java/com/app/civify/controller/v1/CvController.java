@@ -25,6 +25,8 @@ public class CvController {
 
     private final CvParsingService cvParsingService;
     private final MaskingService maskingService;
+    private final com.app.civify.service.document.pdf.PdfGenerationService pdfGenerationService;
+
     @Operation(
             summary = "Upload CV file",
             description = "Uploads a CV file for processing and storage.",
@@ -60,24 +62,48 @@ public class CvController {
     }
 
     @Operation(
-            summary = "Mask CV content",
-            description = "Masks sensitive information in the CV.",
+            summary = "Mask CV content and generate PDF",
+            description = "Masks sensitive information in the CV and returns a masked PDF.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @PostMapping(value = "/mask", consumes = "multipart/form-data")
-    public ResponseEntity<com.app.civify.dto.document.MaskResponse> mask(
+    public ResponseEntity<byte[]> mask(
             @RequestPart("file") MultipartFile file,
             @RequestParam(value = "language", required = false) String language) {
             
-        var request = com.app.civify.dto.document.MaskRequest.builder()
-                .build(); // Use defaults
-                
-        // Read file bytes
         try {
-            byte[] fileData = file.getBytes();
-            return ResponseEntity.ok(maskingService.maskDocument(fileData, file.getContentType(), request));
-        } catch (java.io.IOException e) {
-            return ResponseEntity.badRequest().build();
+            // 1. Parse the CV to get structured data
+            var parseRequest = com.app.civify.dto.document.CvParseRequest.builder()
+                    .language(language)
+                    .saveToDatabase(false) // Don't save intermediate parsing
+                    .build();
+            
+            // Get user ID if available (optional for masking tool)
+            Long userId = null;
+            var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.getPrincipal() instanceof com.app.civify.security.UserPrincipal) {
+                userId = ((com.app.civify.security.UserPrincipal) authentication.getPrincipal()).getId();
+            }
+
+            var parseResponse = cvParsingService.parseCv(file, parseRequest, userId);
+            if (!parseResponse.isSuccess() || parseResponse.getResumeData() == null) {
+                return ResponseEntity.badRequest().body(null);
+            }
+
+            // 2. Mask the structured data
+            var maskRequest = com.app.civify.dto.document.MaskRequest.builder().build();
+            var maskedData = maskingService.maskResumeData(parseResponse.getResumeData(), maskRequest);
+
+            // 3. Generate PDF
+            byte[] pdfBytes = pdfGenerationService.generatePdf(maskedData, "modern");
+
+            return ResponseEntity.ok()
+                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"masked_cv.pdf\"")
+                    .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                    .body(pdfBytes);
+
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
         }
     }
 

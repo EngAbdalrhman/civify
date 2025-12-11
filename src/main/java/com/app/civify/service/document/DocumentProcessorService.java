@@ -4,13 +4,16 @@ import com.app.civify.dto.document.DocumentType;
 import com.app.civify.dto.document.ProcessedDocument;
 import com.app.civify.exception.BadRequestException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.tika.langdetect.optimaize.OptimaizeLangDetector;
 import org.apache.tika.language.detect.LanguageDetector;
 import org.apache.tika.language.detect.LanguageResult;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -39,12 +42,37 @@ public class DocumentProcessorService {
 
     public DocumentProcessorService(List<DocumentProcessor> processors) {
         this.processors = processors;
-        this.languageDetector = LanguageDetector.getDefaultLanguageDetector();
+
+        LanguageDetector detector = null;
         try {
-            this.languageDetector.loadModels();
+            detector = new OptimaizeLangDetector().loadModels();
         } catch (Exception e) {
             log.warn("Could not load language detection models: {}", e.getMessage());
+            // Fallback to a dummy detector if models fail to load, to prevent app crash
+            detector = new LanguageDetector() {
+                @Override
+                public LanguageDetector loadModels() { return this; }
+                @Override
+                public LanguageDetector loadModels(Set<String> languages) { return this; }
+                @Override
+                public boolean hasModel(String language) { return false; }
+
+                @Override
+                public LanguageDetector setPriors(Map<String, Float> map) throws IOException {
+                    return null;
+                }
+
+                @Override
+                public LanguageResult detect(CharSequence text) { return new LanguageResult("en", org.apache.tika.language.detect.LanguageConfidence.LOW, 0.0f); }
+                @Override
+                public void addText(char[] cbuf, int off, int len) {}
+                @Override
+                public List<LanguageResult> detectAll() { return List.of(); }
+                @Override
+                public void reset() {}
+            };
         }
+        this.languageDetector = detector;
     }
 
     /**
