@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>CV</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 0;
+        }
+        body {
+            font-family: 'Helvetica', sans-serif;
+            color: #333;
+            line-height: 1.5;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            display: flex;
+            flex-direction: row;
+            min-height: 100vh;
+        }
+        .sidebar {
+            width: 30%;
+            background-color: #2c3e50;
+            color: white;
+            padding: 30px 20px;
+        }
+        .main-content {
+            width: 70%;
+            padding: 40px 30px;
+            background-color: white;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        h2 {
+            font-size: 16px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 5px;
+            margin-top: 20px;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            color: #2c3e50;
+        }
+        .sidebar h2 {
+            border-bottom: 1px solid #ecf0f1;
+            color: white;
+        }
+        .job-title {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        .contact-info div {
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+        .skill-tag {
+            display: inline-block;
+            background: #34495e;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        .experience-item {
+            margin-bottom: 20px;
+        }
+        .exp-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        .company {
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .date {
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+        .role {
+            font-style: italic;
+            font-size: 13px;
+            margin-bottom: 5px;
+        }
+        ul {
+            padding-left: 15px;
+            margin-top: 5px;
+        }
+        li {
+            font-size: 13px;
+            margin-bottom: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="contact-info">
+                <h2 th:text="#{contact}">Contact</h2>
+                <div th:if="${resume.personalInfo.email}">
+                    <span th:text="${resume.personalInfo.email}">email@example.com</span>
+                </div>
+                <div th:if="${resume.personalInfo.phone}">
+                    <span th:text="${resume.personalInfo.phone}">+123456789</span>
+                </div>
+                <div th:if="${resume.personalInfo.address}">
+                    <span th:text="${resume.personalInfo.address}">City, Country</span>
+                </div>
+                <div th:if="${resume.personalInfo.linkedin}">
+                    <span th:text="${resume.personalInfo.linkedin}">linkedin.com/in/user</span>
+                </div>
+            </div>
+
+            <div class="skills" th:if="${resume.skills}">
+                <h2 th:text="#{skills}">Skills</h2>
+                <div th:each="skill : ${resume.skills.technical}">
+                    <span class="skill-tag" th:text="${skill}">Java</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <h1 th:text="${resume.personalInfo.fullName}">John Doe</h1>
+            <div class="job-title" th:text="${resume.personalInfo.jobTitle}">Software Engineer</div>
+            
+            <div class="summary" th:if="${resume.personalInfo.summary}">
+                <p th:text="${resume.personalInfo.summary}">Professional summary goes here...</p>
+            </div>
+
+            <div class="experience" th:if="${resume.workExperience}">
+                <h2 th:text="#{experience}">Experience</h2>
+                <div class="experience-item" th:each="exp : ${resume.workExperience}">
+                    <div class="exp-header">
+                        <span class="company" th:text="${exp.company}">Company Name</span>
+                        <span class="date">
+                            <span th:text="${exp.startDate}">2020</span> - 
+                            <span th:text="${exp.endDate}">Present</span>
+                        </span>
+                    </div>
+                    <div class="role" th:text="${exp.jobTitle}">Job Title</div>
+                    <p th:text="${exp.description}">Description</p>
+                    <ul th:if="${exp.keyAchievements}">
+                        <li th:each="achievement : ${exp.keyAchievements}" th:text="${achievement}">Achievement</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="education" th:if="${resume.education}">
+                <h2 th:text="#{education}">Education</h2>
+                <div class="experience-item" th:each="edu : ${resume.education}">
+                    <div class="exp-header">
+                        <span class="company" th:text="${edu.institution}">University</span>
+                        <span class="date" th:text="${edu.graduationDate}">2019</span>
+                    </div>
+                    <div class="role" th:text="${edu.degree}">Degree</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

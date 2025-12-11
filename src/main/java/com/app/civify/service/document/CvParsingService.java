@@ -165,18 +165,22 @@ public class CvParsingService {
     private ResumeData parseTextWithAi(String text) {
         try {
             String prompt = String.format(CV_PARSE_PROMPT, text);
-            String response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            
+            // Build JSON request with generation config for JSON mode
+            String requestBody = buildGeminiRequest(prompt);
+            
+            String response = aiService.callModel(requestBody, defaultProvider, defaultModel);
 
             if (response == null || response.isEmpty()) {
                 log.error("Empty response from AI");
                 return null;
             }
 
-            // Clean up response - remove markdown code blocks if present
-            String jsonResponse = cleanJsonResponse(response);
-
-            // Parse JSON to ResumeData
-            return objectMapper.readValue(jsonResponse, ResumeData.class);
+            // Parse Gemini response structure to get the actual content
+            String contentText = extractContentFromGeminiResponse(response);
+            
+            // Parse the content JSON to ResumeData
+            return objectMapper.readValue(contentText, ResumeData.class);
 
         } catch (Exception e) {
             log.error("Error parsing CV with AI: {}", e.getMessage());
@@ -184,23 +188,40 @@ public class CvParsingService {
         }
     }
 
-    /**
-     * Clean up AI response to extract pure JSON.
-     */
-    private String cleanJsonResponse(String response) {
-        String cleaned = response.trim();
+    private String buildGeminiRequest(String prompt) {
+        // Escape special characters in prompt for JSON
+        String escapedPrompt = prompt.replace("\"", "\\\"")
+                                   .replace("\n", "\\n")
+                                   .replace("\r", "\\r")
+                                   .replace("\t", "\\t");
 
-        // Remove markdown code blocks
-        if (cleaned.startsWith("```json")) {
-            cleaned = cleaned.substring(7);
-        } else if (cleaned.startsWith("```")) {
-            cleaned = cleaned.substring(3);
+        return String.format("""
+            {
+                "contents": [{
+                    "parts": [{"text": "%s"}]
+                }],
+                "generationConfig": {
+                    "responseMimeType": "application/json"
+                }
+            }
+            """, escapedPrompt);
+    }
+
+    private String extractContentFromGeminiResponse(String response) {
+        try {
+            var root = objectMapper.readTree(response);
+            var candidates = root.path("candidates");
+            if (candidates.isArray() && candidates.size() > 0) {
+                var content = candidates.get(0).path("content");
+                var parts = content.path("parts");
+                if (parts.isArray() && parts.size() > 0) {
+                    return parts.get(0).path("text").asText();
+                }
+            }
+            return response; // Fallback
+        } catch (Exception e) {
+            log.warn("Failed to parse Gemini response structure: {}", e.getMessage());
+            return response;
         }
-
-        if (cleaned.endsWith("```")) {
-            cleaned = cleaned.substring(0, cleaned.length() - 3);
-        }
-
-        return cleaned.trim();
     }
 }

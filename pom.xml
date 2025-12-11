@@ -186,6 +186,19 @@
 			<version>2.9.1</version>
 		</dependency>
 
+		<!-- Flying Saucer for PDF generation -->
+		<dependency>
+			<groupId>org.xhtmlrenderer</groupId>
+			<artifactId>flying-saucer-pdf</artifactId>
+			<version>9.1.22</version>
+		</dependency>
+
+		<!-- Thymeleaf for templating -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-thymeleaf</artifactId>
+		</dependency>
+
 		 <!-- =========================
              SWAGGER / OPENAPI
              ========================= -->

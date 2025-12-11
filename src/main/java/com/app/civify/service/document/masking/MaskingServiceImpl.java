@@ -126,10 +126,55 @@ public class MaskingServiceImpl implements MaskingService {
         return result.toString();
     }
 
-    private String maskNames(String text, String language, List<MaskedEntity> entities) {
-        // Simple heuristic-based name detection
-        // Look for common name patterns in CVs
+    private final com.app.civify.service.ai.AiService aiService;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
+    @org.springframework.beans.factory.annotation.Value("${ai.default.provider:gemini}")
+    private String defaultProvider;
+
+    @org.springframework.beans.factory.annotation.Value("${ai.default.model:gemini-pro}")
+    private String defaultModel;
+
+    private static final String NER_PROMPT = """
+        Analyze the following text and identify all personal names.
+        Return ONLY a JSON array of strings containing the names found.
+        Example: ["John Doe", "Jane Smith"]
+        
+        Text:
+        %s
+        """;
+
+    private String maskNames(String text, String language, List<MaskedEntity> entities) {
+        try {
+            // Use AI to find names (NER)
+            String prompt = String.format(NER_PROMPT, text);
+            String response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            
+            String jsonArray = cleanJsonResponse(response);
+            List<String> names = objectMapper.readValue(jsonArray, new com.fasterxml.jackson.core.type.TypeReference<List<String>>(){});
+            
+            String maskedText = text;
+            for (String name : names) {
+                if (name.length() < 3) continue; // Skip very short matches
+                
+                // Find and mask all occurrences
+                maskedText = maskNamePattern(maskedText, 
+                    java.util.regex.Pattern.quote(name), 
+                    0, 
+                    language.equals("ar") ? "[الاسم_محذوف]" : "[NAME_REDACTED]", 
+                    entities, 
+                    MaskType.NAME);
+            }
+            return maskedText;
+            
+        } catch (Exception e) {
+            log.warn("AI Name detection failed, falling back to heuristic: {}", e.getMessage());
+            // Fallback to original heuristic
+            return maskNamesHeuristic(text, language, entities);
+        }
+    }
+
+    private String maskNamesHeuristic(String text, String language, List<MaskedEntity> entities) {
         String maskedText = text;
 
         // English name patterns (after common labels)
@@ -145,6 +190,14 @@ public class MaskingServiceImpl implements MaskingService {
         }
 
         return maskedText;
+    }
+
+    private String cleanJsonResponse(String response) {
+        String cleaned = response.trim();
+        if (cleaned.startsWith("```json")) cleaned = cleaned.substring(7);
+        else if (cleaned.startsWith("```")) cleaned = cleaned.substring(3);
+        if (cleaned.endsWith("```")) cleaned = cleaned.substring(0, cleaned.length() - 3);
+        return cleaned.trim();
     }
 
     private String maskNamePattern(String text, String regex, int groupIndex,

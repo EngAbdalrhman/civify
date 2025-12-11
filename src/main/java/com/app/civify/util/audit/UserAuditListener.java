@@ -57,7 +57,7 @@ public class UserAuditListener {
                     newValue,
                     "User created"
                 );
-                log.debug("Audit log created for new user: {}", user.getUsername());
+                log.debug("Audit log created for new user: {}", user.getEmail());
             }
         } catch (Exception e) {
             log.error("Failed to create audit log for user creation: {}", e.getMessage(), e);
@@ -83,7 +83,7 @@ public class UserAuditListener {
                     newValue,
                     "User updated"
                 );
-                log.debug("Audit log created for user update: {}", user.getUsername());
+                log.debug("Audit log created for user update: {}", user.getEmail());
             }
         } catch (Exception e) {
             log.error("Failed to create audit log for user update: {}", e.getMessage(), e);
@@ -107,7 +107,7 @@ public class UserAuditListener {
                     null,
                     "User deleted"
                 );
-                log.debug("Audit log created for user deletion: {}", user.getUsername());
+                log.debug("Audit log created for user deletion: {}", user.getEmail());
             }
         } catch (Exception e) {
             log.error("Failed to create audit log for user deletion: {}", e.getMessage(), e);
