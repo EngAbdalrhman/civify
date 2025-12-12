@@ -43,5 +43,12 @@ public class CvParseRequest {
      */
     @Builder.Default
     private boolean includeImages = false;
+
+    /**
+     * Optimization: If true, only extracts PII (Name, Email, Phone, Address) for masking purposes.
+     * Drastically reduces AI processing time.
+     */
+    @Builder.Default
+    private boolean piiOnly = false;
 }
 

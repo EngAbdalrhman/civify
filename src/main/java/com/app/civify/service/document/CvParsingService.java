@@ -34,56 +34,33 @@ public class CvParsingService {
     private String defaultModel;
 
     private static final String CV_PARSE_PROMPT = """
-        You are an expert CV/Resume parser. Parse the following CV text and extract structured information.
+        Extract structured data from this CV in JSON format.
         
-        Return a JSON object with this exact structure:
+        Structure:
         {
             "personalInfo": {
-                "fullName": "string or null",
-                "email": "string or null",
-                "phone": "string or null",
-                "address": "string or null",
-                "city": "string or null",
-                "country": "string or null",
-                "summary": "string or null",
-                "jobTitle": "string or null",
-                "linkedin": "string or null",
-                "website": "string or null",
-                "github": "string or null"
+                "fullName": "string", "email": "string", "phone": "string", "address": "string",
+                "city": "string", "country": "string", "summary": "string", "jobTitle": "string",
+                "linkedin": "string", "website": "string", "github": "string"
             },
             "sections": [
                 {
-                    "id": "unique-id",
-                    "title": "Section Title",
-                    "type": "experience|education|skills|languages|certifications|projects|custom",
+                    "id": "uuid", "title": "string", "type": "experience|education|skills|languages|certifications|projects|custom",
                     "items": [
                         {
-                            "id": "unique-id",
-                            "title": "Company/School Name",
-                            "subtitle": "Job Title/Degree",
-                            "date": "Date Range",
-                            "description": "Description text",
-                            "location": "Location",
-                            "tags": ["skill1", "skill2"],
-                            "isVisible": true
+                            "id": "uuid", "title": "string", "subtitle": "string", "date": "string",
+                            "description": "string", "location": "string", "tags": ["string"]
                         }
-                    ],
-                    "isVisible": true,
-                    "order": 1
+                    ]
                 }
             ],
-            "metadata": {
-                "language": "detected language code (en, ar, etc.)"
-            }
+            "metadata": { "language": "code" }
         }
         
-        Important:
-        - Extract ALL information from the CV
-        - Preserve the original language of the content
-        - For Arabic CVs, keep Arabic text as-is
-        - Generate unique IDs for sections and items
-        - Order sections logically (experience, education, skills, etc.)
-        - Return ONLY valid JSON, no markdown or explanations
+        Rules:
+        1. Extract ALL content.
+        2. Use original language.
+        3. Valid JSON only.
         
         CV Text:
         %s
@@ -104,7 +81,10 @@ public class CvParsingService {
 
         try {
             // Step 1: Process document to extract text
+            long docProcStart = System.currentTimeMillis();
             ProcessedDocument processedDoc = documentProcessorService.process(file, request.getLanguage());
+            long docProcTime = System.currentTimeMillis() - docProcStart;
+            log.info("Document Processing Time: {}ms", docProcTime);
 
             if (!processedDoc.isSuccess() || !processedDoc.hasText()) {
                 return CvParseResponse.builder()
@@ -119,7 +99,10 @@ public class CvParsingService {
                     processedDoc.getRawText().length(), processedDoc.getProcessingMethod());
 
             // Step 2: Parse text with AI
-            ResumeData resumeData = parseTextWithAi(processedDoc.getRawText());
+            long aiStart = System.currentTimeMillis();
+            ResumeData resumeData = parseTextWithAi(processedDoc.getRawText(), request.isPiiOnly());
+            long aiTime = System.currentTimeMillis() - aiStart;
+            log.info("AI Parsing Time: {}ms", aiTime);
 
             if (resumeData == null) {
                 return CvParseResponse.builder()
@@ -162,9 +145,55 @@ public class CvParsingService {
     /**
      * Parse extracted text using AI to produce structured ResumeData.
      */
-    private ResumeData parseTextWithAi(String text) {
+    private static final String PII_PARSE_PROMPT = """
+        Extract structured data from this CV in YAML format.
+        
+        Structure:
+        personalInfo:
+          fullName: string
+          email: string
+          phone: string
+          address: string
+          city: string
+          country: string
+          summary: string
+          jobTitle: string
+          linkedin: string
+          website: string
+          github: string
+        sections:
+          - id: uuid
+            title: string
+            type: experience|education|skills|languages|certifications|projects|custom
+            items:
+              - id: uuid
+                title: string
+                subtitle: string
+                date: string
+                description: string
+                location: string
+                tags: [string]
+        metadata:
+          language: code
+        
+        Rules:
+        1. Extract ALL content.
+        2. Use original language.
+        3. Valid YAML only.
+        
+        CV Text:
+        %s
+        """;
+
+    /**
+     * Parse extracted text using AI to produce structured ResumeData.
+     */
+    private ResumeData parseTextWithAi(String text, boolean piiOnly) {
         try {
-            String prompt = String.format(CV_PARSE_PROMPT, text);
+            // Use YAML prompt if piiOnly (which we are repurposing for "Fast Mode")
+            // Note: We are now extracting FULL content even in "piiOnly" mode, but using YAML for speed.
+            String promptTemplate = piiOnly ? PII_PARSE_PROMPT : CV_PARSE_PROMPT;
+            String prompt = String.format(promptTemplate, text);
 
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
 
@@ -178,9 +207,18 @@ public class CvParsingService {
 
             // Clean markdown code blocks if present
             contentText = cleanMarkdownJson(contentText);
+            
+            log.debug("AI Response Content (Cleaned): {}", contentText);
 
-            // Parse the content JSON to ResumeData
-            return objectMapper.readValue(contentText, ResumeData.class);
+            if (piiOnly) {
+                // Parse YAML
+                ObjectMapper yamlMapper = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
+                yamlMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                return yamlMapper.readValue(contentText, ResumeData.class);
+            } else {
+                // Parse JSON (Legacy/Full mode)
+                return objectMapper.readValue(contentText, ResumeData.class);
+            }
 
         } catch (Exception e) {
             log.error("Error parsing CV with AI: {}", e.getMessage());
@@ -189,8 +227,8 @@ public class CvParsingService {
     }
 
     /**
-     * Remove markdown code blocks from JSON response. AI models sometimes wrap
-     * JSON in ```json ... ``` blocks.
+     * Remove markdown code blocks from JSON/YAML response. 
+     * AI models sometimes wrap content in ```json ... ``` or ```yaml ... ``` blocks.
      */
     private String cleanMarkdownJson(String text) {
         if (text == null) {
@@ -199,11 +237,18 @@ public class CvParsingService {
 
         String cleaned = text.trim();
 
-        // Remove ```json or ``` prefix
+        // Remove ```json, ```yaml, or ``` prefix
         if (cleaned.startsWith("```json")) {
+            cleaned = cleaned.substring(7);
+        } else if (cleaned.startsWith("```yaml")) {
             cleaned = cleaned.substring(7);
         } else if (cleaned.startsWith("```")) {
             cleaned = cleaned.substring(3);
+        }
+        
+        // Sometimes the model just outputs "yaml" or "json" at the start without backticks
+        if (cleaned.startsWith("yaml\n") || cleaned.startsWith("yaml ")) {
+             cleaned = cleaned.substring(5);
         }
 
         // Remove trailing ```

@@ -61,8 +61,11 @@ public class PdfDocumentProcessor implements DocumentProcessor {
             List<String> warnings = new ArrayList<>();
 
             if (isScanned) {
-                log.info("PDF appears to be scanned, using OCR");
+                log.info("PDF appears to be scanned (text length: {}), using OCR", 
+                        extractedText != null ? extractedText.length() : 0);
+                long ocrStart = System.currentTimeMillis();
                 OcrResult ocrResult = processWithOcr(document, languageHint);
+                log.info("OCR Processing Time: {}ms", System.currentTimeMillis() - ocrStart);
 
                 if (ocrResult.isSuccess() && ocrResult.hasText()) {
                     extractedText = ocrResult.getText();
@@ -73,6 +76,7 @@ public class PdfDocumentProcessor implements DocumentProcessor {
                     processingMethod = "OCR_PARTIAL";
                 }
             } else {
+                log.info("PDF is text-based (text length: {}), skipping OCR", extractedText.length());
                 processingMethod = "DIRECT_EXTRACTION";
             }
 

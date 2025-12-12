@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/v1/external/cvs")
 @RequiredArgsConstructor
+@Slf4j
 @Tag(name = "External CV API", description = "Endpoints for external developers using API Keys")
 public class ExternalCvController {
 
@@ -37,26 +39,38 @@ public class ExternalCvController {
             @RequestParam(value = "language", required = false) String language) {
         
         try {
+            long startTime = System.currentTimeMillis();
+
             // 1. Parse
+            long parseStart = System.currentTimeMillis();
             var parseRequest = CvParseRequest.builder()
                     .language(language)
                     .saveToDatabase(false)
+                    .piiOnly(true) // Optimization: Only extract PII for masking
                     .build();
             
             // Note: External API users don't have a 'User' context for saving CVs in the same way, 
             // so we pass null for userId or handle it if needed.
             var parseResponse = cvParsingService.parseCv(file, parseRequest, null);
+            long parseTime = System.currentTimeMillis() - parseStart;
             
             if (!parseResponse.isSuccess() || parseResponse.getResumeData() == null) {
                 return ResponseEntity.badRequest().body(null);
             }
 
             // 2. Mask
+            long maskStart = System.currentTimeMillis();
             var maskRequest = MaskRequest.builder().build();
             var maskedData = maskingService.maskResumeData(parseResponse.getResumeData(), maskRequest);
+            long maskTime = System.currentTimeMillis() - maskStart;
 
             // 3. Generate PDF
+            long pdfStart = System.currentTimeMillis();
             byte[] pdfBytes = pdfGenerationService.generatePdf(maskedData, "modern");
+            long pdfTime = System.currentTimeMillis() - pdfStart;
+
+            long totalTime = System.currentTimeMillis() - startTime;
+            log.info("External Mask API Timing: Total=" + totalTime + "ms, Parse=" + parseTime + "ms, Mask=" + maskTime + "ms, PDF=" + pdfTime + "ms");
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"masked_cv.pdf\"")
