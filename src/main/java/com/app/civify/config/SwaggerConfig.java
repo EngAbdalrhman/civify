@@ -49,7 +49,12 @@ public class SwaggerConfig {
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
                                 .in(SecurityScheme.In.HEADER)
-                                .name("Authorization")))
-                .addSecurityItem(new SecurityRequirement().addList("bearer-jwt"));
+                                .name("Authorization"))
+                        .addSecuritySchemes("api-key", new SecurityScheme()
+                                .type(SecurityScheme.Type.APIKEY)
+                                .in(SecurityScheme.In.HEADER)
+                                .name("X-API-KEY")))
+                .addSecurityItem(new SecurityRequirement().addList("bearer-jwt"))
+                .addSecurityItem(new SecurityRequirement().addList("api-key"));
     }
 }
