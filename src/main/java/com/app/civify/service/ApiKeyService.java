@@ -22,6 +22,8 @@ public class ApiKeyService {
     private final ApiKeyRepository apiKeyRepository;
     private final UserRepository userRepository;
 
+    private final com.app.civify.repository.ApiKeyUsageLogRepository apiKeyUsageLogRepository;
+
     private static final String KEY_PREFIX = "cv-fy-";
     private static final int KEY_LENGTH = 32;
 
@@ -55,6 +57,35 @@ public class ApiKeyService {
         }
         
         apiKeyRepository.delete(apiKey);
+    }
+
+    @Transactional(readOnly = true)
+    public ApiKey validateKey(String rawKey) {
+        String keyHash = hashKey(rawKey);
+        return apiKeyRepository.findByKeyHash(keyHash)
+                .filter(ApiKey::getIsActive)
+                .orElse(null);
+    }
+
+    @Transactional
+    public void logUsage(User user, ApiKey apiKey, String endpoint, String method, int statusCode, boolean success, String ipAddress) {
+        com.app.civify.entity.ApiKeyUsageLog log = com.app.civify.entity.ApiKeyUsageLog.builder()
+                .user(user)
+                .apiKey(apiKey)
+                .endpoint(endpoint)
+                .method(method)
+                .statusCode(statusCode)
+                .success(success)
+                .ipAddress(ipAddress)
+                .timestamp(java.time.LocalDateTime.now())
+                .build();
+        
+        apiKeyUsageLogRepository.save(log);
+
+        if (apiKey != null) {
+            apiKey.setLastUsedAt(java.time.LocalDateTime.now());
+            apiKeyRepository.save(apiKey);
+        }
     }
 
     private String generateSecureKey() {

@@ -1,0 +1,74 @@
+package com.app.civify.security;
+
+import com.app.civify.entity.ApiKey;
+import com.app.civify.service.ApiKeyService;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+import java.util.Collections;
+
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
+
+    private final ApiKeyService apiKeyService;
+    private static final String API_KEY_HEADER = "X-API-KEY";
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+
+        String path = request.getRequestURI();
+        if (!path.startsWith("/api/v1/external")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        String apiKeyHeader = request.getHeader(API_KEY_HEADER);
+
+        if (apiKeyHeader == null || apiKeyHeader.isBlank()) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write("Missing API Key");
+            return;
+        }
+
+        try {
+            ApiKey apiKey = apiKeyService.validateKey(apiKeyHeader);
+            
+            if (apiKey == null) {
+                apiKeyService.logUsage(null, null, path, request.getMethod(), HttpServletResponse.SC_UNAUTHORIZED, false, request.getRemoteAddr());
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("Invalid or Inactive API Key");
+                return;
+            }
+
+            // Set authentication in context
+            UserPrincipal principal = new UserPrincipal(apiKey.getUser());
+            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                    principal, null, Collections.singletonList(new SimpleGrantedAuthority("ROLE_API_USER")));
+            
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            
+            // Proceed with request
+            filterChain.doFilter(request, response);
+            
+            // Log success after request is processed (simple approach, for more accuracy use a wrapper or interceptor)
+            apiKeyService.logUsage(apiKey.getUser(), apiKey, path, request.getMethod(), response.getStatus(), true, request.getRemoteAddr());
+
+        } catch (Exception e) {
+            log.error("API Key authentication error", e);
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        }
+    }
+}

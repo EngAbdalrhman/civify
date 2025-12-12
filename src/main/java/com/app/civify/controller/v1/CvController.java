@@ -2,11 +2,8 @@ package com.app.civify.controller.v1;
 
 import com.app.civify.dto.document.CvParseRequest;
 import com.app.civify.dto.document.CvParseResponse;
-import com.app.civify.dto.document.MaskRequest;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.document.CvParsingService;
-import com.app.civify.service.document.masking.MaskingService;
-import com.app.civify.service.document.pdf.PdfGenerationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -26,8 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class CvController {
 
     private final CvParsingService cvParsingService;
-    private final MaskingService maskingService;
-    private final PdfGenerationService pdfGenerationService;
+    private final com.app.civify.service.cv.CvEnhancementService cvEnhancementService;
 
     @Operation(
             summary = "Upload CV file",
@@ -64,49 +60,17 @@ public class CvController {
     }
 
     @Operation(
-            summary = "Mask CV content and generate PDF",
-            description = "Masks sensitive information in the CV and returns a masked PDF.",
+            summary = "Enhance CV",
+            description = "Enhances CV data with AI (Roadmap, Interview Questions, Cover Letter).",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
-    @PostMapping(value = "/mask", consumes = "multipart/form-data")
-    public ResponseEntity<byte[]> mask(
-            @RequestPart("file") MultipartFile file,
-            @RequestParam(value = "language", required = false) String language) {
-            
-        try {
-            // 1. Parse the CV to get structured data
-            var parseRequest = CvParseRequest.builder()
-                    .language(language)
-                    .saveToDatabase(false) // Don't save intermediate parsing
-                    .build();
-            
-            // Get user ID if available (optional for masking tool)
-            Long userId = null;
-            var authentication = SecurityContextHolder.getContext().getAuthentication();
-            if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal) {
-                userId = ((UserPrincipal) authentication.getPrincipal()).getId();
-            }
-
-            var parseResponse = cvParsingService.parseCv(file, parseRequest, userId);
-            if (!parseResponse.isSuccess() || parseResponse.getResumeData() == null) {
-                return ResponseEntity.badRequest().body(null);
-            }
-
-            // 2. Mask the structured data
-            var maskRequest = MaskRequest.builder().build();
-            var maskedData = maskingService.maskResumeData(parseResponse.getResumeData(), maskRequest);
-
-            // 3. Generate PDF
-            byte[] pdfBytes = pdfGenerationService.generatePdf(maskedData, "modern");
-
-            return ResponseEntity.ok()
-                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"masked_cv.pdf\"")
-                    .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
-                    .body(pdfBytes);
-
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
-        }
+    @PostMapping("/enhance")
+    public ResponseEntity<java.util.Map<String, Object>> enhance(
+            @RequestBody com.app.civify.dto.resume.ResumeData resumeData,
+            @RequestParam(value = "jobDescription", required = false) String jobDescription,
+            @RequestParam(value = "generateCoverLetter", defaultValue = "false") boolean generateCoverLetter) {
+        
+        return ResponseEntity.ok(cvEnhancementService.enhanceCv(resumeData, jobDescription, generateCoverLetter));
     }
 
     @Operation(
