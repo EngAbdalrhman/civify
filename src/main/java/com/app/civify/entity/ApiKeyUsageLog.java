@@ -43,6 +43,9 @@ public class ApiKeyUsageLog {
     @Column(length = 45)
     private String ipAddress;
 
+    @Column(length = 500)
+    private String errorMessage;
+
     @Column(nullable = false)
     private LocalDateTime timestamp;
 

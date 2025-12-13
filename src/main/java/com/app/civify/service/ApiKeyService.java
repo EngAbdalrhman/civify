@@ -75,7 +75,7 @@ public class ApiKeyService {
     }
 
     @Transactional
-    public void logUsage(User user, ApiKey apiKey, String endpoint, String method, int statusCode, boolean success, String ipAddress) {
+    public void logUsage(User user, ApiKey apiKey, String endpoint, String method, int statusCode, boolean success, String ipAddress, String errorMessage) {
         com.app.civify.entity.ApiKeyUsageLog log = com.app.civify.entity.ApiKeyUsageLog.builder()
                 .user(user)
                 .apiKey(apiKey)
@@ -84,6 +84,7 @@ public class ApiKeyService {
                 .statusCode(statusCode)
                 .success(success)
                 .ipAddress(ipAddress)
+                .errorMessage(errorMessage)
                 .timestamp(java.time.LocalDateTime.now())
                 .build();
         

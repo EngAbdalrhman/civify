@@ -54,7 +54,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             
             if (apiKey == null) {
                 log.warn("ApiKeyFilter: Invalid API Key");
-                apiKeyService.logUsage(null, null, path, request.getMethod(), HttpServletResponse.SC_UNAUTHORIZED, false, getClientIp(request));
+                apiKeyService.logUsage(null, null, path, request.getMethod(), HttpServletResponse.SC_UNAUTHORIZED, false, getClientIp(request), "Invalid or Inactive API Key");
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.getWriter().write("Invalid or Inactive API Key");
                 return;
@@ -74,7 +74,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             
             // Log success after request is processed
             log.info("ApiKeyFilter: Logging usage for user: {}", apiKey.getUser().getEmail());
-            apiKeyService.logUsage(apiKey.getUser(), apiKey, path, request.getMethod(), response.getStatus(), true, getClientIp(request));
+            apiKeyService.logUsage(apiKey.getUser(), apiKey, path, request.getMethod(), response.getStatus(), true, getClientIp(request), null);
             log.info("ApiKeyFilter: Usage logged successfully");
 
         } catch (Exception e) {

@@ -1,9 +1,7 @@
 package com.app.civify.util;
 
-import com.app.civify.entity.ApiUsageLog;
 import com.app.civify.entity.User;
 import com.app.civify.repository.UserRepository;
-import com.app.civify.service.ApiUsageLogService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,7 +23,6 @@ import java.util.Enumeration;
 @RequiredArgsConstructor
 public class RequestLoggingFilter extends OncePerRequestFilter {
 
-    private final ApiUsageLogService apiUsageLogService;
     private final UserRepository userRepository;
 
     @Override
@@ -90,44 +87,6 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             // Log response with structured format for ELK
             log.info("REQUEST_END | requestId={} | method={} | uri={} | status={} | duration={}ms | success={} | timestamp={}",
                     requestId, method, fullUri, status, duration, isSuccess, LocalDateTime.now());
-
-            // Create API usage log entry for authenticated requests
-            if (user != null && !isExcludedEndpoint(uri)) {
-                try {
-                    ApiUsageLog logEntry = new ApiUsageLog();
-                    logEntry.setUser(user);
-                    logEntry.setEndpoint(fullUri);
-                    logEntry.setTimestamp(LocalDateTime.now());
-                    logEntry.setSuccess(isSuccess);
-                    logEntry.setIpAddress(remoteAddr);
-
-                    if (!isSuccess) {
-                        logEntry.setErrorMessage("HTTP " + status);
-                    }
-
-                    apiUsageLogService.createLog(logEntry);
-
-                    log.debug("API_USAGE_LOGGED | userId={} | endpoint={} | success={}",
-                            user.getId(), fullUri, isSuccess);
-                } catch (Exception e) {
-                    log.error("Failed to create API usage log", e);
-                }
-            }
         }
-    }
-
-    /**
-     * Check if endpoint should be excluded from API usage logging (e.g., static
-     * resources, health checks, etc.)
-     */
-    private boolean isExcludedEndpoint(String uri) {
-        return uri.startsWith("/apis/v1/api-docs")
-                || uri.startsWith("/swagger-ui")
-                || uri.startsWith("/actuator")
-                || uri.startsWith("/favicon.ico")
-                || uri.startsWith("/static")
-                || uri.startsWith("/css")
-                || uri.startsWith("/js")
-                || uri.startsWith("/images");
     }
 }
