@@ -1,5 +1,6 @@
 package com.app.civify.controller.v1;
 
+import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.entity.PromoCode;
 import com.app.civify.service.payment.PromoCodeService;
 import com.app.civify.util.filter.InputDataModel;

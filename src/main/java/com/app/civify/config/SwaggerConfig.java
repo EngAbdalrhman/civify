@@ -31,8 +31,8 @@ public class SwaggerConfig {
                         .version("1.0.0")
                         .contact(new Contact()
                                 .name("Civify Team")
-                                .email("support@civify-app.com")
-                                .url("https://cvupper.netlify.app"))
+                                .email("support@civify.cv")
+                                .url("https://civify.cv"))
                         .license(new License()
                                 .name("Apache 2.0")
                                 .url("https://www.apache.org/licenses/LICENSE-2.0")))
@@ -41,7 +41,7 @@ public class SwaggerConfig {
                                 .url("http://localhost:8077/apis")
                                 .description("Development server"),
                         new Server()
-                                .url("https://cvupper.netlify.app/apis")
+                                .url("https://civify.cv/apis")
                                 .description("Production server")))
                 .components(new Components()
                         .addSecuritySchemes("bearer-jwt", new SecurityScheme()
@@ -49,7 +49,12 @@ public class SwaggerConfig {
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
                                 .in(SecurityScheme.In.HEADER)
-                                .name("Authorization")))
-                .addSecurityItem(new SecurityRequirement().addList("bearer-jwt"));
+                                .name("Authorization"))
+                        .addSecuritySchemes("api-key", new SecurityScheme()
+                                .type(SecurityScheme.Type.APIKEY)
+                                .in(SecurityScheme.In.HEADER)
+                                .name("X-API-KEY")))
+                .addSecurityItem(new SecurityRequirement().addList("bearer-jwt"))
+                .addSecurityItem(new SecurityRequirement().addList("api-key"));
     }
 }

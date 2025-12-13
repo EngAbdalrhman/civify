@@ -1,5 +1,6 @@
 package com.app.civify.controller.v1;
 
+import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.plan.PlanCreateRequest;
 import com.app.civify.dto.plan.PlanDetailResponse;
 import com.app.civify.dto.plan.PlanMapper;

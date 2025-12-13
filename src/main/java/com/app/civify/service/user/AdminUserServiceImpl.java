@@ -4,7 +4,7 @@ import com.app.civify.dto.user.UserMapper;
 import com.app.civify.dto.user.UserResponseDTO;
 import com.app.civify.entity.User;
 import com.app.civify.exception.ResourceNotFoundException;
-import com.app.civify.repository.ApiUsageLogRepository;
+import com.app.civify.repository.ApiKeyUsageLogRepository;
 import com.app.civify.repository.CvRepository;
 import com.app.civify.repository.UserRepository;
 import com.app.civify.repository.UserSubscriptionRepository;
@@ -36,7 +36,7 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
     private final UserRepository userRepository;
     private final UserSubscriptionRepository subscriptionRepository;
     private final CvRepository cvRepository;
-    private final ApiUsageLogRepository apiUsageLogRepository;
+    private final ApiKeyUsageLogRepository apiKeyUsageLogRepository;
     private final UserMapper userMapper;
     
     @Override
@@ -58,8 +58,8 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
             // CV Count
             dto.setCvCount((int) cvRepository.countByUserId(dto.getId()));
 
-            // API Usage Count
-            dto.setApiUsageCount(Math.toIntExact(apiUsageLogRepository.countByUserIdAndMonth(dto.getId(), currentMonth)));
+            // API Usage Count (External Keys)
+            dto.setApiUsageCount(Math.toIntExact(apiKeyUsageLogRepository.countByUserIdAndMonth(dto.getId(), currentMonth)));
 
             // Plan
             List<com.app.civify.entity.UserSubscription> activeSubs = subscriptionRepository.findByUserIdAndStatus(
@@ -163,4 +163,3 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
         return getUserByIdWithStats(savedUser.getId());
     }
 }
-

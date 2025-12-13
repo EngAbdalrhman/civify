@@ -1,5 +1,7 @@
 package com.app.civify.service.ai;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.retry.annotation.Backoff;
@@ -8,16 +10,15 @@ import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Enhanced AI service with multi-model and multi-provider support
- * Features:
- * - Multiple AI providers (Gemini, OpenAI, etc.)
- * - Automatic fallback to secondary provider
- * - Retry mechanism with exponential backoff
- * - Provider-specific error handling
+ * Enhanced AI service with multi-model and multi-provider support Features: -
+ * Multiple AI providers (Gemini, OpenAI, etc.) - Automatic fallback to
+ * secondary provider - Retry mechanism with exponential backoff -
+ * Provider-specific error handling
  */
 @Service
 @Slf4j
@@ -103,8 +104,8 @@ public class AiServiceImpl implements AiService {
 
         AiProvider aiProvider = providers.get(provider.toLowerCase());
         if (aiProvider == null) {
-            throw new IllegalArgumentException("Unsupported AI provider: " + provider +
-                    ". Available providers: " + providers.keySet());
+            throw new IllegalArgumentException("Unsupported AI provider: " + provider
+                    + ". Available providers: " + providers.keySet());
         }
 
         try {
@@ -144,8 +145,8 @@ public class AiServiceImpl implements AiService {
 
                     // Throw combined exception with both errors
                     throw new RuntimeException(
-                            String.format("Both primary (%s) and fallback (%s) AI providers failed. " +
-                                    "Primary error: %s, Fallback error: %s",
+                            String.format("Both primary (%s) and fallback (%s) AI providers failed. "
+                                    + "Primary error: %s, Fallback error: %s",
                                     provider, fallbackProvider,
                                     primaryException.getMessage(),
                                     fallbackException.getMessage()),
@@ -215,13 +216,14 @@ public class AiServiceImpl implements AiService {
     }
 
     // ==================== Provider Interface and Implementations ====================
-
     /**
      * Interface that all AI providers must implement
      */
     public interface AiProvider {
+
         /**
          * Call the AI model with given prompt
+         *
          * @param prompt The prompt to send
          * @param model The specific model to use
          * @return AI response
@@ -249,6 +251,7 @@ public class AiServiceImpl implements AiService {
     public static class GeminiProvider implements AiProvider {
 
         private final GeminiAiClient client;
+        private final ObjectMapper objectMapper = new ObjectMapper();
 
         public GeminiProvider(GeminiAiClient client) {
             this.client = client;
@@ -257,17 +260,17 @@ public class AiServiceImpl implements AiService {
         @Override
         public String callModel(String prompt, String model) {
             try {
-                // Escape quotes in prompt for JSON
-                String escapedPrompt = prompt.replace("\"", "\\\"").replace("\n", "\\n");
+                // Build Gemini API request using proper JSON serialization
+                Map<String, Object> textPart = Map.of("text", prompt);
+                Map<String, Object> parts = Map.of("parts", List.of(textPart));
+                Map<String, Object> requestMap = Map.of("contents", List.of(parts));
 
-                // Build Gemini API request
-                String requestBody = String.format(
-                        "{\"contents\": [{\"parts\": [{\"text\": \"%s\"}]}]}",
-                        escapedPrompt
-                );
+                String requestBody = objectMapper.writeValueAsString(requestMap);
 
                 return client.callModel(model, requestBody);
 
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException("Failed to build Gemini request: " + e.getMessage(), e);
             } catch (Exception e) {
                 throw new RuntimeException("Gemini API call failed: " + e.getMessage(), e);
             }
@@ -304,5 +307,5 @@ public class AiServiceImpl implements AiService {
             return "OpenAI";
         }
     }
-    */
+     */
 }

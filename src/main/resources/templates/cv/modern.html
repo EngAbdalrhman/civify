@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head>
+    <meta charset="UTF-8" />
+    <title>CV</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 15mm 20mm;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Georgia", "Times New Roman", serif;
+        font-size: 11pt;
+        line-height: 1.4;
+        color: #1a1a1a;
+        background: white;
+        padding: 20px 40px;
+      }
+      /* Header Section */
+      .header {
+        text-align: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #1a1a1a;
+      }
+      .name {
+        font-size: 26pt;
+        font-weight: bold;
+        letter-spacing: 2px;
+        margin-bottom: 5px;
+        text-transform: uppercase;
+      }
+      .job-title {
+        font-size: 12pt;
+        font-style: italic;
+        color: #444;
+        margin-bottom: 12px;
+      }
+      .contact-row {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 15px;
+        font-size: 10pt;
+        color: #333;
+      }
+      .contact-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .contact-item::before {
+        content: "•";
+        margin-right: 5px;
+      }
+      .contact-item:first-child::before {
+        content: "";
+        margin-right: 0;
+      }
+      /* Section Styles */
+      .section {
+        margin-bottom: 18px;
+      }
+      .section-title {
+        font-size: 13pt;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        border-bottom: 2px solid #1a1a1a;
+        padding-bottom: 4px;
+        margin-bottom: 12px;
+      }
+      /* Experience and Education Items */
+      .entry {
+        margin-bottom: 14px;
+        page-break-inside: avoid;
+      }
+      .entry-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 3px;
+      }
+      .entry-left {
+        flex: 1;
+      }
+      .entry-right {
+        text-align: right;
+        font-size: 10pt;
+        color: #444;
+        min-width: 120px;
+      }
+      .entry-title {
+        font-weight: bold;
+        font-size: 11pt;
+      }
+      .entry-subtitle {
+        font-style: italic;
+        font-size: 10.5pt;
+        color: #333;
+      }
+      .entry-location {
+        font-size: 10pt;
+        color: #555;
+      }
+      .entry-description {
+        font-size: 10.5pt;
+        margin-top: 5px;
+        text-align: justify;
+      }
+      .entry-description ul {
+        margin-left: 18px;
+        margin-top: 4px;
+      }
+      .entry-description li {
+        margin-bottom: 3px;
+      }
+      /* Skills Section */
+      .skills-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .skill-tag {
+        display: inline-block;
+        background: #f0f0f0;
+        border: 1px solid #ccc;
+        padding: 4px 10px;
+        border-radius: 3px;
+        font-size: 10pt;
+        color: #333;
+      }
+      /* Summary */
+      .summary {
+        font-size: 10.5pt;
+        text-align: justify;
+        margin-bottom: 15px;
+        color: #333;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Header with Name and Contact Info -->
+    <div class="header">
+      <div class="name" th:text="${resume.personalInfo.fullName}">John Doe</div>
+      <div
+        class="job-title"
+        th:if="${resume.personalInfo.jobTitle}"
+        th:text="${resume.personalInfo.jobTitle}"
+      >
+        Software Engineer
+      </div>
+      <div class="contact-row">
+        <span
+          class="contact-item"
+          th:if="${resume.personalInfo.email}"
+          th:text="${resume.personalInfo.email}"
+          >email@example.com</span
+        >
+        <span
+          class="contact-item"
+          th:if="${resume.personalInfo.phone}"
+          th:text="${resume.personalInfo.phone}"
+          >+1234567890</span
+        >
+        <span
+          class="contact-item"
+          th:if="${resume.personalInfo.address}"
+          th:text="${resume.personalInfo.address}"
+          >City, Country</span
+        >
+        <span
+          class="contact-item"
+          th:if="${resume.personalInfo.linkedin}"
+          th:text="${resume.personalInfo.linkedin}"
+          >linkedin.com/in/user</span
+        >
+        <span
+          class="contact-item"
+          th:if="${resume.personalInfo.github}"
+          th:text="${resume.personalInfo.github}"
+          >github.com/user</span
+        >
+      </div>
+    </div>
+
+    <!-- Summary Section -->
+    <div class="summary" th:if="${resume.personalInfo.summary}">
+      <p th:text="${resume.personalInfo.summary}">
+        Professional summary goes here...
+      </p>
+    </div>
+
+    <!-- Professional Experience -->
+    <th:block
+      th:each="section : ${resume.sections}"
+      th:if="${section.type == 'experience' and section.visible}"
+    >
+      <div class="section">
+        <div class="section-title" th:text="${section.title}">
+          Professional Experience
+        </div>
+        <div
+          class="entry"
+          th:each="item : ${section.items}"
+          th:if="${item.visible}"
+        >
+          <div class="entry-header">
+            <div class="entry-left">
+              <div class="entry-title" th:text="${item.subtitle}">
+                Job Title
+              </div>
+              <div class="entry-subtitle" th:text="${item.title}">
+                Company Name
+              </div>
+            </div>
+            <div class="entry-right">
+              <div th:text="${item.date}">2020 - Present</div>
+              <div
+                class="entry-location"
+                th:if="${item.location}"
+                th:text="${item.location}"
+              >
+                Location
+              </div>
+            </div>
+          </div>
+          <div
+            class="entry-description"
+            th:if="${item.description}"
+            th:text="${item.description}"
+          >
+            Description
+          </div>
+        </div>
+      </div>
+    </th:block>
+
+    <!-- Education -->
+    <th:block
+      th:each="section : ${resume.sections}"
+      th:if="${section.type == 'education' and section.visible}"
+    >
+      <div class="section">
+        <div class="section-title" th:text="${section.title}">Education</div>
+        <div
+          class="entry"
+          th:each="item : ${section.items}"
+          th:if="${item.visible}"
+        >
+          <div class="entry-header">
+            <div class="entry-left">
+              <div class="entry-title" th:text="${item.subtitle}">Degree</div>
+              <div class="entry-subtitle" th:text="${item.title}">
+                University Name
+              </div>
+            </div>
+            <div class="entry-right">
+              <div th:text="${item.date}">2019</div>
+              <div
+                class="entry-location"
+                th:if="${item.location}"
+                th:text="${item.location}"
+              >
+                Location
+              </div>
+            </div>
+          </div>
+          <div
+            class="entry-description"
+            th:if="${item.description}"
+            th:text="${item.description}"
+          >
+            Description
+          </div>
+        </div>
+      </div>
+    </th:block>
+
+    <!-- Skills -->
+    <th:block
+      th:each="section : ${resume.sections}"
+      th:if="${section.type == 'skills' and section.visible}"
+    >
+      <div class="section">
+        <div class="section-title" th:text="${section.title}">Skills</div>
+        <div class="skills-container">
+          <th:block th:each="item : ${section.items}" th:if="${item.visible}">
+            <th:block th:if="${item.tags != null and !item.tags.empty}">
+              <span
+                class="skill-tag"
+                th:each="tag : ${item.tags}"
+                th:text="${tag}"
+                >Skill</span
+              >
+            </th:block>
+            <span
+              class="skill-tag"
+              th:if="${item.tags == null or item.tags.empty}"
+              th:text="${item.title}"
+              >Skill</span
+            >
+          </th:block>
+        </div>
+      </div>
+    </th:block>
+
+    <!-- Other Sections (Courses, Certifications, Projects, etc.) -->
+    <th:block
+      th:each="section : ${resume.sections}"
+      th:if="${section.type != 'skills' and section.type != 'experience' and section.type != 'education' and section.visible}"
+    >
+      <div class="section">
+        <div class="section-title" th:text="${section.title}">Section</div>
+        <div
+          class="entry"
+          th:each="item : ${section.items}"
+          th:if="${item.visible}"
+        >
+          <div class="entry-header">
+            <div class="entry-left">
+              <div
+                class="entry-title"
+                th:if="${item.title}"
+                th:text="${item.title}"
+              >
+                Title
+              </div>
+              <div
+                class="entry-subtitle"
+                th:if="${item.subtitle}"
+                th:text="${item.subtitle}"
+              >
+                Subtitle
+              </div>
+            </div>
+            <div class="entry-right" th:if="${item.date}">
+              <div th:text="${item.date}">Date</div>
+              <div
+                class="entry-location"
+                th:if="${item.location}"
+                th:text="${item.location}"
+              >
+                Location
+              </div>
+            </div>
+          </div>
+          <div
+            class="entry-description"
+            th:if="${item.description}"
+            th:text="${item.description}"
+          >
+            Description
+          </div>
+          <div
+            class="skills-container"
+            th:if="${item.tags != null and !item.tags.empty}"
+            style="margin-top: 5px"
+          >
+            <span
+              class="skill-tag"
+              th:each="tag : ${item.tags}"
+              th:text="${tag}"
+              >Tag</span
+            >
+          </div>
+        </div>
+      </div>
+    </th:block>
+  </body>
+</html>

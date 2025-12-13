@@ -36,6 +36,8 @@ public class SecurityConfig {
     private final CustomOAuth2UserService oAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
 
+    private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
+
     @Value("${app.frontend.base-url}")
     private String frontendUrl;
 
@@ -94,12 +96,15 @@ public class SecurityConfig {
                         .requestMatchers("/health").permitAll()
                         .requestMatchers("/v1/subscriptions/**", "/subscriptions/**").permitAll() // Allow public access to plans
                         .requestMatchers("/v1/payments/config", "/payments/config").permitAll() // Allow public access to payment config
+                        // External API endpoints (handled by ApiKeyAuthenticationFilter)
+                        .requestMatchers("/api/v1/external/**").permitAll()
                         // Admin endpoints
                         .requestMatchers("/v1/admin/**").hasAuthority("ROLE_ADMIN")
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .addFilterBefore(apiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class) // API Key filter first
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class) // generate token filter
                 .addFilterAfter(jwtValidationFilter, JWTAuthenticationFilter.class) // validate token filter
                 .addFilterAfter(jwtRefreshFilter, JwtValidationFilter.class) // refresh token filter
