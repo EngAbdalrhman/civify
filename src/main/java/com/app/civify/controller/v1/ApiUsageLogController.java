@@ -1,5 +1,6 @@
 package com.app.civify.controller.v1;
 
+import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.filter.FilterRequest;
 import com.app.civify.dto.filter.FilterResponse;
 import com.app.civify.entity.ApiUsageLog;
@@ -16,7 +17,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

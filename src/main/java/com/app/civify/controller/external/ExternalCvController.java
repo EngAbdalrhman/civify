@@ -1,5 +1,6 @@
 package com.app.civify.controller.external;
 
+import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.document.CvParseRequest;
 import com.app.civify.dto.document.CvParseResponse;
 import com.app.civify.dto.document.MaskRequest;
@@ -17,8 +18,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+@ApiV1Controller
 @RestController
-@RequestMapping("/api/v1/external/cvs")
+@RequestMapping("/external/cvs")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "External CV API", description = "Endpoints for external developers using API Keys")

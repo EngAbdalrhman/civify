@@ -1,5 +1,6 @@
 package com.app.civify.controller.v1;
 
+import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.document.CvParseRequest;
 import com.app.civify.dto.document.CvParseResponse;
 import com.app.civify.dto.document.MaskRequest;

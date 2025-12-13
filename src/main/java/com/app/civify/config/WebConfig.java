@@ -1,7 +1,6 @@
 package com.app.civify.config;
 
-import com.app.civify.controller.v1.ApiV1Controller;
-import com.app.civify.security.annotation.CivifyAuthorization;
+import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.security.interceptor.CivifyAuthorizationInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;

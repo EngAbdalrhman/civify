@@ -1,7 +1,7 @@
 package com.app.civify.controller.v1;
 
+import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.resume.CreateResumeRequest;
-import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.dto.resume.ResumeDto;
 import com.app.civify.dto.resume.UpdateResumeRequest;
 import com.app.civify.entity.User;

@@ -1,5 +1,6 @@
 package com.app.civify.controller.v1;
 
+import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.admin.AdminStatsDTO;
 import com.app.civify.service.user.UserService;
 import com.app.civify.service.subscription.SubscriptionService;

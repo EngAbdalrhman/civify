@@ -1,5 +1,6 @@
 package com.app.civify.controller.v1;
 
+import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.audit.AuditLogDTO;
 import com.app.civify.dto.audit.AuditLogRequest;
 import com.app.civify.service.audit.AuditService;

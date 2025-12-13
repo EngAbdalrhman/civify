@@ -62,9 +62,16 @@ public class ApiKeyService {
     @Transactional(readOnly = true)
     public ApiKey validateKey(String rawKey) {
         String keyHash = hashKey(rawKey);
-        return apiKeyRepository.findByKeyHash(keyHash)
+        ApiKey apiKey = apiKeyRepository.findByKeyHash(keyHash)
                 .filter(ApiKey::getIsActive)
                 .orElse(null);
+        
+        if (apiKey != null) {
+            // Force initialization of User entity to avoid LazyInitializationException in filter
+            apiKey.getUser().getId(); 
+            apiKey.getUser().getEmail();
+        }
+        return apiKey;
     }
 
     @Transactional
