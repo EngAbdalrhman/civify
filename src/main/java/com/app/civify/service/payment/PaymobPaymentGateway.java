@@ -162,24 +162,25 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
     @Override
     @Transactional
-    public PaymentCallbackResult handleCallback(Map<String, Object> callbackData, Map<String, String> headers) {
+    public PaymentCallbackResult handleCallback(String rawPayload, Map<String, String> headers) {
         PaymentCallbackResult result = new PaymentCallbackResult();
         result.setGatewayName(getGatewayName());
 
         try {
             log.info("Handling Paymob payment callback");
-            log.debug("Callback data: {}", callbackData);
-
-            if (!verifySignature(callbackData, headers)) {
+            
+            if (!verifySignature(rawPayload, headers)) {
                 log.warn("Paymob callback failed HMAC verification");
                 result.setSuccess(false);
                 result.setMessage("Invalid signature");
                 return result;
             }
 
+            JsonNode callbackData = objectMapper.readTree(rawPayload);
+            log.debug("Callback data: {}", callbackData);
+
             // Extract order ID from callback
-            Object orderIdObj = callbackData.get("order");
-            String orderId = extractOrderId(orderIdObj);
+            String orderId = extractOrderId(callbackData.get("order"));
 
             if (orderId == null || orderId.isEmpty()) {
                 log.warn("Order ID missing in callback data");
@@ -232,16 +233,16 @@ public class PaymobPaymentGateway implements PaymentGateway {
         }
     }
 
-    private boolean verifySignature(Map<String, Object> payload, Map<String, String> headers) {
+    private boolean verifySignature(String payload, Map<String, String> headers) {
         try {
             String expected = headers.getOrDefault("hmac", headers.getOrDefault("HMAC", null));
             if (expected == null || expected.isBlank()) {
                 return false;
             }
-            String canonicalJson = objectMapper.writeValueAsString(payload);
+            // Use raw payload directly
             javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA512");
             mac.init(new javax.crypto.spec.SecretKeySpec(hmacSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA512"));
-            byte[] digest = mac.doFinal(canonicalJson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            byte[] digest = mac.doFinal(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             String actual = bytesToHex(digest);
             return expected.equalsIgnoreCase(actual);
         } catch (Exception e) {
@@ -390,33 +391,21 @@ public class PaymobPaymentGateway implements PaymentGateway {
     }
 
     /**
-     * Parse success from callback data
+     * Parse success from callback data (JsonNode)
      */
-    private boolean parseCallbackSuccess(Map<String, Object> callbackData) {
-        // Paymob sends "success" as string or boolean
-        Object successObj = callbackData.get("success");
-        if (successObj != null) {
-            if (successObj instanceof Boolean) {
-                return (Boolean) successObj;
-            }
-            if (successObj instanceof String) {
-                return "true".equalsIgnoreCase((String) successObj);
-            }
+    private boolean parseCallbackSuccess(JsonNode callbackData) {
+        if (callbackData.has("success")) {
+             return callbackData.get("success").asBoolean();
         }
-
+        if (callbackData.has("is_success")) {
+             return callbackData.get("is_success").asBoolean();
+        }
+        
         // Also check obj.success nested field
-        Object obj = callbackData.get("obj");
-        if (obj instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> objMap = (Map<String, Object>) obj;
-            Object objSuccess = objMap.get("success");
-            if (objSuccess != null) {
-                if (objSuccess instanceof Boolean) {
-                    return (Boolean) objSuccess;
-                }
-                if (objSuccess instanceof String) {
-                    return "true".equalsIgnoreCase((String) objSuccess);
-                }
+        if (callbackData.has("obj")) {
+            JsonNode obj = callbackData.get("obj");
+            if (obj.has("success")) {
+                return obj.get("success").asBoolean();
             }
         }
 
@@ -424,29 +413,23 @@ public class PaymobPaymentGateway implements PaymentGateway {
     }
 
     /**
-     * Extract order ID from callback data (can be nested or direct)
+     * Extract order ID from callback data node
      */
-    private String extractOrderId(Object orderIdObj) {
-        if (orderIdObj == null) {
+    private String extractOrderId(JsonNode orderIdNode) {
+        if (orderIdNode == null || orderIdNode.isNull()) {
             return null;
         }
 
-        // Direct string or number
-        if (orderIdObj instanceof String) {
-            return (String) orderIdObj;
+        if (orderIdNode.isTextual()) {
+            return orderIdNode.asText();
         }
-        if (orderIdObj instanceof Number) {
-            return orderIdObj.toString();
+        if (orderIdNode.isNumber()) {
+            return String.valueOf(orderIdNode.asLong());
         }
-
+        
         // Nested object with id field
-        if (orderIdObj instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> orderMap = (Map<String, Object>) orderIdObj;
-            Object id = orderMap.get("id");
-            if (id != null) {
-                return id.toString();
-            }
+        if (orderIdNode.isObject() && orderIdNode.has("id")) {
+             return orderIdNode.get("id").asText();
         }
 
         return null;

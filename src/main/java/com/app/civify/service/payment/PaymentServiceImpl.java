@@ -31,9 +31,9 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    public void handlePaymentCallback(String gateway, String orderId, Map<String, Object> callbackData, Map<String, String> headers) {
+    public void handlePaymentCallback(String gateway, String orderId, String rawPayload, Map<String, String> headers) {
         log.info("Handling payment callback for gateway {} order {}", gateway, orderId);
-        gatewayManager.handleCallback(gateway, callbackData, headers);
+        gatewayManager.handleCallback(gateway, rawPayload, headers);
     }
 
     @Override

@@ -174,32 +174,34 @@ public class FawaterakPaymentGateway implements PaymentGateway {
 
     @Override
     @Transactional
-    public PaymentCallbackResult handleCallback(Map<String, Object> callbackData, Map<String, String> headers) {
-        log.info("Handling Fawaterak callback: {}", callbackData);
+    public PaymentCallbackResult handleCallback(String rawPayload, Map<String, String> headers) {
+        log.info("Handling Fawaterak callback");
         
         PaymentCallbackResult result = new PaymentCallbackResult();
         result.setGatewayName(getGatewayName());
         
         try {
-            if (!verifySignature(callbackData, headers)) {
+            if (!verifySignature(rawPayload, headers)) {
                 log.warn("Fawaterak callback failed signature verification");
                 result.setSuccess(false);
                 result.setMessage("Invalid signature");
                 return result;
             }
 
+            JsonNode callbackData = objectMapper.readTree(rawPayload);
+            log.info("Fawaterak callback payload: {}", callbackData);
+
             // Fawaterak webhook structure
             // invoice_id, invoice_status, etc.
             
-            Object invoiceIdObj = callbackData.get("invoice_id");
-            if (invoiceIdObj == null) {
+            if (!callbackData.has("invoice_id")) {
                 result.setSuccess(false);
                 result.setMessage("Missing invoice_id");
                 return result;
             }
             
-            String invoiceId = String.valueOf(invoiceIdObj);
-            String status = (String) callbackData.get("invoice_status");
+            String invoiceId = callbackData.get("invoice_id").asText();
+            String status = callbackData.has("invoice_status") ? callbackData.get("invoice_status").asText() : "unknown";
             
             PaymentTransaction transaction = paymentRepository.findByOrderId(invoiceId)
                     .orElseThrow(() -> new RuntimeException("Transaction not found for invoice: " + invoiceId));
@@ -240,18 +242,18 @@ public class FawaterakPaymentGateway implements PaymentGateway {
         }
     }
 
-    private boolean verifySignature(Map<String, Object> payload, Map<String, String> headers) {
+    private boolean verifySignature(String payload, Map<String, String> headers) {
         // Fawaterak may not send HMAC; if header absent, allow but log.
         String signature = headers.getOrDefault("signature", headers.getOrDefault("SIGNATURE", ""));
-        if (signature.isBlank()) {
+        if (signature == null || signature.isBlank()) {
             log.warn("Fawaterak signature header missing; skipping verification");
             return true;
         }
         try {
-            String canonicalJson = objectMapper.writeValueAsString(payload);
+            // Use raw payload directly
             javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
             mac.init(new javax.crypto.spec.SecretKeySpec(providerKey.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] digest = mac.doFinal(canonicalJson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            byte[] digest = mac.doFinal(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             String expected = bytesToHex(digest);
             return signature.equalsIgnoreCase(expected);
         } catch (Exception e) {

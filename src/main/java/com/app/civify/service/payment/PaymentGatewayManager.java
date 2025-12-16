@@ -105,14 +105,14 @@ public class PaymentGatewayManager {
     /**
      * Handle callback using specific gateway
      */
-    public PaymentCallbackResult handleCallback(String gatewayName, Map<String, Object> callbackData, Map<String, String> headers) {
+    public PaymentCallbackResult handleCallback(String gatewayName, String rawPayload, Map<String, String> headers) {
         if (gatewayName == null || gatewayName.isEmpty()) {
             // Try to determine gateway from callback data or use default
             // This is tricky without gateway name, so we might default to Paymob or try all?
             // For now, let's use default
-            return getDefaultGateway().handleCallback(callbackData, headers);
+            return getDefaultGateway().handleCallback(rawPayload, headers);
         }
-        return getGateway(gatewayName).handleCallback(callbackData, headers);
+        return getGateway(gatewayName).handleCallback(rawPayload, headers);
     }
 
     /**

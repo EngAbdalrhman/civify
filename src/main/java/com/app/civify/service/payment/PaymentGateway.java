@@ -30,10 +30,11 @@ public interface PaymentGateway {
     /**
      * Handle payment callback/webhook
      *
-     * @param callbackData Callback data from the gateway
+     * @param rawPayload Raw JSON payload from the webhook
+     * @param headers HTTP headers
      * @return PaymentCallbackResult with status and details
      */
-    PaymentCallbackResult handleCallback(Map<String, Object> callbackData, Map<String, String> headers);
+    PaymentCallbackResult handleCallback(String rawPayload, Map<String, String> headers);
 
     /**
      * Get the payment URL for a given payment key/token
