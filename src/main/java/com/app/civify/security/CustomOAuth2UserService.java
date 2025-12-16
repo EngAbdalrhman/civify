@@ -1,11 +1,8 @@
 package com.app.civify.security;
 
-
-
-import lombok.RequiredArgsConstructor;
-
 import com.app.civify.entity.User;
 import com.app.civify.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -29,7 +26,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             user.setUsername(email);
             user.setEmail(email);
             user.setPassword("{noop}oauth");
-            // user.setRole(Role.ROLE_USER); // Removed RBAC update
             user.setOauthProvider(provider);
             user.setOauthSubject(subject);
             userRepository.save(user);

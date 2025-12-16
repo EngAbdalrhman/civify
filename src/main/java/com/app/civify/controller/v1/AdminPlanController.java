@@ -40,6 +40,7 @@ public class AdminPlanController {
 
     private final SubscriptionService subscriptionService;
     private final PlanMapper planMapper;
+    private final com.app.civify.repository.GroupRepository groupRepository;
 
     @Operation(
             summary = "Filter plans with advanced criteria",
@@ -165,6 +166,15 @@ public class AdminPlanController {
             plan.setMonthlyPrice(request.getMonthlyPrice());
             plan.setAnnualPrice(request.getAnnualPrice());
             plan.setActive(request.getActive());
+
+            // Link group if specified
+            if (request.getLinkedGroupId() != null) {
+                com.app.civify.entity.Group linkedGroup = groupRepository.findById(request.getLinkedGroupId())
+                        .orElseThrow(() -> new com.app.civify.exception.ResourceNotFoundException(
+                                "Group not found: " + request.getLinkedGroupId()));
+                plan.setLinkedGroup(linkedGroup);
+                log.info("Linked plan '{}' to group '{}'", request.getName(), linkedGroup.getName());
+            }
 
             SubscriptionPlan createdPlan = subscriptionService.createPlan(plan);
             PlanDetailResponse response = planMapper.toDetailResponse(createdPlan);

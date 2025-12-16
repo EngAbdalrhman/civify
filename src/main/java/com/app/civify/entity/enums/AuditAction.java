@@ -53,12 +53,12 @@ public enum AuditAction {
      * 2FA was disabled
      */
     TWO_FACTOR_DISABLED,
-    
+
     /**
      * Role was changed
      */
-    ROLE_CHANGE,
-    
+    GROUP_CHANGE,
+
     /**
      * Subscription was activated
      */

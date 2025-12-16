@@ -1,6 +1,7 @@
 package com.app.civify.security;
 
 import com.app.civify.entity.User;
+import com.app.civify.repository.GroupRepository;
 import com.app.civify.repository.UserRepository;
 
 import com.app.civify.service.auth.TokenService;
@@ -19,6 +20,7 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.UUID;
 
 /**
  * OAuth2 success handler for Google login
@@ -33,6 +35,7 @@ import java.io.IOException;
 public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     private final UserRepository userRepository;
+    private final GroupRepository groupRepository;
     private final SubscriptionService subscriptionService;
     private final TokenService tokenService;
 
@@ -60,12 +63,15 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             User newUser = new User();
             newUser.setEmail(email);
             newUser.setUsername(email); // Use email as username
-            newUser.setPassword(""); // No password for OAuth users
-            // newUser.setRole(Role.ROLE_USER); // Removed RBAC update
+            newUser.setPassword(UUID.randomUUID().toString()); // No password for OAuth users
             newUser.setIsEmailVerified(true); // Auto-verified by Google
             newUser.setOauthProvider("google");
             newUser.setOauthSubject(googleId);
             newUser.setTwoFactorEnabled(false);
+
+            // Assign default group
+            groupRepository.findByIsDefaultTrue()
+                    .ifPresent(newUser::setGroup);
 
             if (name != null) {
                 String[] nameParts = name.split(" ", 2);

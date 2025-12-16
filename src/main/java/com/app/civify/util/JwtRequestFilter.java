@@ -1,13 +1,9 @@
 package com.app.civify.util;
 
 import java.io.IOException;
-import java.util.Collections;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -56,9 +52,9 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
             // Use TokenService validation which includes blacklist check
             if (tokenService.validateAccessToken(jwt, username)) {
-                String role = jwtUtil.extractRole(jwt);
+                // Use authorities from UserPrincipal (loaded from DB with group permissions)
                 UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
-                        userDetails, null, role == null ? userDetails.getAuthorities() : Collections.singletonList(new SimpleGrantedAuthority(role)));
+                        userDetails, null, userDetails.getAuthorities());
                 authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authenticationToken);
             }

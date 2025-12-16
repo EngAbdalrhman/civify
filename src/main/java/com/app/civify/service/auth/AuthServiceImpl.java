@@ -58,15 +58,15 @@ public class AuthServiceImpl implements AuthService {
             }
         }
 
-        Group viewerGroup = groupRepository.findByName("VIEWER")
-                .orElseThrow(() -> new RuntimeException("VIEWER group not found. Please seed it."));
+        Group defaultGroup = groupRepository.findByIsDefaultTrue()
+                .orElseThrow(() -> new RuntimeException("Default group not found. Please run database migrations."));
 
         // Create new user
         User user = new User();
         user.setUsername(req.getUsername());
         user.setEmail(req.getEmail());
         user.setPassword(passwordEncoder.encode(req.getPassword()));
-        user.setGroup(viewerGroup);
+        user.setGroup(defaultGroup);
 
         
         // Set verification status based on toggle

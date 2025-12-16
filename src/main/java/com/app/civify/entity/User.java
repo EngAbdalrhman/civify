@@ -94,8 +94,6 @@ public class User extends BaseEntity implements Serializable {
     @JoinColumn(name = "group_id")
     private Group group;
 
-    // REMOVED: private Role role = Role.ROLE_USER;
-
     // Relationships
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @com.fasterxml.jackson.annotation.JsonIgnore

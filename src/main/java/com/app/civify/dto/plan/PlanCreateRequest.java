@@ -37,6 +37,12 @@ public class PlanCreateRequest {
     @NotNull(message = "Active status is required")
     private Boolean active = true;
     
+    /**
+     * ID of the group to link to this plan (for RBAC).
+     * When a user subscribes to this plan, they get the linked group's permissions.
+     */
+    private Long linkedGroupId;
+    
     // New enhanced fields
     @Valid
     private List<FeatureLimitRequest> features;

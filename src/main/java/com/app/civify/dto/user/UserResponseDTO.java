@@ -57,9 +57,7 @@ public class UserResponseDTO {
     
     @Schema(description = "Skills")
     private String skills;
-    
-    // REMOVED: private Role role;
-    
+
     @Schema(description = "Email verification status", example = "true")
     private Boolean isEmailVerified;
     

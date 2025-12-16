@@ -52,18 +52,7 @@ public class JwtUtil {
                 .compact();
     }
 
-    /**
-     * Generate token from username and role (for OAuth2)
-     */
-    public String generateToken(String username, String role) {
-        return Jwts.builder()
-                .setSubject(username)
-                .claim("role", role)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + accessTokenExpiration))
-                .signWith(getSigningKey())
-                .compact();
-    }
+
 
     /**
      * Generate token from username with specified expiry duration in minutes
@@ -136,19 +125,7 @@ public class JwtUtil {
         return extractClaim(token, claims -> claims.get("group", String.class));
     }
 
-    /**
-     * Extract role from token (Deprecated - use extractGroup)
-     * @deprecated Use {@link #extractGroup(String)} instead
-     */
-    @Deprecated
-    public String extractRole(String token) {
-        // Try new "group" claim first, fallback to legacy "role" claim for backward compatibility
-        String group = extractClaim(token, claims -> claims.get("group", String.class));
-        if (group != null) {
-            return group;
-        }
-        return extractClaim(token, claims -> claims.get("role", String.class));
-    }
+
 
     /**
      * Extract email verified status from token

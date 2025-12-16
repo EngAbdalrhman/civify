@@ -208,14 +208,7 @@ public class TokenService {
         return jwtUtil.extractGroup(token);
     }
 
-    /**
-     * Extract role from access token (Deprecated - use extractGroup)
-     * @deprecated Use {@link #extractGroup(String)} instead
-     */
-    @Deprecated
-    public String extractRole(String token) {
-        return jwtUtil.extractRole(token);
-    }
+
 
     /**
      * Track a refresh token for a user (for revoke all functionality)

@@ -56,8 +56,6 @@ public class UserDto {
     @Schema(description = "Skills")
     private String skills;
 
-    // REMOVED: private Role role;
-
     @Schema(description = "Number of CVs created", example = "2")
     private Integer cvCount;
 
