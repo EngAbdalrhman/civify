@@ -6,13 +6,18 @@ import com.app.civify.dto.document.ProcessedDocument;
 import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.service.ResumeService;
 import com.app.civify.service.ai.AiService;
+import com.app.civify.service.ai.TokenizerService;
 import com.app.civify.service.subscription.SubscriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.security.MessageDigest;
+import java.util.HexFormat;
 
 /**
  * Service for parsing CVs/Resumes into structured data. Integrates document
@@ -27,6 +32,7 @@ public class CvParsingService {
     private final AiService aiService;
     private final ResumeService resumeService;
     private final SubscriptionService subscriptionService;
+    private final TokenizerService tokenizerService;
     private final ObjectMapper objectMapper;
 
     @Value("${ai.default.provider:gemini}")
@@ -111,13 +117,22 @@ public class CvParsingService {
             long aiStart = System.currentTimeMillis();
             String truncatedText = truncateForAi(processedDoc.getRawText());
 
-            int estimatedTokens = estimateTokens(truncatedText);
-            if (userId != null && !subscriptionService.canUserUseTokens(userId, estimatedTokens)) {
-                return CvParseResponse.builder()
-                        .success(false)
-                        .message("Token allowance exceeded for current subscription")
-                        .processingTimeMs(System.currentTimeMillis() - startTime)
-                        .build();
+            // Use accurate tokenizer instead of heuristic
+            int estimatedTokens = tokenizerService.countTokens(truncatedText);
+            log.info("Estimated tokens for CV parsing: {}", estimatedTokens);
+            
+            // For authenticated users, check token limit
+            if (userId != null) {
+                if (!subscriptionService.canUserUseTokens(userId, estimatedTokens)) {
+                    return CvParseResponse.builder()
+                            .success(false)
+                            .message("TOKEN_LIMIT_EXCEEDED")
+                            .errorCode("TOKEN_LIMIT_EXCEEDED")
+                            .processingTimeMs(System.currentTimeMillis() - startTime)
+                            .build();
+                }
+            } else {
+                log.info("Guest user parsing CV - no token charging");
             }
 
             ResumeData resumeData = parseTextWithAi(truncatedText, request.isPiiOnly());
@@ -132,13 +147,17 @@ public class CvParsingService {
                         .build();
             }
 
-            // Step 3: Optionally save to database
+            // Step 3: Optionally save to database (only for authenticated users)
             String resumeId = null;
-            if (request.isSaveToDatabase() && userId != null) {
-                String title = request.getResumeTitle() != null ? request.getResumeTitle() : "Parsed CV";
-                var savedResume = resumeService.createResume(userId, title, resumeData);
-                resumeId = savedResume.getId();
-                log.info("Resume saved with ID: {}", resumeId);
+            if (request.isSaveToDatabase()) {
+                if (userId != null) {
+                    String title = request.getResumeTitle() != null ? request.getResumeTitle() : "Parsed CV";
+                    var savedResume = resumeService.createResume(userId, title, resumeData);
+                    resumeId = savedResume.getId();
+                    log.info("Resume saved with ID: {}", resumeId);
+                } else {
+                    log.warn("Guest user attempted to save CV - operation skipped");
+                }
             }
 
             // Step 4: Charge tokens after successful parse
@@ -243,13 +262,15 @@ public class CvParsingService {
                 return null;
             }
 
+            // Parse as YAML only (no JSON fallback)
             try {
                 ObjectMapper yamlMapper = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
                 yamlMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
                 return yamlMapper.readValue(parsedContent, ResumeData.class);
             } catch (Exception yamlEx) {
-                log.warn("YAML parse failed, trying JSON fallback: {}", yamlEx.getMessage());
-                return objectMapper.readValue(parsedContent, ResumeData.class);
+                log.error("❌ YAML parsing failed: {}", yamlEx.getMessage());
+                log.error("Content that failed: {}", parsedContent);
+                return null;
             }
 
         } catch (Exception e) {
@@ -292,7 +313,8 @@ public class CvParsingService {
     }
 
     /**
-     * Attempt to parse the AI output as YAML or JSON; return null on failure (caller may retry).
+     * Attempt to parse the AI output as YAML; return null on failure (caller may retry).
+     * JSON fallback removed - strict YAML only per implementation plan.
      */
     private String tryParseContent(String response, boolean piiOnly) {
         if (response == null || response.isBlank()) {
@@ -305,18 +327,11 @@ public class CvParsingService {
 
         try {
             ObjectMapper yamlMapper = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
-            yamlMapper.readTree(contentText); // prefer YAML first
+            yamlMapper.readTree(contentText); // Validate YAML structure
             return contentText;
         } catch (Exception e) {
-            // Fallback: try JSON
-            try {
-                objectMapper.readTree(contentText);
-                log.warn("AI output parsed only after JSON fallback (expected YAML): {}", e.getMessage());
-                return contentText;
-            } catch (Exception ex) {
-                log.warn("Failed to parse AI output as YAML or JSON: {}", ex.getMessage());
-                return null;
-            }
+            log.warn("❌ Failed to parse AI output as YAML: {}", e.getMessage());
+            return null;
         }
     }
 
@@ -352,14 +367,23 @@ public class CvParsingService {
     }
 
     /**
-     * Rough token estimate (~4 chars per token) to meter usage without tokenizer dependency.
+     * Hash file content for cache key generation.
+     * Used for CV parsing caching based on file content.
      */
-    private int estimateTokens(String text) {
-        if (text == null || text.isEmpty()) {
-            return 0;
+    @Cacheable(value = "cv-parsing", key = "#fileHash")
+    public ResumeData parseCvCached(String fileHash, String text, boolean piiOnly) {
+        return parseTextWithAi(text, piiOnly);
+    }
+    
+    private String generateFileHash(byte[] fileBytes) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(fileBytes);
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception e) {
+            log.warn("Failed to generate file hash", e);
+            return String.valueOf(System.currentTimeMillis()); // Fallback
         }
-        int chars = text.length();
-        return Math.max(1, (int) Math.ceil(chars / 4.0));
     }
 
     private String extractContentFromGeminiResponse(String response) {

@@ -88,6 +88,37 @@ INSERT INTO permissions (name, description, category)
 SELECT 'NOTIF.SEND', 'Send Push Notifications', 'ADMIN'
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'NOTIF.SEND');
 
+INSERT INTO permissions (name, description, category)
+SELECT 'NOTIF.RECEIVE', 'Receive Notifications', 'USER'
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'NOTIF.RECEIVE');
+
+-- User Subscription Permissions
+INSERT INTO permissions (name, description, category)
+SELECT 'SUBSCRIPTION.VIEW', 'View Own Subscription Details', 'USER'
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'SUBSCRIPTION.VIEW');
+
+INSERT INTO permissions (name, description, category)
+SELECT 'SUBSCRIPTION.MODIFY', 'Modify User Subscriptions (Admin)', 'ADMIN'
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'SUBSCRIPTION.MODIFY');
+
+-- Additional CV Permissions
+INSERT INTO permissions (name, description, category)
+SELECT 'CV.DELETE', 'Delete Own CVs', 'CV'
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'CV.DELETE');
+
+INSERT INTO permissions (name, description, category)
+SELECT 'CV.PARSE', 'Parse/Upload CV for AI Processing', 'CV'
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'CV.PARSE');
+
+-- API Key Management
+INSERT INTO permissions (name, description, category)
+SELECT 'API.KEY.CREATE', 'Create API Keys', 'API'
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'API.KEY.CREATE');
+
+INSERT INTO permissions (name, description, category)
+SELECT 'API.KEY.REVOKE', 'Revoke API Keys', 'API'
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'API.KEY.REVOKE');
+
 -- =====================================================
 -- 2. Initialize Groups
 -- =====================================================
@@ -106,7 +137,8 @@ WHERE NOT EXISTS (SELECT 1 FROM groups WHERE name = 'Super Admin');
 -- 3. Assign Permissions to Groups
 -- =====================================================
 
--- Free User: Basic CV permissions (CREATE, EXPORT.PDF)
+-- Free User: Basic CV permissions (CREATE, EXPORT.PDF, DELETE, PARSE)
+-- Plus subscription and notification viewing
 INSERT INTO group_permissions (group_id, permission_id)
 SELECT g.id, p.id FROM groups g, permissions p
 WHERE g.name = 'Free User' AND p.name = 'CV.CREATE'
@@ -117,6 +149,34 @@ AND NOT EXISTS (
 INSERT INTO group_permissions (group_id, permission_id)
 SELECT g.id, p.id FROM groups g, permissions p
 WHERE g.name = 'Free User' AND p.name = 'CV.EXPORT.PDF'
+AND NOT EXISTS (
+    SELECT 1 FROM group_permissions gp WHERE gp.group_id = g.id AND gp.permission_id = p.id
+);
+
+INSERT INTO group_permissions (group_id, permission_id)
+SELECT g.id, p.id FROM groups g, permissions p
+WHERE g.name = 'Free User' AND p.name = 'CV.DELETE'
+AND NOT EXISTS (
+    SELECT 1 FROM group_permissions gp WHERE gp.group_id = g.id AND gp.permission_id = p.id
+);
+
+INSERT INTO group_permissions (group_id, permission_id)
+SELECT g.id, p.id FROM groups g, permissions p
+WHERE g.name = 'Free User' AND p.name = 'CV.PARSE'
+AND NOT EXISTS (
+    SELECT 1 FROM group_permissions gp WHERE gp.group_id = g.id AND gp.permission_id = p.id
+);
+
+INSERT INTO group_permissions (group_id, permission_id)
+SELECT g.id, p.id FROM groups g, permissions p
+WHERE g.name = 'Free User' AND p.name = 'SUBSCRIPTION.VIEW'
+AND NOT EXISTS (
+    SELECT 1 FROM group_permissions gp WHERE gp.group_id = g.id AND gp.permission_id = p.id
+);
+
+INSERT INTO group_permissions (group_id, permission_id)
+SELECT g.id, p.id FROM groups g, permissions p
+WHERE g.name = 'Free User' AND p.name = 'NOTIF.RECEIVE'
 AND NOT EXISTS (
     SELECT 1 FROM group_permissions gp WHERE gp.group_id = g.id AND gp.permission_id = p.id
 );

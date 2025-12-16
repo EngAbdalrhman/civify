@@ -59,6 +59,12 @@ public class CvParseResponse {
     private double confidence;
     
     /**
+     * Machine-readable error code for frontend i18n translation.
+     * Examples: TOKEN_LIMIT_EXCEEDED, INVALID_FILE_TYPE
+     */
+    private String errorCode;
+    
+    /**
      * Total processing time in milliseconds.
      */
     private long processingTimeMs;

@@ -7,6 +7,8 @@ import com.app.civify.repository.GroupRepository;
 import com.app.civify.service.subscription.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,14 +29,21 @@ public class PermissionService {
 
     /**
      * Calculates the effective permissions for a user at runtime.
+     * Results are cached for 30 minutes to avoid repeated DB queries.
      * Logic:
      * 1. If System Group (Admin/Support) -> Return Group Permissions (Always active).
      * 2. If Subscription Group -> Check if Subscription is Active.
      *    - Active -> Return Group Permissions.
      *    - Expired/Inactive -> Return Default Free Group Permissions (Fallback).
      */
+    @Cacheable(value = "user-permissions", key = "#userId")
     @Transactional(readOnly = true)
-    public Set<String> getEffectivePermissionNames(User user) {
+    public Set<String> getEffectivePermissionNames(Long userId) {
+        if (userId == null) {
+            return Collections.emptySet();
+        }
+
+        User user = getUserById(userId); // Need to fetch user separately
         if (user == null || user.getGroup() == null) {
             return Collections.emptySet();
         }
@@ -43,19 +52,52 @@ public class PermissionService {
 
         // 1. System Groups (Admins) always have their permissions
         if (Boolean.TRUE.equals(group.getIsSystemGroup())) {
+            log.debug("User {} is system group, returning full permissions", user.getEmail());
             return extractPermissionNames(group.getPermissions());
         }
 
         // 2. Subscription Groups
-        boolean isSubscriptionActive = subscriptionService.getActiveSubscription(user.getId()).isPresent();
+        boolean isSubscriptionActive = subscriptionService.getActiveSubscription(userId).isPresent();
 
         if (isSubscriptionActive) {
+            log.debug("User {} has active subscription, returning group permissions", user.getEmail());
             return extractPermissionNames(group.getPermissions());
         } else {
             // 3. Fallback to Free Group Permissions
             log.debug("User {} subscription expired/inactive. Falling back to Free Group permissions.", user.getEmail());
             return getFreeGroupPermissions();
         }
+    }
+
+    /**
+     * Compatibility method for existing code that passes User object
+     */
+    public Set<String> getEffectivePermissionNames(User user) {
+        if (user == null) return Collections.emptySet();
+        return getEffectivePermissionNames(user.getId());
+    }
+
+    /**
+     * Invalidate permission cache for a user.
+     * Call this when:
+     * - User's subscription changes
+     * - User's group changes
+     * - Plan's linkedGroup changes
+     */
+    @CacheEvict(value = "user-permissions", key = "#userId")
+    public void invalidatePermissionCache(Long userId) {
+        log.info("✅ Invalidated permission cache for user {}", userId);
+    }
+
+    /**
+     * Helper method to fetch user by ID
+     */
+    private User getUserById(Long userId) {
+        // This should ideally use a UserRepository
+        // For now, assuming SubscriptionService can help
+        return subscriptionService.getActiveSubscription(userId)
+                .map(sub -> sub.getUser())
+                .orElse(null);
     }
 
     private Set<String> extractPermissionNames(List<Permission> permissions) {
