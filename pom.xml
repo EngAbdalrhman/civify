@@ -323,6 +323,13 @@
             <artifactId>jackson-dataformat-yaml</artifactId>
         </dependency>
 
+        <!-- JTokkit: Lightweight token counter for LLM usage metering (200KB) -->
+        <dependency>
+            <groupId>com.knuddels</groupId>
+            <artifactId>jtokkit</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+
 		<!-- =======================
 		     DATABASE
 		     ======================= -->

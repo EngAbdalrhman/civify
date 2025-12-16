@@ -175,71 +175,170 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     @Override
     @Transactional
     public PaymentCallbackResult handleCallback(String rawPayload, Map<String, String> headers) {
-        log.info("Handling Fawaterak callback");
+        log.info("Processing Fawaterak webhook callback");
         
         PaymentCallbackResult result = new PaymentCallbackResult();
         result.setGatewayName(getGatewayName());
         
         try {
+            // Step 1: Verify HMAC signature
             if (!verifySignature(rawPayload, headers)) {
-                log.warn("Fawaterak callback failed signature verification");
+                log.error("🔒 Fawaterak HMAC verification FAILED - Potential security threat");
                 result.setSuccess(false);
-                result.setMessage("Invalid signature");
+                result.setMessage("WEBHOOK_SIGNATURE_INVALID");
+                result.setErrorCode("WEBHOOK_SIGNATURE_INVALID");
                 return result;
             }
+            log.debug("✅ HMAC signature verified");
 
+            // Step 2: Parse webhook payload
             JsonNode callbackData = objectMapper.readTree(rawPayload);
-            log.info("Fawaterak callback payload: {}", callbackData);
+            log.info("Fawaterak webhook received - Invoice data parsed");
+            log.debug("Payload: {}", callbackData.toPrettyString());
 
-            // Fawaterak webhook structure
-            // invoice_id, invoice_status, etc.
-            
+            // Step 3: Extract and validate invoice ID
             if (!callbackData.has("invoice_id")) {
+                log.error("❌ Missing invoice_id in Fawaterak webhook");
                 result.setSuccess(false);
-                result.setMessage("Missing invoice_id");
+                result.setMessage("INVALID_WEBHOOK_PAYLOAD");
+                result.setErrorCode("INVALID_WEBHOOK_PAYLOAD");
                 return result;
             }
             
             String invoiceId = callbackData.get("invoice_id").asText();
-            String status = callbackData.has("invoice_status") ? callbackData.get("invoice_status").asText() : "unknown";
+            String status = callbackData.has("invoice_status") 
+                ? callbackData.get("invoice_status").asText() 
+                : callbackData.has("payment_status")
+                    ? callbackData.get("payment_status").asText()
+                    : "unknown";
             
-            PaymentTransaction transaction = paymentRepository.findByOrderId(invoiceId)
-                    .orElseThrow(() -> new RuntimeException("Transaction not found for invoice: " + invoiceId));
+            log.info("Processing invoice {} with status: {}", invoiceId, status);
+            
+            // Step 4: Find transaction with PESSIMISTIC LOCK (prevents race conditions)
+            PaymentTransaction transaction = paymentRepository.findByOrderIdWithLock(invoiceId)
+                    .orElseThrow(() -> {
+                        log.error("Transaction not found for invoice: {}", invoiceId);
+                        return new RuntimeException("TRANSACTION_NOT_FOUND");
+                    });
 
-            // Idempotency: if already completed, short-circuit
-            if (transaction.getStatus() == PaymentStatus.COMPLETED) {
-                log.info("Fawaterak callback idempotent hit for invoice {}, already COMPLETED", invoiceId);
-                result.setSuccess(true);
-                result.setMessage("Already processed");
-                return result;
-            }
+            log.info("Transaction {} locked for processing", transaction.getPaymentKey());
             
             result.setTransactionId(transaction.getPaymentKey());
             result.setOrderId(invoiceId);
             
-            if ("paid".equalsIgnoreCase(status)) {
-                transaction.setStatus(PaymentStatus.COMPLETED);
-                transaction.setCompletedAt(LocalDateTime.now());
+            // Step 5: CRITICAL - Idempotency check
+            if (transaction.getStatus() == PaymentStatus.COMPLETED) {
+                log.info("⚠️ Idempotent webhook detected - Invoice {} already COMPLETED", invoiceId);
                 result.setSuccess(true);
-                result.setMessage("Payment completed");
-            } else if ("failed".equalsIgnoreCase(status) || "expired".equalsIgnoreCase(status)) {
-                transaction.setStatus(PaymentStatus.FAILED);
-                result.setSuccess(false);
-                result.setMessage("Payment failed or expired");
-            } else {
-                result.setSuccess(false);
-                result.setMessage("Unknown status: " + status);
+                result.setMessage("ALREADY_PROCESSED");
+                result.setAlreadyProcessed(true);
+                return result;
             }
             
+            // Step 6: Validate state transition
+            if (!isValidStateTransition(transaction.getStatus(), status)) {
+                log.error("❌ Invalid state transition for invoice {}: {} -> {}", 
+                    invoiceId, transaction.getStatus(), status);
+                result.setSuccess(false);
+                result.setMessage("INVALID_STATE_TRANSITION");
+                result.setErrorCode("INVALID_STATE_TRANSITION");
+                return result;
+            }
+            
+            // Step 7: Process payment based on status
+            PaymentStatus previousStatus = transaction.getStatus();
+            
+            switch (status.toLowerCase()) {
+                case "paid", "completed", "success", "successful" -> {
+                    transaction.setStatus(PaymentStatus.COMPLETED);
+                    transaction.setCompletedAt(LocalDateTime.now());
+                    result.setSuccess(true);
+                    result.setMessage("PAYMENT_COMPLETED");
+                    log.info("✅ Payment COMPLETED for invoice {}", invoiceId);
+                }
+                case "failed", "declined", "cancelled" -> {
+                    transaction.setStatus(PaymentStatus.FAILED);
+                    result.setSuccess(false);
+                    result.setMessage("PAYMENT_FAILED");
+                    log.warn("❌ Payment FAILED for invoice {}: {}", invoiceId, status);
+                }
+                case "expired" -> {
+                    transaction.setStatus(PaymentStatus.FAILED);
+                    result.setSuccess(false);
+                    result.setMessage("PAYMENT_EXPIRED");
+                    log.warn("⏰ Payment EXPIRED for invoice {}", invoiceId);
+                }
+                case "refunded" -> {
+                    transaction.setStatus(PaymentStatus.REFUNDED);
+                    result.setSuccess(false);
+                    result.setMessage("PAYMENT_REFUNDED");
+                    log.warn("💰 Payment REFUNDED for invoice {}", invoiceId);
+                }
+                case "pending", "processing" -> {
+                    // Keep as PENDING, no action needed
+                    log.info("⏳ Payment still PENDING for invoice {}", invoiceId);
+                    result.setSuccess(false);
+                    result.setMessage("PAYMENT_PENDING");
+                }
+                default -> {
+                    log.error("❓ Unknown Fawaterak status: {} for invoice {}", status, invoiceId);
+                    result.setSuccess(false);
+                    result.setMessage("UNKNOWN_PAYMENT_STATUS");
+                    result.setErrorCode("UNKNOWN_PAYMENT_STATUS");
+                    return result; // Don't save unknown states
+                }
+            }
+            
+            // Step 8: Save transaction (within locked context)
             paymentRepository.save(transaction);
+            log.info("💾 Transaction state updated: {} -> {} for invoice {}", 
+                previousStatus, transaction.getStatus(), invoiceId);
+            
             return result;
 
-        } catch (Exception e) {
-            log.error("Error handling Fawaterak callback: {}", e.getMessage(), e);
+        } catch (JsonProcessingException e) {
+            log.error("🔴 JSON parsing error in Fawaterak callback: {}", e.getMessage());
             result.setSuccess(false);
-            result.setMessage("Error: " + e.getMessage());
+            result.setMessage("INVALID_WEBHOOK_FORMAT");
+            result.setErrorCode("INVALID_WEBHOOK_FORMAT");
+            return result;
+        } catch (Exception e) {
+            log.error("🔴 Unexpected error handling Fawaterak callback", e);
+            result.setSuccess(false);
+            result.setMessage("WEBHOOK_PROCESSING_ERROR");
+            result.setErrorCode("WEBHOOK_PROCESSING_ERROR");
             return result;
         }
+    }
+    
+    /**
+     * Validates if the status transition is allowed.
+     * Prevents invalid state changes (e.g., COMPLETED -> FAILED).
+     * 
+     * @param currentStatus Current transaction status
+     * @param newStatus New status from webhook
+     * @return true if transition is valid
+     */
+    private boolean isValidStateTransition(PaymentStatus currentStatus, String newStatus) {
+        // Terminal states cannot transition
+        if (currentStatus == PaymentStatus.COMPLETED || 
+            currentStatus == PaymentStatus.REFUNDED) {
+            log.warn("Attempted transition from terminal state: {}", currentStatus);
+            return false;
+        }
+        
+        // PENDING can transition to any state
+        if (currentStatus == PaymentStatus.PENDING) {
+            return true;
+        }
+        
+        // FAILED can only retry to PENDING or stay FAILED
+        if (currentStatus == PaymentStatus.FAILED) {
+            return "pending".equalsIgnoreCase(newStatus) || 
+                   "failed".equalsIgnoreCase(newStatus);
+        }
+        
+        return true;
     }
 
     private boolean verifySignature(String payload, Map<String, String> headers) {
