@@ -122,6 +122,13 @@
 			<artifactId>spring-integration-amqp</artifactId>
 		</dependency>
 
+		<!-- Firebase Admin SDK for FCM Push Notifications -->
+		<dependency>
+			<groupId>com.google.firebase</groupId>
+			<artifactId>firebase-admin</artifactId>
+			<version>9.2.0</version>
+		</dependency>
+
 		<!-- Spring Integration: HTTP inbound/outbound gateways -->
 		<dependency>
 			<groupId>org.springframework.integration</groupId>
