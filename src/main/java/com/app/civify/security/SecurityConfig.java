@@ -99,7 +99,8 @@ public class SecurityConfig {
                         // External API endpoints (handled by ApiKeyAuthenticationFilter)
                         .requestMatchers("/api/v1/external/**").permitAll()
                         // Admin endpoints
-                        .requestMatchers("/v1/admin/**").hasAuthority("ROLE_ADMIN")
+                        // Admin endpoints - Protected by Method Security / CivifyAuthorization
+                        .requestMatchers("/v1/admin/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session

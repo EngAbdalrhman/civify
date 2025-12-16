@@ -9,7 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
+
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -65,7 +65,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             // Set authentication in context
             UserPrincipal principal = new UserPrincipal(apiKey.getUser());
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                    principal, null, Collections.singletonList(new SimpleGrantedAuthority("ROLE_API_USER")));
+                    principal, null, principal.getAuthorities());
             
             SecurityContextHolder.getContext().setAuthentication(authentication);
             

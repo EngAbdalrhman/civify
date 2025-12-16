@@ -8,7 +8,7 @@ import com.app.civify.entity.enums.SubscriptionStatus;
 import com.app.civify.exception.BadRequestException;
 import com.app.civify.exception.ResourceNotFoundException;
 import com.app.civify.repository.*;
-import com.app.civify.security.model.Role;
+
 import com.app.civify.service.payment.PaymentService;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
@@ -256,8 +256,7 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
             }
             case "WATERMARK" ->
                 !Boolean.TRUE.equals(plan.getWatermark()); // false = no watermark
-            case "DASHBOARD" ->
-                Boolean.TRUE.equals(plan.getDashboard());
+            // case "DASHBOARD" -> // Handled by Permissions now
             default ->
                 false;
         };
@@ -346,8 +345,9 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
         subscriptionRepository.save(subscription);
 
         // Update user role if plan grants licensed status
-        if (plan.grantsLicensedStatus() && user.getRole() != Role.ROLE_ADMIN) {
-            user.setRole(Role.ROLE_LICENSED_USER);
+        // Update user group based on plan
+        if (plan.getLinkedGroup() != null && !Boolean.TRUE.equals(user.getGroup().getIsSystemGroup())) {
+            user.setGroup(plan.getLinkedGroup());
             userRepository.save(user);
         }
 
@@ -459,11 +459,19 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
             createDefaultFreeSubscription(userId);
         }
 
-        // Downgrade user role if they were licensed
-        if (user.getRole() == Role.ROLE_LICENSED_USER) {
-            user.setRole(Role.ROLE_USER);
-            userRepository.save(user);
-            log.info("User {} downgraded to regular user role", userId);
+        // Downgrade user group to Free Group (if they are not a System User e.g. Admin)
+        if (!Boolean.TRUE.equals(user.getGroup().getIsSystemGroup())) {
+             // We need to fetch the free plan first to get its group, which we did above or need to fetch again if not present
+             // The logic above either found `freeSub` (which has `freePlan` -> `freeGroup`) or `createDefaultFreeSubscription` (which doesn't return plan/group here immediately).
+             // However, `createDefaultFreeSubscription` saves the sub, but doesn't update the user's group field per se unless we do it here.
+             
+             // Simplest approach: Fetch Free Plan again to be sure
+             Optional<SubscriptionPlan> freePlanOpt = planRepository.findByName(FREE_PLAN_NAME);
+             if (freePlanOpt.isPresent() && freePlanOpt.get().getLinkedGroup() != null) {
+                 user.setGroup(freePlanOpt.get().getLinkedGroup());
+                 userRepository.save(user);
+                 log.info("User {} downgraded to free group", userId);
+             }
         }
     }
 
@@ -507,9 +515,7 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
         if (plan.getWatermark() == null) {
             plan.setWatermark(true);
         }
-        if (plan.getDashboard() == null) {
-            plan.setDashboard(false);
-        }
+
 
         SubscriptionPlan saved = planRepository.save(plan);
         log.info("Subscription plan created successfully with ID: {}", saved.getId());
@@ -561,9 +567,7 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
             existingPlan.setWatermark(updatedPlan.getWatermark());
         }
 
-        if (updatedPlan.getDashboard() != null) {
-            existingPlan.setDashboard(updatedPlan.getDashboard());
-        }
+
 
         if (updatedPlan.getMonthlyPrice() != null) {
             if (updatedPlan.getMonthlyPrice().compareTo(BigDecimal.ZERO) < 0) {
@@ -683,10 +687,6 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
             throw new BadRequestException(
                     "Cannot add watermark to a plan that previously had it removed (active subscriptions exist)");
         }
-
-        if (Boolean.TRUE.equals(existingPlan.getDashboard()) && Boolean.FALSE.equals(updatedPlan.getDashboard())) {
-            throw new BadRequestException(
-                    "Cannot remove dashboard access from a plan that previously had it (active subscriptions exist)");
-        }
+        // Removed Dashboard validation
     }
 }

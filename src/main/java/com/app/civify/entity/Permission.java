@@ -22,6 +22,10 @@ public class Permission {
     @Column(length = 500)
     private String description;
 
+    @Column(length = 50)
+    private String category; // e.g., "CV", "API", "ADMIN"
+
     @ManyToMany(mappedBy = "permissions")
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private java.util.List<Group> groups;
 }

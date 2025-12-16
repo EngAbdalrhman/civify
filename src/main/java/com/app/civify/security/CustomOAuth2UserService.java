@@ -1,6 +1,6 @@
 package com.app.civify.security;
 
-import com.app.civify.security.model.Role;
+
 
 import lombok.RequiredArgsConstructor;
 
@@ -29,7 +29,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             user.setUsername(email);
             user.setEmail(email);
             user.setPassword("{noop}oauth");
-            user.setRole(Role.ROLE_USER);
+            // user.setRole(Role.ROLE_USER); // Removed RBAC update
             user.setOauthProvider(provider);
             user.setOauthSubject(subject);
             userRepository.save(user);

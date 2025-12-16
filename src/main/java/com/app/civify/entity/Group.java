@@ -19,6 +19,14 @@ public class Group {
     @Column(nullable = false, unique = true, length = 100)
     private String name;
 
+    @Builder.Default
+    @Column(name = "is_system_group", nullable = false)
+    private Boolean isSystemGroup = false;
+
+    @Builder.Default
+    @Column(name = "is_default", nullable = false)
+    private Boolean isDefault = false;
+
     // One group has many users
     @OneToMany(mappedBy = "group", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @com.fasterxml.jackson.annotation.JsonIgnore

@@ -29,7 +29,7 @@ import jakarta.validation.Valid;
 @RequestMapping("/admin/users")
 @RequiredArgsConstructor
 @Tag(name = "Admin User Management", description = "Admin endpoints for user management and filtering")
-@PreAuthorize("hasAuthority('ROLE_ADMIN')")
+// @PreAuthorize("hasAuthority('ROLE_ADMIN')") - Removed in favor of Granular Permissions
 public class AdminUserController {
 
     private final AdminUserService adminUserService;
@@ -51,6 +51,7 @@ public class AdminUserController {
                 content = @Content(mediaType = "application/json")
         )
     })
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "USER.VIEW")
     @PostMapping("/filter")
     public ResponseEntity<CommonResponse<PagedResponse<UserResponseDTO>>> filterUsers(@Valid @RequestBody InputDataModel inputData) {
         log.info("Admin filtering users with criteria: {}", inputData);
@@ -72,6 +73,7 @@ public class AdminUserController {
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))
         )
     })
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "USER.VIEW")
     @GetMapping
     public ResponseEntity<CommonResponse<PagedResponse<UserResponseDTO>>> getAllUsers(
             @RequestParam(defaultValue = "0") int page,
@@ -100,6 +102,7 @@ public class AdminUserController {
                 content = @Content(mediaType = "application/json")
         )
     })
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "USER.VIEW")
     @GetMapping("/{userId}")
     public ResponseEntity<CommonResponse<UserResponseDTO>> getUserById(
             @PathVariable Long userId,
@@ -129,6 +132,7 @@ public class AdminUserController {
                 content = @Content(mediaType = "application/json")
         )
     })
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "USER.MODIFY")
     @PutMapping("/{userId}/limits")
     public ResponseEntity<CommonResponse<UserResponseDTO>> updateUserLimits(
             @PathVariable Long userId,

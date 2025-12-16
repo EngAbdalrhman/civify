@@ -5,7 +5,7 @@ import com.app.civify.entity.User;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
+
 import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.List;
@@ -17,10 +17,10 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        if (user == null || user.getRole() == null) {
+        if (user == null) {
             return List.of();
         }
-        return List.of(new SimpleGrantedAuthority(user.getRole().name()));
+        return user.getAuthorities();
     }
 
     @Override

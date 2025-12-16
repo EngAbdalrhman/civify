@@ -1,6 +1,6 @@
 package com.app.civify.entity;
 
-import com.app.civify.security.model.Role;
+
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
@@ -94,9 +94,7 @@ public class User extends BaseEntity implements Serializable {
     @JoinColumn(name = "group_id")
     private Group group;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Role role = Role.ROLE_USER;
+    // REMOVED: private Role role = Role.ROLE_USER;
 
     // Relationships
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
@@ -120,7 +118,12 @@ public class User extends BaseEntity implements Serializable {
         return !isDeleted && isEmailVerified;
     }
 
-    public GrantedAuthority getAuthority() {
-        return new SimpleGrantedAuthority(role.name());
+    public java.util.Collection<? extends GrantedAuthority> getAuthorities() {
+        if (group == null || group.getPermissions() == null) {
+            return java.util.Collections.emptyList();
+        }
+        return group.getPermissions().stream()
+                .map(permission -> new SimpleGrantedAuthority(permission.getName()))
+                .collect(java.util.stream.Collectors.toList());
     }
 }

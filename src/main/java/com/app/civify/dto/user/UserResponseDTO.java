@@ -1,6 +1,6 @@
 package com.app.civify.dto.user;
 
-import com.app.civify.security.model.Role;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -58,8 +58,7 @@ public class UserResponseDTO {
     @Schema(description = "Skills")
     private String skills;
     
-    @Schema(description = "User role", example = "ROLE_USER")
-    private Role role;
+    // REMOVED: private Role role;
     
     @Schema(description = "Email verification status", example = "true")
     private Boolean isEmailVerified;

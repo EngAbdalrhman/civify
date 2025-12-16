@@ -38,8 +38,12 @@ public class SubscriptionPlan extends BaseEntity {
     @Column(nullable = false)
     private Boolean watermark = true; // true = has watermark, false = no watermark
 
-    @Column(nullable = false)
-    private Boolean dashboard = false; // true = licensed user with dashboard access
+    // @Column(nullable = false)
+    // private Boolean dashboard = false; // REMOVED: Managed by Permissions
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "linked_group_id")
+    private Group linkedGroup;
 
     // Pricing
     private BigDecimal monthlyPrice;

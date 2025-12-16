@@ -2,7 +2,7 @@ package com.app.civify.security;
 
 import com.app.civify.entity.User;
 import com.app.civify.repository.UserRepository;
-import com.app.civify.security.model.Role;
+
 import com.app.civify.service.auth.TokenService;
 import com.app.civify.service.subscription.SubscriptionService;
 import com.app.civify.util.JwtConstants;
@@ -61,7 +61,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             newUser.setEmail(email);
             newUser.setUsername(email); // Use email as username
             newUser.setPassword(""); // No password for OAuth users
-            newUser.setRole(Role.ROLE_USER);
+            // newUser.setRole(Role.ROLE_USER); // Removed RBAC update
             newUser.setIsEmailVerified(true); // Auto-verified by Google
             newUser.setOauthProvider("google");
             newUser.setOauthSubject(googleId);

@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/admin/audit")
 @RequiredArgsConstructor
 @Tag(name = "Admin - Audit Logs", description = "Admin endpoints for audit log management")
-@PreAuthorize("hasAuthority('ROLE_ADMIN')")
+// @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AdminAuditController {
 
     private final AuditService auditService;
@@ -34,6 +34,7 @@ public class AdminAuditController {
             description = "Retrieve audit logs with advanced filtering, pagination, and sorting. Admin only.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "SYSTEM.LOGS.VIEW")
     @PostMapping("/search")
     public ResponseEntity<PagedResponse<AuditLogDTO>> searchAuditLogs(
             @RequestBody AuditLogRequest request) {
@@ -49,6 +50,7 @@ public class AdminAuditController {
             description = "Retrieve all audit logs for a specific entity by type and ID. Admin only.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "SYSTEM.LOGS.VIEW")
     @GetMapping("/{entityType}/{entityId}")
     public ResponseEntity<PagedResponse<AuditLogDTO>> getAuditLogsForEntity(
             @Parameter(description = "Entity type (e.g., User, SubscriptionPlan)")
@@ -71,6 +73,7 @@ public class AdminAuditController {
             description = "Retrieve all audit logs for a specific entity type. Admin only.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "SYSTEM.LOGS.VIEW")
     @GetMapping("/{entityType}")
     public ResponseEntity<PagedResponse<AuditLogDTO>> getAuditLogsByType(
             @Parameter(description = "Entity type (e.g., User, SubscriptionPlan)")
@@ -91,6 +94,7 @@ public class AdminAuditController {
             description = "Retrieve the most recent audit log for a specific entity. Admin only.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "SYSTEM.LOGS.VIEW")
     @GetMapping("/{entityType}/{entityId}/latest")
     public ResponseEntity<AuditLogDTO> getLatestAuditLog(
             @Parameter(description = "Entity type (e.g., User, SubscriptionPlan)")
@@ -112,6 +116,7 @@ public class AdminAuditController {
             description = "Retrieve all audit logs with pagination. Admin only.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "SYSTEM.LOGS.VIEW")
     @GetMapping
     public ResponseEntity<PagedResponse<AuditLogDTO>> getAllAuditLogs(
             @Parameter(description = "Page number (0-based)")

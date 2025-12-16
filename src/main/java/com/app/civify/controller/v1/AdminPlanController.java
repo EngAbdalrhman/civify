@@ -34,8 +34,8 @@ import java.util.stream.Collectors;
 @RequestMapping("/admin/plans")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 @Tag(name = "Admin - Plan Management", description = "Admin endpoints for managing subscription plans")
+// @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AdminPlanController {
 
     private final SubscriptionService subscriptionService;
@@ -58,6 +58,7 @@ public class AdminPlanController {
                 content = @Content(mediaType = "application/json")
         )
     })
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "PLAN.VIEW")
     @PostMapping("/filter")
     public ResponseEntity<CommonResponse<PagedResponse<SubscriptionPlan>>> filterPlans(@Valid @RequestBody com.app.civify.util.filter.InputDataModel inputData) {
         log.info("Admin filtering plans with criteria: {}", inputData);
@@ -84,6 +85,7 @@ public class AdminPlanController {
                     content = @Content(mediaType = "application/json")
             )
     })
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "PLAN.VIEW")
     @GetMapping
     public ResponseEntity<List<PlanDetailResponse>> getAllPlans() {
         log.info("Admin fetching all subscription plans");
@@ -111,6 +113,7 @@ public class AdminPlanController {
                 content = @Content(mediaType = "application/json")
         )
     })
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "PLAN.VIEW")
     @GetMapping("/{planId}")
     public ResponseEntity<PlanDetailResponse> getPlanWithStats(@PathVariable Long planId) {
         log.info("Admin fetching plan {} with statistics", planId);
@@ -144,6 +147,7 @@ public class AdminPlanController {
                 content = @Content(mediaType = "application/json")
         )
     })
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "PLAN.MODIFY")
     @PostMapping
     public ResponseEntity<CommonResponse<PlanDetailResponse>> createPlan(@Valid @RequestBody PlanCreateRequest request) {
         log.info("Admin creating new subscription plan: {}", request.getName());
@@ -199,6 +203,7 @@ public class AdminPlanController {
                 content = @Content(mediaType = "application/json")
         )
     })
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "PLAN.MODIFY")
     @PutMapping("/{planId}")
     public ResponseEntity<CommonResponse<PlanDetailResponse>> updatePlan(
             @PathVariable Long planId,
@@ -269,6 +274,7 @@ public class AdminPlanController {
                 content = @Content(mediaType = "application/json")
         )
     })
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "PLAN.MODIFY")
     @PatchMapping("/{planId}/activate")
     public ResponseEntity<CommonResponse<SubscriptionPlan>> activatePlan(@PathVariable Long planId) {
         log.info("Admin activating subscription plan: {}", planId);
@@ -306,6 +312,7 @@ public class AdminPlanController {
                 content = @Content(mediaType = "application/json")
         )
     })
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "PLAN.MODIFY")
     @PatchMapping("/{planId}/deactivate")
     public ResponseEntity<CommonResponse<SubscriptionPlan>> deactivatePlan(@PathVariable Long planId) {
         log.info("Admin deactivating subscription plan: {}", planId);
@@ -343,6 +350,7 @@ public class AdminPlanController {
                 content = @Content(mediaType = "application/json")
         )
     })
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "PLAN.MODIFY")
     @DeleteMapping("/{planId}")
     public ResponseEntity<CommonResponse<Void>> deletePlan(@PathVariable Long planId) {
         log.info("Admin deleting subscription plan: {}", planId);

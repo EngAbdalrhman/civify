@@ -334,6 +334,9 @@ public class CvParsingService {
                 """.formatted(text);
     }
 
+    @Value("${cv.parsing.max-chars:16000}")
+    private int maxChars;
+
     /**
      * Cap input size to control token usage (~4k tokens heuristic at 4 chars/token).
      */
@@ -341,7 +344,6 @@ public class CvParsingService {
         if (rawText == null) {
             return "";
         }
-        int maxChars = 16000;
         if (rawText.length() <= maxChars) {
             return rawText;
         }

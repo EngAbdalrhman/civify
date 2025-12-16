@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @RequestMapping("/admin/stats")
 @RequiredArgsConstructor
 @Tag(name = "Admin - Statistics", description = "Admin endpoints for system statistics")
-@PreAuthorize("hasAuthority('ROLE_ADMIN')")
+// @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AdminStatsController {
 
     private final UserService userService;
@@ -33,6 +33,7 @@ public class AdminStatsController {
             description = "Retrieves key statistics for the admin dashboard. Admin only.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "SYSTEM.LOGS.VIEW")
     @GetMapping
     public ResponseEntity<AdminStatsDTO> getStats() {
         log.info("Admin fetching dashboard statistics");

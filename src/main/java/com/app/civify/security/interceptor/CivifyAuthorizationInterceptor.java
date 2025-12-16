@@ -1,9 +1,5 @@
-package com.app.civify.security.interceptor;
-import com.app.civify.entity.Group;
-import com.app.civify.entity.Permission;
 import com.app.civify.entity.User;
-import com.app.civify.repository.GroupRepository;
-import com.app.civify.repository.UserRepository;
+
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.security.annotation.CivifyAuthorization;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,7 +17,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CivifyAuthorizationInterceptor implements HandlerInterceptor {
 
-    private final GroupRepository groupRepository; // Or your UserService
+    private final com.app.civify.service.auth.PermissionService permissionService;
 
     @Override
     public boolean preHandle(HttpServletRequest request,
@@ -60,14 +56,8 @@ public class CivifyAuthorizationInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        Group group = groupRepository.findByIdWithPermissions(user.getGroup().getId())
-                .orElseThrow(() -> new RuntimeException("Group not found"));
-
-        List<Permission> permissions = group.getPermissions();
-        // Get permissions of the user's group
-        boolean hasPermission = permissions
-                .stream()
-                .anyMatch(p -> p.getName().equalsIgnoreCase(requiredPermission));
+        // Check dynamic permissions via PermissionService
+        boolean hasPermission = permissionService.hasPermission(user, requiredPermission);
 
         if (!hasPermission) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN,

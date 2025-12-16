@@ -60,7 +60,7 @@ public class UserController {
                 content = @Content(mediaType = "application/json"))
     })
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_LICENSED_USER')")
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "USER.VIEW")
     public ResponseEntity<List<User>> getAll() {
         return ResponseEntity.ok(userService.findAll());
     }
