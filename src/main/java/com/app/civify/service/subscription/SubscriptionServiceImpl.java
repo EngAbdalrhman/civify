@@ -689,4 +689,17 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
         }
         // Removed Dashboard validation
     }
+    @Override
+    public Page<UserSubscription> getAllSubscriptions(String status, org.springframework.data.domain.Pageable pageable) {
+        if (status != null && !status.isEmpty()) {
+            try {
+                SubscriptionStatus subStatus = SubscriptionStatus.valueOf(status.toUpperCase());
+                return subscriptionRepository.findByStatus(subStatus, pageable);
+            } catch (IllegalArgumentException e) {
+                // Invalid status, return empty or all? Let's return empty to indicate error in filter
+                throw new BadRequestException("Invalid subscription status: " + status);
+            }
+        }
+        return subscriptionRepository.findAll(pageable);
+    }
 }

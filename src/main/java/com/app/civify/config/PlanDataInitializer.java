@@ -115,7 +115,6 @@ public class PlanDataInitializer {
         freePlan.setCvLimit(5);
         freePlan.setApiLimit(10);
         freePlan.setWatermark(true); // Has watermark
-        freePlan.setDashboard(false); // No dashboard access
         freePlan.setMonthlyPrice(BigDecimal.ZERO);
         freePlan.setAnnualPrice(BigDecimal.ZERO);
         freePlan.setActive(true);

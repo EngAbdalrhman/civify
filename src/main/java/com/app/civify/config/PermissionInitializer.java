@@ -142,12 +142,33 @@ public class PermissionInitializer implements CommandLineRunner {
     }
 
     private Group initGroup(String name, boolean isSystem, boolean isDefault) {
-        return groupRepository.findByName(name)
-                .orElseGet(() -> groupRepository.save(Group.builder()
-                        .name(name)
-                        .isSystemGroup(isSystem)
-                        .isDefault(isDefault)
-                        .build()));
+        Optional<Group> existing = groupRepository.findByName(name);
+        if (existing.isPresent()) {
+            Group g = existing.get();
+            boolean changed = false;
+            
+            if (g.getIsSystemGroup() != isSystem) {
+                g.setIsSystemGroup(isSystem);
+                changed = true;
+            }
+            if (g.getIsDefault() != isDefault) {
+                g.setIsDefault(isDefault);
+                changed = true;
+            }
+            // If we are setting this to default, ensure others are not default? 
+            // Better done in a separate sweep or constraint, but for now this update ensures the target state.
+            
+            if (changed) {
+                return groupRepository.save(g);
+            }
+            return g;
+        } else {
+            return groupRepository.save(Group.builder()
+                    .name(name)
+                    .isSystemGroup(isSystem)
+                    .isDefault(isDefault)
+                    .build());
+        }
     }
 
     private void updateGroupPermissions(Group group, List<Permission> perms) {

@@ -29,7 +29,6 @@ public class PlanMapper {
                 .cvLimit(plan.getCvLimit())
                 .apiLimit(plan.getApiLimit())
                 .watermark(plan.getWatermark())
-                .dashboard(plan.getDashboard())
                 .monthlyPrice(plan.getMonthlyPrice())
                 .annualPrice(plan.getAnnualPrice())
                 .active(plan.getActive())

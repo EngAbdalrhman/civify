@@ -162,7 +162,6 @@ public class AdminPlanController {
             plan.setCvLimit(request.getCvLimit());
             plan.setApiLimit(request.getApiLimit());
             plan.setWatermark(request.getWatermark());
-            plan.setDashboard(request.getDashboard());
             plan.setMonthlyPrice(request.getMonthlyPrice());
             plan.setAnnualPrice(request.getAnnualPrice());
             plan.setActive(request.getActive());
@@ -231,9 +230,6 @@ public class AdminPlanController {
             }
             if (request.getWatermark() != null) {
                 updatedPlan.setWatermark(request.getWatermark());
-            }
-            if (request.getDashboard() != null) {
-                updatedPlan.setDashboard(request.getDashboard());
             }
             if (request.getMonthlyPrice() != null) {
                 updatedPlan.setMonthlyPrice(request.getMonthlyPrice());

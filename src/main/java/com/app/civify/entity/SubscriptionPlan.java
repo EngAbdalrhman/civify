@@ -78,15 +78,6 @@ public class SubscriptionPlan extends BaseEntity {
     private List<PlanIntegration> integrations = new ArrayList<>();
 
     // ==================== HELPER METHODS ====================
-    /**
-     * Check if this plan grants licensed status
-     *
-     * @deprecated Use featureLimits to check for DASHBOARD_ACCESS feature
-     */
-    @Deprecated
-    public boolean grantsLicensedStatus() {
-        return Boolean.TRUE.equals(dashboard);
-    }
 
     /**
      * Add a feature limit to this plan

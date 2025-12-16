@@ -78,7 +78,7 @@ public class SubscriptionController {
                 content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/my-subscription")
-    @PreAuthorize("hasAnyRole('USER', 'LICENSED_USER', 'ADMIN')")
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "CV.CREATE")
     public ResponseEntity<UserSubscription> getMyActiveSubscription(Authentication authentication) {
         Long userId = getUserIdFromAuthentication(authentication);
         return subscriptionService.getActiveSubscription(userId)
@@ -98,7 +98,7 @@ public class SubscriptionController {
                 content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/my-subscriptions")
-    @PreAuthorize("hasAnyRole('USER', 'LICENSED_USER', 'ADMIN')")
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "CV.CREATE")
     public ResponseEntity<List<UserSubscription>> getMySubscriptions(Authentication authentication) {
         Long userId = getUserIdFromAuthentication(authentication);
         List<UserSubscription> subscriptions = subscriptionService.getUserSubscriptions(userId);
@@ -119,7 +119,7 @@ public class SubscriptionController {
                 content = @Content(mediaType = "application/json"))
     })
     @PostMapping("/cancel/{subscriptionId}")
-    @PreAuthorize("hasAnyRole('USER', 'LICENSED_USER', 'ADMIN')")
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "CV.CREATE")
     public ResponseEntity<Map<String, String>> cancelSubscription(
             @PathVariable Long subscriptionId,
             Authentication authentication) {
@@ -151,7 +151,7 @@ public class SubscriptionController {
                 content = @Content(mediaType = "application/json"))
     })
     @PostMapping("/renew/{subscriptionId}")
-    @PreAuthorize("hasAnyRole('USER', 'LICENSED_USER', 'ADMIN')")
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "CV.CREATE")
     public ResponseEntity<Map<String, String>> renewSubscription(
             @PathVariable Long subscriptionId,
             @RequestParam(defaultValue = "false") boolean isAnnual,
@@ -182,7 +182,7 @@ public class SubscriptionController {
                 content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/can-use/{feature}")
-    @PreAuthorize("hasAnyRole('USER', 'LICENSED_USER', 'ADMIN')")
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "CV.CREATE")
     public ResponseEntity<Map<String, Object>> canUseFeature(
             @PathVariable String feature,
             Authentication authentication) {

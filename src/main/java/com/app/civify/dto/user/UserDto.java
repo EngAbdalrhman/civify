@@ -64,4 +64,7 @@ public class UserDto {
     @Schema(description = "API usage count for current month", example = "150")
     private Integer apiUsageCount;
 
+    @Schema(description = "List of user permissions")
+    private java.util.Set<String> permissions;
+
 }

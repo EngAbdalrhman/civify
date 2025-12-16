@@ -1,7 +1,9 @@
-import com.app.civify.entity.User;
+package com.app.civify.security.interceptor;
 
+import com.app.civify.entity.User;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.security.annotation.CivifyAuthorization;
+import com.app.civify.service.auth.PermissionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -11,13 +13,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-import java.util.List;
-
 @Component
 @RequiredArgsConstructor
 public class CivifyAuthorizationInterceptor implements HandlerInterceptor {
 
-    private final com.app.civify.service.auth.PermissionService permissionService;
+    private final PermissionService permissionService;
 
     @Override
     public boolean preHandle(HttpServletRequest request,

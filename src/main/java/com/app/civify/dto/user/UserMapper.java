@@ -31,7 +31,6 @@ public class UserMapper {
                 .experience(user.getExperience())
                 .education(user.getEducation())
                 .skills(user.getSkills())
-                .role(user.getRole())
                 .isEmailVerified(user.getIsEmailVerified())
                 .twoFactorEnabled(user.getTwoFactorEnabled())
                 .oauthProvider(user.getOauthProvider())

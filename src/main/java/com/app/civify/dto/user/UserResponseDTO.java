@@ -102,5 +102,8 @@ public class UserResponseDTO {
 
     @Schema(description = "API usage count for current month", example = "150")
     private Integer apiUsageCount;
+
+    @Schema(description = "Effective permissions for the user")
+    private java.util.Set<String> permissions;
 }
 

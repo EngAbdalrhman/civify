@@ -46,8 +46,7 @@ public class PaymentController {
                 content = @Content(mediaType = "application/json"))
     })
     @PostMapping("/initiate")
-    @PreAuthorize("hasAnyRole('USER', 'LICENSED_USER', 'ADMIN')")
-    public ResponseEntity<PaymentInitiationResponse> initiatePayment(
+   public ResponseEntity<PaymentInitiationResponse> initiatePayment(
             @RequestParam Long planId,
             @RequestParam(required = false) String promoCode,
             @RequestParam(defaultValue = "false") boolean isAnnual,
@@ -118,7 +117,7 @@ public class PaymentController {
                 content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/verify/{paymentId}")
-    @PreAuthorize("hasAnyRole('USER', 'LICENSED_USER', 'ADMIN')")
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "CV.CREATE")
     public ResponseEntity<Map<String, Object>> verifyPayment(@PathVariable String paymentId) {
         try {
             boolean isVerified = paymentService.verifyPayment(paymentId);

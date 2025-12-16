@@ -2,6 +2,8 @@ package com.app.civify.repository;
 
 import com.app.civify.entity.UserSubscription;
 import com.app.civify.entity.enums.SubscriptionStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -40,4 +42,7 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
     Long countByUserId(Long userId);
 
     Long countByUserIdAndStatus(Long userId, SubscriptionStatus status);
+
+    // Admin queries
+   Page<UserSubscription> findByStatus(SubscriptionStatus status, Pageable pageable);
 }
