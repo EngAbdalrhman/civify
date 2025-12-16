@@ -31,7 +31,7 @@ public interface PaymentService {
      * @param orderId Order ID (optional, depending on gateway)
      * @param callbackData Callback data
      */
-    void handlePaymentCallback(String gateway, String orderId, Map<String, Object> callbackData);
+    void handlePaymentCallback(String gateway, String orderId, Map<String, Object> callbackData, Map<String, String> headers);
 
     /**
      * Get list of enabled gateways

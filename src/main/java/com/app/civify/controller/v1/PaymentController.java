@@ -77,13 +77,14 @@ public class PaymentController {
     @PostMapping("/webhook/{gateway}")
     public ResponseEntity<String> handlePaymentWebhook(
             @PathVariable String gateway,
-            @RequestBody Map<String, Object> payload) {
+            @RequestBody Map<String, Object> payload,
+            @RequestHeader Map<String, String> headers) {
         try {
             log.info("Received payment webhook for gateway {}: {}", gateway, payload);
 
             // Extract order ID (gateway specific logic handled in service)
             // We pass null for orderId here as it will be extracted by the gateway implementation
-            paymentService.handlePaymentCallback(gateway, null, payload);
+            paymentService.handlePaymentCallback(gateway, null, payload, headers);
 
             return ResponseEntity.ok("Webhook processed successfully");
         } catch (Exception e) {

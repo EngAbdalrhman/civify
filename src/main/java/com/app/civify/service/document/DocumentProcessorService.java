@@ -146,14 +146,63 @@ public class DocumentProcessorService {
      * Detect document type from file.
      */
     private DocumentType detectDocumentType(MultipartFile file) {
-        String contentType = file.getContentType();
-        DocumentType type = DocumentType.fromMimeType(contentType);
-
-        if (type == DocumentType.UNKNOWN) {
-            type = DocumentType.fromExtension(file.getOriginalFilename());
+        // 1) Magic number detection (most trustworthy)
+        DocumentType type = detectByMagicNumbers(file);
+        if (type != DocumentType.UNKNOWN) {
+            return type;
         }
 
-        return type;
+        // 2) Reported content type
+        String contentType = file.getContentType();
+        type = DocumentType.fromMimeType(contentType);
+        if (type != DocumentType.UNKNOWN) {
+            return type;
+        }
+
+        // 3) Fallback to extension
+        return DocumentType.fromExtension(file.getOriginalFilename());
+    }
+
+    private DocumentType detectByMagicNumbers(MultipartFile file) {
+        try (var is = file.getInputStream()) {
+            is.mark(32);
+            byte[] header = is.readNBytes(16);
+            is.reset();
+
+            if (startsWith(header, "%PDF-".getBytes())) {
+                return DocumentType.PDF;
+            }
+            if (header.length >= 4 && header[0] == (byte) 0x50 && header[1] == (byte) 0x4B) {
+                // ZIP container -> likely DOCX
+                return DocumentType.DOCX;
+            }
+            if (startsWith(header, new byte[]{(byte) 0xFF, (byte) 0xD8})) {
+                return DocumentType.IMAGE_JPEG;
+            }
+            if (startsWith(header, new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47})) {
+                return DocumentType.IMAGE_PNG;
+            }
+            if (startsWith(header, new byte[]{0x49, 0x49, 0x2A, 0x00}) ||
+                startsWith(header, new byte[]{0x4D, 0x4D, 0x00, 0x2A})) {
+                return DocumentType.IMAGE_TIFF;
+            }
+            if (header.length >= 12 &&
+                    startsWith(header, "RIFF".getBytes()) &&
+                    header[8] == 'W' && header[9] == 'E' && header[10] == 'B' && header[11] == 'P') {
+                return DocumentType.IMAGE_WEBP;
+            }
+        } catch (Exception e) {
+            log.warn("Magic number detection failed: {}", e.getMessage());
+        }
+        return DocumentType.UNKNOWN;
+    }
+
+    private boolean startsWith(byte[] data, byte[] prefix) {
+        if (data == null || prefix == null || data.length < prefix.length) return false;
+        for (int i = 0; i < prefix.length; i++) {
+            if (data[i] != prefix[i]) return false;
+        }
+        return true;
     }
 
     /**

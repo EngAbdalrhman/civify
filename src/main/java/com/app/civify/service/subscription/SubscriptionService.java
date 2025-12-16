@@ -37,8 +37,10 @@ public interface SubscriptionService {
 
     // Usage tracking
     boolean canUserUseFeature(Long userId, String feature); // CV, API, WATERMARK, DASHBOARD
+    boolean canUserUseTokens(Long userId, int tokensNeeded);
 
     void incrementUsage(Long userId, String feature);
+    void chargeTokens(Long userId, int tokensUsed);
 
     // Subscription lifecycle
     void activateSubscription(String paymentTransactionId);

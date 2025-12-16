@@ -33,7 +33,7 @@ public interface PaymentGateway {
      * @param callbackData Callback data from the gateway
      * @return PaymentCallbackResult with status and details
      */
-    PaymentCallbackResult handleCallback(Map<String, Object> callbackData);
+    PaymentCallbackResult handleCallback(Map<String, Object> callbackData, Map<String, String> headers);
 
     /**
      * Get the payment URL for a given payment key/token

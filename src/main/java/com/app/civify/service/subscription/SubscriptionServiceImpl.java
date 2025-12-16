@@ -264,6 +264,16 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
     }
 
     @Override
+    public boolean canUserUseTokens(Long userId, int tokensNeeded) {
+        Optional<UserSubscription> subscription = getActiveSubscription(userId);
+        if (subscription.isEmpty()) {
+            return false;
+        }
+        UserSubscription sub = subscription.get();
+        return sub.canUseTokens(Math.max(tokensNeeded, 0));
+    }
+
+    @Override
     @Transactional
     public void incrementUsage(Long userId, String feature) {
         Optional<UserSubscription> subscription = getActiveSubscription(userId);
@@ -291,6 +301,21 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
                 throw new BadRequestException("Unknown feature: " + feature);
         }
 
+        subscriptionRepository.save(sub);
+    }
+
+    @Override
+    @Transactional
+    public void chargeTokens(Long userId, int tokensUsed) {
+        Optional<UserSubscription> subscription = getActiveSubscription(userId);
+        if (subscription.isEmpty()) {
+            throw new BadRequestException("No active subscription found");
+        }
+        UserSubscription sub = subscription.get();
+        if (!sub.canUseTokens(tokensUsed)) {
+            throw new BadRequestException("Token allowance exceeded for current subscription");
+        }
+        sub.incrementTokenUsage(tokensUsed);
         subscriptionRepository.save(sub);
     }
 

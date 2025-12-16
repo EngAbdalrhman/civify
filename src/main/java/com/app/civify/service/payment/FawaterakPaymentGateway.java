@@ -174,13 +174,20 @@ public class FawaterakPaymentGateway implements PaymentGateway {
 
     @Override
     @Transactional
-    public PaymentCallbackResult handleCallback(Map<String, Object> callbackData) {
+    public PaymentCallbackResult handleCallback(Map<String, Object> callbackData, Map<String, String> headers) {
         log.info("Handling Fawaterak callback: {}", callbackData);
         
         PaymentCallbackResult result = new PaymentCallbackResult();
         result.setGatewayName(getGatewayName());
         
         try {
+            if (!verifySignature(callbackData, headers)) {
+                log.warn("Fawaterak callback failed signature verification");
+                result.setSuccess(false);
+                result.setMessage("Invalid signature");
+                return result;
+            }
+
             // Fawaterak webhook structure
             // invoice_id, invoice_status, etc.
             
@@ -196,6 +203,14 @@ public class FawaterakPaymentGateway implements PaymentGateway {
             
             PaymentTransaction transaction = paymentRepository.findByOrderId(invoiceId)
                     .orElseThrow(() -> new RuntimeException("Transaction not found for invoice: " + invoiceId));
+
+            // Idempotency: if already completed, short-circuit
+            if (transaction.getStatus() == PaymentStatus.COMPLETED) {
+                log.info("Fawaterak callback idempotent hit for invoice {}, already COMPLETED", invoiceId);
+                result.setSuccess(true);
+                result.setMessage("Already processed");
+                return result;
+            }
             
             result.setTransactionId(transaction.getPaymentKey());
             result.setOrderId(invoiceId);
@@ -223,6 +238,34 @@ public class FawaterakPaymentGateway implements PaymentGateway {
             result.setMessage("Error: " + e.getMessage());
             return result;
         }
+    }
+
+    private boolean verifySignature(Map<String, Object> payload, Map<String, String> headers) {
+        // Fawaterak may not send HMAC; if header absent, allow but log.
+        String signature = headers.getOrDefault("signature", headers.getOrDefault("SIGNATURE", ""));
+        if (signature.isBlank()) {
+            log.warn("Fawaterak signature header missing; skipping verification");
+            return true;
+        }
+        try {
+            String canonicalJson = objectMapper.writeValueAsString(payload);
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(providerKey.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] digest = mac.doFinal(canonicalJson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            String expected = bytesToHex(digest);
+            return signature.equalsIgnoreCase(expected);
+        } catch (Exception e) {
+            log.warn("Fawaterak signature verification failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 
     @Override

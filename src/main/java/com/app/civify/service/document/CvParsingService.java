@@ -6,6 +6,7 @@ import com.app.civify.dto.document.ProcessedDocument;
 import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.service.ResumeService;
 import com.app.civify.service.ai.AiService;
+import com.app.civify.service.subscription.SubscriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,7 @@ public class CvParsingService {
     private final DocumentProcessorService documentProcessorService;
     private final AiService aiService;
     private final ResumeService resumeService;
+    private final SubscriptionService subscriptionService;
     private final ObjectMapper objectMapper;
 
     @Value("${ai.default.provider:gemini}")
@@ -34,33 +36,40 @@ public class CvParsingService {
     private String defaultModel;
 
     private static final String CV_PARSE_PROMPT = """
-        Extract structured data from this CV in JSON format.
+        Extract structured data from this CV in YAML format.
         
         Structure:
-        {
-            "personalInfo": {
-                "fullName": "string", "email": "string", "phone": "string", "address": "string",
-                "city": "string", "country": "string", "summary": "string", "jobTitle": "string",
-                "linkedin": "string", "website": "string", "github": "string"
-            },
-            "sections": [
-                {
-                    "id": "uuid", "title": "string", "type": "experience|education|skills|languages|certifications|projects|custom",
-                    "items": [
-                        {
-                            "id": "uuid", "title": "string", "subtitle": "string", "date": "string",
-                            "description": "string", "location": "string", "tags": ["string"]
-                        }
-                    ]
-                }
-            ],
-            "metadata": { "language": "code" }
-        }
+        personalInfo:
+          fullName: string
+          email: string
+          phone: string
+          address: string
+          city: string
+          country: string
+          summary: string
+          jobTitle: string
+          linkedin: string
+          website: string
+          github: string
+        sections:
+          - id: uuid
+            title: string
+            type: experience|education|skills|languages|certifications|projects|custom
+            items:
+              - id: uuid
+                title: string
+                subtitle: string
+                date: string
+                description: string
+                location: string
+                tags: [string]
+        metadata:
+          language: code
         
         Rules:
         1. Extract ALL content.
         2. Use original language.
-        3. Valid JSON only.
+        3. Valid YAML only. Do NOT return JSON. Do NOT include markdown fences.
         
         CV Text:
         %s
@@ -100,7 +109,18 @@ public class CvParsingService {
 
             // Step 2: Parse text with AI
             long aiStart = System.currentTimeMillis();
-            ResumeData resumeData = parseTextWithAi(processedDoc.getRawText(), request.isPiiOnly());
+            String truncatedText = truncateForAi(processedDoc.getRawText());
+
+            int estimatedTokens = estimateTokens(truncatedText);
+            if (userId != null && !subscriptionService.canUserUseTokens(userId, estimatedTokens)) {
+                return CvParseResponse.builder()
+                        .success(false)
+                        .message("Token allowance exceeded for current subscription")
+                        .processingTimeMs(System.currentTimeMillis() - startTime)
+                        .build();
+            }
+
+            ResumeData resumeData = parseTextWithAi(truncatedText, request.isPiiOnly());
             long aiTime = System.currentTimeMillis() - aiStart;
             log.info("AI Parsing Time: {}ms", aiTime);
 
@@ -119,6 +139,11 @@ public class CvParsingService {
                 var savedResume = resumeService.createResume(userId, title, resumeData);
                 resumeId = savedResume.getId();
                 log.info("Resume saved with ID: {}", resumeId);
+            }
+
+            // Step 4: Charge tokens after successful parse
+            if (userId != null) {
+                subscriptionService.chargeTokens(userId, estimatedTokens);
             }
 
             return CvParseResponse.builder()
@@ -190,10 +215,8 @@ public class CvParsingService {
      */
     private ResumeData parseTextWithAi(String text, boolean piiOnly) {
         try {
-            // Use YAML prompt if piiOnly (which we are repurposing for "Fast Mode")
-            // Note: We are now extracting FULL content even in "piiOnly" mode, but using YAML for speed.
             String promptTemplate = piiOnly ? PII_PARSE_PROMPT : CV_PARSE_PROMPT;
-            String prompt = String.format(promptTemplate, text);
+            String prompt = String.format(promptTemplate, wrapUserText(text));
 
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
 
@@ -202,22 +225,31 @@ public class CvParsingService {
                 return null;
             }
 
-            // Parse Gemini response structure to get the actual content
-            String contentText = extractContentFromGeminiResponse(response);
+            String parsedContent = tryParseContent(response, piiOnly);
 
-            // Clean markdown code blocks if present
-            contentText = cleanMarkdownJson(contentText);
-            
-            log.debug("AI Response Content (Cleaned): {}", contentText);
+            if (parsedContent == null) {
+                log.warn("LLM output invalid, retrying with corrective prompt");
+                String repairPrompt = prompt
+                        + "\n\nOutput was not valid "
+                        + (piiOnly ? "YAML" : "JSON")
+                        + ". Return STRICT "
+                        + (piiOnly ? "YAML" : "JSON")
+                        + " only, no prose, no markdown fences.";
+                String retryResponse = aiService.callModel(repairPrompt, defaultProvider, defaultModel);
+                parsedContent = tryParseContent(retryResponse, piiOnly);
+            }
 
-            if (piiOnly) {
-                // Parse YAML
+            if (parsedContent == null) {
+                return null;
+            }
+
+            try {
                 ObjectMapper yamlMapper = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
                 yamlMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-                return yamlMapper.readValue(contentText, ResumeData.class);
-            } else {
-                // Parse JSON (Legacy/Full mode)
-                return objectMapper.readValue(contentText, ResumeData.class);
+                return yamlMapper.readValue(parsedContent, ResumeData.class);
+            } catch (Exception yamlEx) {
+                log.warn("YAML parse failed, trying JSON fallback: {}", yamlEx.getMessage());
+                return objectMapper.readValue(parsedContent, ResumeData.class);
             }
 
         } catch (Exception e) {
@@ -257,6 +289,75 @@ public class CvParsingService {
         }
 
         return cleaned.trim();
+    }
+
+    /**
+     * Attempt to parse the AI output as YAML or JSON; return null on failure (caller may retry).
+     */
+    private String tryParseContent(String response, boolean piiOnly) {
+        if (response == null || response.isBlank()) {
+            return null;
+        }
+
+        String contentText = extractContentFromGeminiResponse(response);
+        contentText = cleanMarkdownJson(contentText);
+        log.debug("AI Response Content (Cleaned): {}", contentText);
+
+        try {
+            ObjectMapper yamlMapper = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
+            yamlMapper.readTree(contentText); // prefer YAML first
+            return contentText;
+        } catch (Exception e) {
+            // Fallback: try JSON
+            try {
+                objectMapper.readTree(contentText);
+                log.warn("AI output parsed only after JSON fallback (expected YAML): {}", e.getMessage());
+                return contentText;
+            } catch (Exception ex) {
+                log.warn("Failed to parse AI output as YAML or JSON: {}", ex.getMessage());
+                return null;
+            }
+        }
+    }
+
+    /**
+     * Wrap user-provided text to reduce prompt-injection risk.
+     */
+    private String wrapUserText(String text) {
+        if (text == null) {
+            return "";
+        }
+        return """
+                <<<USER_INPUT_START>>>
+                %s
+                <<<USER_INPUT_END>>>
+                """.formatted(text);
+    }
+
+    /**
+     * Cap input size to control token usage (~4k tokens heuristic at 4 chars/token).
+     */
+    private String truncateForAi(String rawText) {
+        if (rawText == null) {
+            return "";
+        }
+        int maxChars = 16000;
+        if (rawText.length() <= maxChars) {
+            return rawText;
+        }
+        log.warn("Truncating CV text from {} to {} characters to control token usage", rawText.length(), maxChars);
+        return rawText.substring(0, maxChars);
+    }
+
+    /**
+     * Rough token estimate (~4 chars per token) to meter usage without tokenizer dependency.
+     */
+    private int estimateTokens(String text) {
+        if (text == null || text.isEmpty()) {
+            return 0;
+        }
+        int chars = text.length();
+        return Math.max(1, (int) Math.ceil(chars / 4.0));
     }
 
     private String extractContentFromGeminiResponse(String response) {

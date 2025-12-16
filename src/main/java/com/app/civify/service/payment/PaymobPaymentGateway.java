@@ -162,13 +162,20 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
     @Override
     @Transactional
-    public PaymentCallbackResult handleCallback(Map<String, Object> callbackData) {
+    public PaymentCallbackResult handleCallback(Map<String, Object> callbackData, Map<String, String> headers) {
         PaymentCallbackResult result = new PaymentCallbackResult();
         result.setGatewayName(getGatewayName());
 
         try {
             log.info("Handling Paymob payment callback");
             log.debug("Callback data: {}", callbackData);
+
+            if (!verifySignature(callbackData, headers)) {
+                log.warn("Paymob callback failed HMAC verification");
+                result.setSuccess(false);
+                result.setMessage("Invalid signature");
+                return result;
+            }
 
             // Extract order ID from callback
             Object orderIdObj = callbackData.get("order");
@@ -185,6 +192,14 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
             PaymentTransaction transaction = paymentRepository.findByOrderId(orderId)
                     .orElseThrow(() -> new RuntimeException("Payment transaction not found for order: " + orderId));
+
+            // Idempotency: if already completed, short-circuit
+            if (transaction.getStatus() == PaymentStatus.COMPLETED) {
+                log.info("Paymob callback idempotent hit for order {}, already COMPLETED", orderId);
+                result.setSuccess(true);
+                result.setMessage("Already processed");
+                return result;
+            }
             
             result.setTransactionId(transaction.getPaymentKey());
 
@@ -215,6 +230,32 @@ public class PaymobPaymentGateway implements PaymentGateway {
             result.setMessage("Error: " + e.getMessage());
             return result;
         }
+    }
+
+    private boolean verifySignature(Map<String, Object> payload, Map<String, String> headers) {
+        try {
+            String expected = headers.getOrDefault("hmac", headers.getOrDefault("HMAC", null));
+            if (expected == null || expected.isBlank()) {
+                return false;
+            }
+            String canonicalJson = objectMapper.writeValueAsString(payload);
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA512");
+            mac.init(new javax.crypto.spec.SecretKeySpec(hmacSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA512"));
+            byte[] digest = mac.doFinal(canonicalJson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            String actual = bytesToHex(digest);
+            return expected.equalsIgnoreCase(actual);
+        } catch (Exception e) {
+            log.warn("Paymob signature verification failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 
     @Override

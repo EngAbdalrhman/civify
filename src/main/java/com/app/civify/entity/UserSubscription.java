@@ -48,6 +48,12 @@ public class UserSubscription extends BaseEntity {
     @Column(nullable = false)
     private Integer currentApiCount = 0;
 
+    /**
+     * Monthly token usage (for AI/LLM metering). Reset monthly alongside other counters.
+     */
+    @Column(nullable = false)
+    private Integer currentTokenUsage = 0;
+
     @Column(name = "usage_reset_date")
     private LocalDateTime usageResetDate;
 
@@ -89,6 +95,21 @@ public class UserSubscription extends BaseEntity {
     }
 
     /**
+     * Check if user has enough token balance for a request.
+     */
+    public boolean canUseTokens(int tokensNeeded) {
+        if (!isActive()) {
+            return false;
+        }
+        resetUsageIfNewMonth();
+        if (plan.getTokenLimit() == null) {
+            return true; // unlimited tokens
+        }
+        if (currentTokenUsage == null) currentTokenUsage = 0;
+        return currentTokenUsage + tokensNeeded <= plan.getTokenLimit();
+    }
+
+    /**
      * Increment CV usage counter
      */
     public void incrementCvCount() {
@@ -111,6 +132,17 @@ public class UserSubscription extends BaseEntity {
     }
 
     /**
+     * Charge tokens against the monthly allowance.
+     */
+    public void incrementTokenUsage(int tokensUsed) {
+        resetUsageIfNewMonth();
+        if (currentTokenUsage == null) {
+            currentTokenUsage = 0;
+        }
+        currentTokenUsage += Math.max(tokensUsed, 0);
+    }
+
+    /**
      * Reset usage counters if it's a new month
      */
     public void resetUsageIfNewMonth() {
@@ -118,6 +150,7 @@ public class UserSubscription extends BaseEntity {
         if (usageResetDate == null || now.isAfter(usageResetDate)) {
             currentCvCount = 0;
             currentApiCount = 0;
+            currentTokenUsage = 0;
             // Set reset date to first day of next month
             usageResetDate = now.plusMonths(1).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
         }
