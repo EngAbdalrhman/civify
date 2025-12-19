@@ -9,6 +9,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -25,6 +26,9 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
 
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
+
+    @Value("${refresh.token.secure}")
+    private Boolean secureToken;
 
     public JWTAuthenticationFilter(AuthenticationManager authenticationManager, JwtUtil jwtUtil) {
         this.authenticationManager = authenticationManager;
@@ -73,7 +77,7 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
                 // Set Refresh Token in HttpOnly Cookie
                 Cookie refreshCookie = new Cookie(JwtConstants.REFRESH_TOKEN_COOKIE_NAME, refreshToken);
                 refreshCookie.setHttpOnly(true); // prevent javascript from accessing it
-                refreshCookie.setSecure(true); // sent only over HTTPS
+                refreshCookie.setSecure(secureToken); // Set to false for development (HTTP), true for production (HTTPS)
                 refreshCookie.setPath(JwtConstants.REFRESH_TOKEN_COOKIE_PATH);
                 refreshCookie.setMaxAge(JwtConstants.REFRESH_TOKEN_COOKIE_MAX_AGE);
                 response.addCookie(refreshCookie);
