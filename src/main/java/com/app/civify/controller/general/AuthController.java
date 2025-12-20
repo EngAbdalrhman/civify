@@ -8,11 +8,14 @@ import com.app.civify.service.auth.EmailVerificationService;
 import com.app.civify.service.auth.PasswordRecoveryService;
 import com.app.civify.util.CommonResponse;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.util.Map;
 
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +34,9 @@ public class AuthController {
     private final EmailVerificationService emailVerificationService;
     private final PasswordRecoveryService passwordRecoveryService;
 
+    @Value("${app.frontend.base-url}")
+    private String frontendUrl;
+
     /**
      * Register new user - sends verification email
      */
@@ -44,20 +50,22 @@ public class AuthController {
 
     /**
      * Verify email with token from email link
+     * Redirects to frontend callback page after verification
      */
     @GetMapping("/verify-email")
-    public ResponseEntity<CommonResponse> verifyEmail(@RequestParam("token") String token) {
+    public void verifyEmail(@RequestParam("token") String token, HttpServletResponse response) throws IOException {
         boolean verified = emailVerificationService.verifyEmail(token);
 
         if (verified) {
-            return ResponseEntity.ok(CommonResponse.success(
-                    "Email verified successfully! You can now login.",
-                    null
-            ));
+            // Redirect to frontend with success status
+            String redirectUrl = frontendUrl + "/auth/callback?verified=true";
+            response.sendRedirect(redirectUrl);
+            log.info("Email verified successfully, redirecting to frontend");
         } else {
-            return ResponseEntity.badRequest().body(CommonResponse.error(
-                    "Invalid or expired verification token"
-            ));
+            // Redirect to frontend with error status
+            String redirectUrl = frontendUrl + "/auth/callback?verified=false&error=invalid_token";
+            response.sendRedirect(redirectUrl);
+            log.error("Email verification failed - invalid or expired token");
         }
     }
 
