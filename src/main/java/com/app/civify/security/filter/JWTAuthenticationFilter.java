@@ -13,8 +13,6 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -35,8 +33,6 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
 
     private final Boolean secureToken;
     private final Boolean emailVerificationEnabled;
-
-
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -115,6 +111,9 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
         response.setCharacterEncoding("UTF-8");
         
         CommonResponse<?> errorResponse = CommonResponse.error(errorCode, message);
-        new ObjectMapper().findAndRegisterModules().writeValue(response.getOutputStream(), errorResponse);
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.findAndRegisterModules(); // Register JavaTimeModule for proper date serialization
+        mapper.configure(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+        mapper.writeValue(response.getOutputStream(), errorResponse);
     }
 }
