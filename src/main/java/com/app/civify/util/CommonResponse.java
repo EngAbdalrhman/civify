@@ -6,12 +6,15 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import com.app.civify.exception.ErrorCode;
+
 @Data
 @NoArgsConstructor
 public class CommonResponse<T> {
 
     private String status;
     private String message;
+    private String errorCode;
     private T data;
     private LocalDateTime timestamp;
     private String requestId;
@@ -65,6 +68,28 @@ public class CommonResponse<T> {
 
     public static <T> CommonResponse<T> error(String message, T data) {
         CommonResponse<T> response = new CommonResponse<>("error", message, data);
+        response.setTimestamp(LocalDateTime.now());
+        response.setRequestId(UUID.randomUUID().toString());
+        return response;
+    }
+
+    /**
+     * Create error response with error code
+     */
+    public static <T> CommonResponse<T> error(ErrorCode errorCode, String message) {
+        CommonResponse<T> response = new CommonResponse<>("error", message, null);
+        response.setErrorCode(errorCode.getCode());
+        response.setTimestamp(LocalDateTime.now());
+        response.setRequestId(UUID.randomUUID().toString());
+        return response;
+    }
+
+    /**
+     * Create error response with error code and data
+     */
+    public static <T> CommonResponse<T> error(ErrorCode errorCode, String message, T data) {
+        CommonResponse<T> response = new CommonResponse<>("error", message, data);
+        response.setErrorCode(errorCode.getCode());
         response.setTimestamp(LocalDateTime.now());
         response.setRequestId(UUID.randomUUID().toString());
         return response;

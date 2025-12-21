@@ -34,7 +34,7 @@ public class EmailVerificationService {
     private final SubscriptionService subscriptionService;
     private final ResourceLoader resourceLoader;
 
-    @Value("${email.verification.token-expiration:86400000}") // 24 hours default
+    @Value("${email.verification.token-expiration:86400000}") // 24 hours default -> TODO check consts
     private long tokenExpiration;
 
     @Value("${app.backend.base-url:http://localhost:8077}")

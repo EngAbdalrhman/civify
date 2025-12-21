@@ -43,6 +43,12 @@ public class SecurityConfig {
 
     @Value("${payment.fawaterak.base-url}")
     private String paymentGateway;
+    
+    @Value("${refresh.token.secure}")
+    private Boolean secureToken;
+
+    @Value("${email.verification.enabled:true}")
+    private Boolean emailVerificationEnabled;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -74,7 +80,7 @@ public class SecurityConfig {
 
 
         // Authentication filter responsible for login
-        JWTAuthenticationFilter jwtAuthFilter = new JWTAuthenticationFilter(authenticationManager, jwtUtil);
+        JWTAuthenticationFilter jwtAuthFilter = new JWTAuthenticationFilter(authenticationManager, jwtUtil, secureToken, emailVerificationEnabled);
 
         // Validation filter for checking JWT in every request
         JwtValidationFilter jwtValidationFilter = new JwtValidationFilter(authenticationManager);

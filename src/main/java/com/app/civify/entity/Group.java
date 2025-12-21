@@ -1,5 +1,6 @@
 package com.app.civify.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.List;
@@ -29,11 +30,11 @@ public class Group {
 
     // One group has many users
     @OneToMany(mappedBy = "group", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JsonIgnore
     private List<User> users;
 
     // One group has many permissions (Many-to-Many)
-    @ManyToMany(fetch = FetchType.LAZY)
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "group_permissions",
             joinColumns = @JoinColumn(name = "group_id"),

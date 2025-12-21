@@ -1,6 +1,9 @@
 package com.app.civify.security.filter;
 
 import com.app.civify.dto.auth.AuthRequest;
+import com.app.civify.exception.ErrorCode;
+import com.app.civify.security.UserPrincipal;
+import com.app.civify.util.CommonResponse;
 import com.app.civify.util.JwtConstants;
 import com.app.civify.util.JwtUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -9,6 +12,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationServiceException;
@@ -22,18 +27,16 @@ import java.io.IOException;
  * JWT Authentication Filter Handles login via /generate-token endpoint Supports
  * both username and email authentication
  */
+@RequiredArgsConstructor
 public class JWTAuthenticationFilter extends OncePerRequestFilter {
 
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
 
-    @Value("${refresh.token.secure}")
-    private Boolean secureToken;
+    private final Boolean secureToken;
+    private final Boolean emailVerificationEnabled;
 
-    public JWTAuthenticationFilter(AuthenticationManager authenticationManager, JwtUtil jwtUtil) {
-        this.authenticationManager = authenticationManager;
-        this.jwtUtil = jwtUtil;
-    }
+
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -69,6 +72,18 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
             Authentication authResult = authenticationManager.authenticate(authToken);
 
             if (authResult.isAuthenticated()) {
+                // Manually check email verification if enabled
+                if (emailVerificationEnabled) {
+                   UserPrincipal principal = (UserPrincipal) authResult.getPrincipal();
+                   if (!principal.getUser().getIsEmailVerified()) {
+                        // Return proper JSON error response with error code
+                        writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
+                            ErrorCode.AUTH_EMAIL_NOT_VERIFIED,
+                            "Please verify your email before logging in. Check your inbox for verification link.");
+                        return;
+                   }
+                }
+
                 String token = jwtUtil.generateToken(authResult.getName(), JwtConstants.ACCESS_TOKEN_EXPIRATION_MINUTES);
                 response.setHeader("Authorization", "Bearer " + token);
 
@@ -83,9 +98,23 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
                 response.addCookie(refreshCookie);
             }
         } catch (AuthenticationServiceException e) {
-            throw e;
+            writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
+                ErrorCode.AUTH_INVALID_CREDENTIALS, e.getMessage());
         } catch (Exception e) {
-            throw new AuthenticationServiceException("Authentication failed: " + e.getMessage(), e);
+            writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
+                ErrorCode.AUTH_INVALID_CREDENTIALS, "Authentication failed: " + e.getMessage());
         }
+    }
+
+    /**
+     * Write a structured JSON error response
+     */
+    private void writeErrorResponse(HttpServletResponse response, int status, ErrorCode errorCode, String message) throws IOException {
+        response.setStatus(status);
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        
+        CommonResponse<?> errorResponse = CommonResponse.error(errorCode, message);
+        new ObjectMapper().findAndRegisterModules().writeValue(response.getOutputStream(), errorResponse);
     }
 }

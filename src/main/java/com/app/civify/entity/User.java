@@ -90,7 +90,7 @@ public class User extends BaseEntity implements Serializable {
     @Column(unique = true, nullable = false, length = 100)
     private String username;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "group_id")
     private Group group;
 
@@ -113,7 +113,9 @@ public class User extends BaseEntity implements Serializable {
     }
 
     public boolean isEnabled() {
-        return !isDeleted && isEmailVerified;
+        // Only check if account is deleted
+        // Email verification is checked separately in AuthService.login()
+        return !isDeleted;
     }
 
     public java.util.Collection<? extends GrantedAuthority> getAuthorities() {

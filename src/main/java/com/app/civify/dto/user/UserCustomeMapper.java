@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
  * Mapper for converting between User entity and UserResponseDTO
  */
 @Component
-public class UserMapper {
+public class UserCustomeMapper {
     
     /**
      * Convert User entity to UserResponseDTO
