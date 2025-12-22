@@ -77,7 +77,7 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
                 // Set Refresh Token in HttpOnly Cookie
                 Cookie refreshCookie = new Cookie(JwtConstants.REFRESH_TOKEN_COOKIE_NAME, refreshToken);
                 refreshCookie.setHttpOnly(true); // prevent javascript from accessing it
-                refreshCookie.setSecure(secureToken); // Set to false for development (HTTP), true for production (HTTPS)
+                refreshCookie.setSecure(true); // Set to false for development (HTTP), true for production (HTTPS)
                 refreshCookie.setPath(JwtConstants.REFRESH_TOKEN_COOKIE_PATH);
                 refreshCookie.setMaxAge(JwtConstants.REFRESH_TOKEN_COOKIE_MAX_AGE);
                 response.addCookie(refreshCookie);

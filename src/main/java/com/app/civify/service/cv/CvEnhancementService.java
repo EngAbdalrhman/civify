@@ -1,34 +1,403 @@
 package com.app.civify.service.cv;
 
+import com.app.civify.dto.cv.CvTailorRequest;
+import com.app.civify.dto.cv.CvTailorResponse;
+import com.app.civify.dto.cv.CvTailorResponse.*;
 import com.app.civify.dto.resume.ResumeData;
+import com.app.civify.service.ai.AiService;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
+/**
+ * Service for CV enhancement operations including tailoring, ATS scoring,
+ * interview prep, roadmap generation, and cover letter creation.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class CvEnhancementService {
 
-    // Placeholder for AI Service injection
-    // private final AiService aiService;
+    private final AiService aiService;
+    private final ObjectMapper objectMapper;
 
-    public Map<String, Object> enhanceCv(ResumeData resumeData, String jobDescription, boolean generateCoverLetter) {
-        log.info("Enhancing CV for job description length: {}", jobDescription != null ? jobDescription.length() : 0);
+    @Value("${ai.default.provider:gemini}")
+    private String defaultProvider;
+
+    @Value("${ai.default.model:gemini-pro}")
+    private String defaultModel;
+
+    private final ExecutorService executor = Executors.newFixedThreadPool(4);
+
+    // ==================== YAML Prompts for Token Optimization ====================
+
+    private static final String TAILOR_CV_PROMPT = """
+        Tailor this CV to match the job description. Optimize keywords, highlight relevant experience.
         
-        // TODO: Implement actual AI calls here
-        // 1. Analyze CV vs Job Description
-        // 2. Generate Roadmap
-        // 3. Generate Interview Questions
-        // 4. Generate Cover Letter (if requested)
+        Job Description:
+        %s
+        
+        Current CV (YAML):
+        %s
+        
+        Output YAML only (same structure as input):
+        personalInfo:
+          fullName: [keep original]
+          email: [keep original]
+          # ... keep personal info unchanged
+        sections:
+          - id: [keep]
+            title: [optimize if needed]
+            type: [keep]
+            items:
+              - title: [optimize for keywords]
+                description: [rewrite to match JD keywords]
+        """;
 
-        return Map.of(
-            "enhancedData", resumeData, // Placeholder: return original data for now
-            "roadmap", "Step 1: Learn X. Step 2: Build Y.",
-            "interviewQuestions", "Q1: Tell me about yourself.",
-            "coverLetter", generateCoverLetter ? "Dear Hiring Manager..." : null
-        );
+    private static final String ATS_SCORE_PROMPT = """
+        Analyze this CV against the job description. Score ATS compatibility.
+        
+        Job Description:
+        %s
+        
+        CV Summary:
+        %s
+        
+        Output YAML only:
+        overall: 0-100
+        keywordMatch: 0-100
+        skillsMatch: 0-100
+        missingKeywords:
+          - keyword1
+          - keyword2
+        suggestions:
+          - suggestion1
+          - suggestion2
+        """;
+
+    private static final String INTERVIEW_QUESTIONS_PROMPT = """
+        Generate interview questions for this job role based on the CV.
+        
+        Job: %s
+        Company: %s
+        CV Skills: %s
+        
+        Output YAML only (max 5 questions):
+        questions:
+          - question: text
+            hint: brief answer guidance
+            category: behavioral|technical|situational
+        """;
+
+    private static final String ROADMAP_PROMPT = """
+        Create a career roadmap to bridge gaps between CV and job requirements.
+        
+        Job Description:
+        %s
+        
+        Current Skills: %s
+        
+        Output YAML only:
+        skillGaps:
+          - skill1
+          - skill2
+        steps:
+          - step: action description
+            timeframe: 1-2 weeks|1 month|2-3 months
+        """;
+
+    private static final String COVER_LETTER_PROMPT = """
+        Write a professional cover letter for this job application.
+        
+        Job: %s at %s
+        
+        Candidate:
+        Name: %s
+        Summary: %s
+        Key Skills: %s
+        
+        Output plain text cover letter only, professional tone, 3-4 paragraphs.
+        """;
+
+    // ==================== Main Tailor Method ====================
+
+    public CvTailorResponse tailorCv(CvTailorRequest request) {
+        long startTime = System.currentTimeMillis();
+        log.info("Starting CV tailoring for job: {}", 
+            request.getJobTitle() != null ? request.getJobTitle() : "unspecified");
+
+        try {
+            // Parallel execution for performance
+            CompletableFuture<ResumeData> tailoredCvFuture = CompletableFuture.supplyAsync(
+                () -> tailorCvContent(request.getResumeData(), request.getJobDescription()), executor);
+            
+            CompletableFuture<AtsScore> atsScoreFuture = CompletableFuture.supplyAsync(
+                () -> calculateAtsScore(request.getResumeData(), request.getJobDescription()), executor);
+
+            CompletableFuture<InterviewPrep> interviewFuture = request.isIncludeInterviewQuestions()
+                ? CompletableFuture.supplyAsync(
+                    () -> generateInterviewQuestions(request), executor)
+                : CompletableFuture.completedFuture(null);
+
+            CompletableFuture<Roadmap> roadmapFuture = request.isIncludeRoadmap()
+                ? CompletableFuture.supplyAsync(
+                    () -> generateRoadmap(request), executor)
+                : CompletableFuture.completedFuture(null);
+
+            CompletableFuture<String> coverLetterFuture = request.isGenerateCoverLetter()
+                ? CompletableFuture.supplyAsync(
+                    () -> generateCoverLetter(request), executor)
+                : CompletableFuture.completedFuture(null);
+
+            // Wait for all futures
+            CompletableFuture.allOf(tailoredCvFuture, atsScoreFuture, 
+                interviewFuture, roadmapFuture, coverLetterFuture).join();
+
+            return CvTailorResponse.builder()
+                    .tailoredCv(tailoredCvFuture.get())
+                    .atsScore(atsScoreFuture.get())
+                    .interviewPrep(interviewFuture.get())
+                    .roadmap(roadmapFuture.get())
+                    .coverLetter(coverLetterFuture.get())
+                    .processingTimeMs(System.currentTimeMillis() - startTime)
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error tailoring CV: {}", e.getMessage(), e);
+            // Return partial response with ATS score if available
+            return CvTailorResponse.builder()
+                    .tailoredCv(request.getResumeData()) // Return original if tailoring failed
+                    .atsScore(AtsScore.builder()
+                            .overall(0)
+                            .suggestions(List.of("Error processing: " + e.getMessage()))
+                            .build())
+                    .processingTimeMs(System.currentTimeMillis() - startTime)
+                    .build();
+        }
+    }
+
+    // ==================== Individual AI Methods ====================
+
+    private ResumeData tailorCvContent(ResumeData resumeData, String jobDescription) {
+        try {
+            String cvYaml = convertToYaml(resumeData);
+            String prompt = String.format(TAILOR_CV_PROMPT, jobDescription, cvYaml);
+            
+            String response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            String cleanedResponse = cleanAiResponse(response);
+            
+            return parseYamlToResumeData(cleanedResponse);
+        } catch (Exception e) {
+            log.error("Error tailoring CV content: {}", e.getMessage());
+            return resumeData; // Return original on failure
+        }
+    }
+
+    private AtsScore calculateAtsScore(ResumeData resumeData, String jobDescription) {
+        try {
+            String cvSummary = buildCvSummary(resumeData);
+            String prompt = String.format(ATS_SCORE_PROMPT, jobDescription, cvSummary);
+            
+            String response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            String cleanedResponse = cleanAiResponse(response);
+            
+            return parseYamlToAtsScore(cleanedResponse);
+        } catch (Exception e) {
+            log.error("Error calculating ATS score: {}", e.getMessage());
+            return AtsScore.builder()
+                    .overall(50)
+                    .keywordMatch(50)
+                    .skillsMatch(50)
+                    .missingKeywords(new ArrayList<>())
+                    .suggestions(List.of("Could not fully analyze. Please review manually."))
+                    .build();
+        }
+    }
+
+    private InterviewPrep generateInterviewQuestions(CvTailorRequest request) {
+        try {
+            String skills = extractSkills(request.getResumeData());
+            String prompt = String.format(INTERVIEW_QUESTIONS_PROMPT, 
+                request.getJobTitle() != null ? request.getJobTitle() : "the position",
+                request.getCompanyName() != null ? request.getCompanyName() : "the company",
+                skills);
+            
+            String response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            String cleanedResponse = cleanAiResponse(response);
+            
+            return parseYamlToInterviewPrep(cleanedResponse);
+        } catch (Exception e) {
+            log.error("Error generating interview questions: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private Roadmap generateRoadmap(CvTailorRequest request) {
+        try {
+            String skills = extractSkills(request.getResumeData());
+            String prompt = String.format(ROADMAP_PROMPT, request.getJobDescription(), skills);
+            
+            String response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            String cleanedResponse = cleanAiResponse(response);
+            
+            return parseYamlToRoadmap(cleanedResponse);
+        } catch (Exception e) {
+            log.error("Error generating roadmap: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private String generateCoverLetter(CvTailorRequest request) {
+        try {
+            ResumeData.PersonalInfo info = request.getResumeData().getPersonalInfo();
+            String skills = extractSkills(request.getResumeData());
+            
+            String prompt = String.format(COVER_LETTER_PROMPT,
+                request.getJobTitle() != null ? request.getJobTitle() : "the position",
+                request.getCompanyName() != null ? request.getCompanyName() : "your company",
+                info.getFullName() != null ? info.getFullName() : "Candidate",
+                info.getSummary() != null ? info.getSummary() : "",
+                skills);
+            
+            String response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            return cleanAiResponse(response);
+        } catch (Exception e) {
+            log.error("Error generating cover letter: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    // ==================== Helper Methods ====================
+
+    private String convertToYaml(Object obj) {
+        try {
+            YAMLMapper yamlMapper = new YAMLMapper();
+            return yamlMapper.writeValueAsString(obj);
+        } catch (Exception e) {
+            log.error("Error converting to YAML: {}", e.getMessage());
+            return "";
+        }
+    }
+
+    private String cleanAiResponse(String response) {
+        if (response == null) return "";
+        
+        String cleaned = response.trim();
+        
+        // Extract from Gemini response structure if present
+        cleaned = extractContentFromGeminiResponse(cleaned);
+        
+        // Remove markdown code blocks
+        if (cleaned.startsWith("```yaml")) {
+            cleaned = cleaned.substring(7);
+        } else if (cleaned.startsWith("```json")) {
+            cleaned = cleaned.substring(7);
+        } else if (cleaned.startsWith("```")) {
+            cleaned = cleaned.substring(3);
+        }
+        
+        if (cleaned.endsWith("```")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 3);
+        }
+        
+        return cleaned.trim();
+    }
+
+    private String extractContentFromGeminiResponse(String response) {
+        try {
+            var root = objectMapper.readTree(response);
+            var candidates = root.path("candidates");
+            if (candidates.isArray() && !candidates.isEmpty()) {
+                var parts = candidates.get(0).path("content").path("parts");
+                if (parts.isArray() && !parts.isEmpty()) {
+                    return parts.get(0).path("text").asText();
+                }
+            }
+            return response;
+        } catch (Exception e) {
+            return response;
+        }
+    }
+
+    private ResumeData parseYamlToResumeData(String yaml) {
+        try {
+            YAMLMapper yamlMapper = new YAMLMapper();
+            yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            return yamlMapper.readValue(yaml, ResumeData.class);
+        } catch (Exception e) {
+            log.error("Error parsing YAML to ResumeData: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private AtsScore parseYamlToAtsScore(String yaml) {
+        try {
+            YAMLMapper yamlMapper = new YAMLMapper();
+            yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            return yamlMapper.readValue(yaml, AtsScore.class);
+        } catch (Exception e) {
+            log.error("Error parsing YAML to AtsScore: {}", e.getMessage());
+            return AtsScore.builder().overall(50).build();
+        }
+    }
+
+    private InterviewPrep parseYamlToInterviewPrep(String yaml) {
+        try {
+            YAMLMapper yamlMapper = new YAMLMapper();
+            yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            return yamlMapper.readValue(yaml, InterviewPrep.class);
+        } catch (Exception e) {
+            log.error("Error parsing YAML to InterviewPrep: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private Roadmap parseYamlToRoadmap(String yaml) {
+        try {
+            YAMLMapper yamlMapper = new YAMLMapper();
+            yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            return yamlMapper.readValue(yaml, Roadmap.class);
+        } catch (Exception e) {
+            log.error("Error parsing YAML to Roadmap: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private String buildCvSummary(ResumeData resumeData) {
+        StringBuilder sb = new StringBuilder();
+        if (resumeData.getPersonalInfo() != null) {
+            if (resumeData.getPersonalInfo().getJobTitle() != null) {
+                sb.append("Title: ").append(resumeData.getPersonalInfo().getJobTitle()).append("\n");
+            }
+            if (resumeData.getPersonalInfo().getSummary() != null) {
+                sb.append("Summary: ").append(resumeData.getPersonalInfo().getSummary()).append("\n");
+            }
+        }
+        sb.append("Skills: ").append(extractSkills(resumeData));
+        return sb.toString();
+    }
+
+    private String extractSkills(ResumeData resumeData) {
+        if (resumeData.getSections() == null) return "";
+        
+        return resumeData.getSections().stream()
+                .filter(s -> "skills".equalsIgnoreCase(s.getType()))
+                .flatMap(s -> s.getItems().stream())
+                .flatMap(item -> item.getTags() != null ? item.getTags().stream() : 
+                    (item.getTitle() != null ? List.of(item.getTitle()).stream() : List.<String>of().stream()))
+                .distinct()
+                .limit(15)
+                .reduce((a, b) -> a + ", " + b)
+                .orElse("");
     }
 }
