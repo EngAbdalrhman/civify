@@ -42,7 +42,15 @@ public class CvEnhancementService {
     // ==================== YAML Prompts for Token Optimization ====================
 
     private static final String TAILOR_CV_PROMPT = """
-        Tailor this CV to match the job description. Optimize keywords, highlight relevant experience.
+        You are an expert CV writer. Your task is to OPTIMIZE the provided CV for the given Job Description.
+        
+        CRITICAL RULES:
+        1. DO NOT INVENT FACTS. Do not add jobs, companies, or degrees that are not in the input CV.
+        2. KEEP ORIGINAL DATES & LOCATIONS. Do not change the timeline.
+        3. YOU MAY rephrase bullet points to highlight skills relevant to the JD, but they must remain truthful to the original experience.
+        4. YOU MAY reorder skills or emphasize different parts of the existing description.
+        5. IF the candidate lacks a specific skill mentioned in the JD, DO NOT add it.
+        6. MAINTAIN the exact YAML structure of the input.
         
         Job Description:
         %s
@@ -50,18 +58,30 @@ public class CvEnhancementService {
         Current CV (YAML):
         %s
         
-        Output YAML only (same structure as input):
+        Output YAML only (strict valid YAML):
         personalInfo:
           fullName: [keep original]
           email: [keep original]
-          # ... keep personal info unchanged
+          phone: [keep original]
+          city: [keep original]
+          country: [keep original]
+          linkedin: [keep original]
+          github: [keep original]
+          website: [keep original]
+          summary: [optimize summary for JD keywords, but stick to facts]
+          jobTitle: [keep original or use a generic title that matches the actual experience]
         sections:
-          - id: [keep]
-            title: [optimize if needed]
-            type: [keep]
+          - id: [keep original]
+            title: [keep original]
+            type: [keep original]
             items:
-              - title: [optimize for keywords]
-                description: [rewrite to match JD keywords]
+              - id: [keep original]
+                title: [keep original role/degree]
+                subtitle: [keep original company/university]
+                date: [keep original]
+                location: [keep original]
+                description: [rewrite to emphasize impact and JD keywords, using ONLY real experience]
+                tags: [select most relevant real skills from original + derived skills]
         """;
 
     private static final String ATS_SCORE_PROMPT = """
@@ -250,13 +270,23 @@ public class CvEnhancementService {
                 request.getCompanyName() != null ? request.getCompanyName() : "the company",
                 skills);
             
+            log.debug("Interview questions prompt length: {}", prompt.length());
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
-            String cleanedResponse = cleanAiResponse(response);
+            log.debug("Interview questions AI response (first 300 chars): {}", 
+                response != null ? response.substring(0, Math.min(300, response.length())) : "null");
             
-            return parseYamlToInterviewPrep(cleanedResponse);
+            String cleanedResponse = cleanAiResponse(response);
+            InterviewPrep result = parseYamlToInterviewPrep(cleanedResponse);
+            
+            if (result == null || result.getQuestions() == null || result.getQuestions().isEmpty()) {
+                log.warn("Interview questions parsing returned empty result. Raw response: {}", 
+                    cleanedResponse.substring(0, Math.min(500, cleanedResponse.length())));
+                return InterviewPrep.builder().questions(new ArrayList<>()).build();
+            }
+            return result;
         } catch (Exception e) {
-            log.error("Error generating interview questions: {}", e.getMessage());
-            return null;
+            log.error("Error generating interview questions: {}", e.getMessage(), e);
+            return InterviewPrep.builder().questions(new ArrayList<>()).build();
         }
     }
 
@@ -265,13 +295,23 @@ public class CvEnhancementService {
             String skills = extractSkills(request.getResumeData());
             String prompt = String.format(ROADMAP_PROMPT, request.getJobDescription(), skills);
             
+            log.debug("Roadmap prompt length: {}", prompt.length());
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
-            String cleanedResponse = cleanAiResponse(response);
+            log.debug("Roadmap AI response (first 300 chars): {}", 
+                response != null ? response.substring(0, Math.min(300, response.length())) : "null");
             
-            return parseYamlToRoadmap(cleanedResponse);
+            String cleanedResponse = cleanAiResponse(response);
+            Roadmap result = parseYamlToRoadmap(cleanedResponse);
+            
+            if (result == null || result.getSteps() == null || result.getSteps().isEmpty()) {
+                log.warn("Roadmap parsing returned empty result. Raw response: {}", 
+                    cleanedResponse.substring(0, Math.min(500, cleanedResponse.length())));
+                return Roadmap.builder().skillGaps(new ArrayList<>()).steps(new ArrayList<>()).build();
+            }
+            return result;
         } catch (Exception e) {
-            log.error("Error generating roadmap: {}", e.getMessage());
-            return null;
+            log.error("Error generating roadmap: {}", e.getMessage(), e);
+            return Roadmap.builder().skillGaps(new ArrayList<>()).steps(new ArrayList<>()).build();
         }
     }
 
@@ -291,11 +331,20 @@ public class CvEnhancementService {
                 skills,
                 experience);
             
+            log.debug("Cover letter prompt length: {}", prompt.length());
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
-            return cleanAiResponse(response);
+            log.debug("Cover letter AI response (first 300 chars): {}", 
+                response != null ? response.substring(0, Math.min(300, response.length())) : "null");
+            
+            String result = cleanAiResponse(response);
+            if (result == null || result.isBlank()) {
+                log.warn("Cover letter generation returned empty result");
+                return "";
+            }
+            return result;
         } catch (Exception e) {
-            log.error("Error generating cover letter: {}", e.getMessage());
-            return null;
+            log.error("Error generating cover letter: {}", e.getMessage(), e);
+            return "";
         }
     }
 
