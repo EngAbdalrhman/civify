@@ -1,6 +1,6 @@
 package com.app.civify.service.user;
 
-import com.app.civify.dto.user.UserMapper;
+import com.app.civify.dto.user.UserCustomeMapper;
 import com.app.civify.dto.user.UserResponseDTO;
 import com.app.civify.entity.User;
 import com.app.civify.exception.ResourceNotFoundException;
@@ -37,7 +37,7 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
     private final UserSubscriptionRepository subscriptionRepository;
     private final CvRepository cvRepository;
     private final ApiKeyUsageLogRepository apiKeyUsageLogRepository;
-    private final UserMapper userMapper;
+    private final UserCustomeMapper userCustomeMapper;
     
     @Override
     public PagedResponse<UserResponseDTO> filterUsers(InputDataModel inputData) {
@@ -48,7 +48,7 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
         
         // Convert entities to DTOs
         List<UserResponseDTO> userDTOs = userPage.getContent().stream()
-                .map(userMapper::toResponseDTO)
+                .map(userCustomeMapper::toResponseDTO)
                 .collect(Collectors.toList());
 
         // Populate additional stats for each user
@@ -100,7 +100,7 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
         
         // Convert entities to DTOs
         List<UserResponseDTO> userDTOs = userPage.getContent().stream()
-                .map(userMapper::toResponseDTO)
+                .map(userCustomeMapper::toResponseDTO)
                 .collect(Collectors.toList());
         
         // Create and populate paged response
@@ -127,7 +127,7 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + userId));
         
-        return userMapper.toResponseDTO(user);
+        return userCustomeMapper.toResponseDTO(user);
     }
     
     @Override
@@ -145,7 +145,7 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
         
         Long totalSubscriptionCount = subscriptionRepository.countByUserId(userId);
         
-        return userMapper.toResponseDTOWithStats(user, activeSubscriptionCount, totalSubscriptionCount);
+        return userCustomeMapper.toResponseDTOWithStats(user, activeSubscriptionCount, totalSubscriptionCount);
     }
     @Override
     @Transactional

@@ -119,14 +119,32 @@ public class CvEnhancementService {
     private static final String COVER_LETTER_PROMPT = """
         Write a professional cover letter for this job application.
         
-        Job: %s at %s
+        Position: %s
+        Company: %s
         
-        Candidate:
+        Candidate Information:
         Name: %s
-        Summary: %s
+        Email: %s
+        Phone: %s
+        Professional Summary: %s
         Key Skills: %s
         
-        Output plain text cover letter only, professional tone, 3-4 paragraphs.
+        Work Experience:
+        %s
+        
+        INSTRUCTIONS:
+        1. Start with "Dear [Company] Hiring Team," or "Dear Hiring Manager,"
+        2. First paragraph: Express enthusiasm for the role and company
+        3. Second paragraph: Highlight relevant experience that aligns with the job requirements
+        4. Third paragraph: Describe specific achievements and how they relate to the position
+        5. Closing paragraph: Express interest in an interview, thank them
+        6. End with:
+           Sincerely,
+           [Name]
+           [Email]
+           [Phone]
+        
+        Write the complete cover letter as plain text, professional tone, no markdown.
         """;
 
     // ==================== Main Tailor Method ====================
@@ -261,13 +279,17 @@ public class CvEnhancementService {
         try {
             ResumeData.PersonalInfo info = request.getResumeData().getPersonalInfo();
             String skills = extractSkills(request.getResumeData());
+            String experience = buildExperienceSummary(request.getResumeData());
             
             String prompt = String.format(COVER_LETTER_PROMPT,
                 request.getJobTitle() != null ? request.getJobTitle() : "the position",
                 request.getCompanyName() != null ? request.getCompanyName() : "your company",
                 info.getFullName() != null ? info.getFullName() : "Candidate",
+                info.getEmail() != null ? info.getEmail() : "",
+                info.getPhone() != null ? info.getPhone() : "",
                 info.getSummary() != null ? info.getSummary() : "",
-                skills);
+                skills,
+                experience);
             
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
             return cleanAiResponse(response);
@@ -275,6 +297,22 @@ public class CvEnhancementService {
             log.error("Error generating cover letter: {}", e.getMessage());
             return null;
         }
+    }
+
+    private String buildExperienceSummary(ResumeData resumeData) {
+        if (resumeData.getSections() == null) return "";
+        
+        StringBuilder sb = new StringBuilder();
+        resumeData.getSections().stream()
+                .filter(s -> "experience".equalsIgnoreCase(s.getType()))
+                .flatMap(s -> s.getItems().stream())
+                .limit(3) // Top 3 experiences
+                .forEach(item -> {
+                    sb.append("- ").append(item.getSubtitle() != null ? item.getSubtitle() : "")
+                      .append(" at ").append(item.getTitle() != null ? item.getTitle() : "")
+                      .append(" (").append(item.getDate() != null ? item.getDate() : "").append(")\n");
+                });
+        return sb.toString();
     }
 
     // ==================== Helper Methods ====================

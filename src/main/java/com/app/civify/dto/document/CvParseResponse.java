@@ -7,7 +7,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -32,23 +31,6 @@ public class CvParseResponse {
      * The ID of the saved resume (if saved to database).
      */
     private String resumeId;
-    
-    /**
-     * List of field paths containing PII for frontend masking.
-     * e.g., ["personalInfo.fullName", "personalInfo.email", "personalInfo.phone"]
-     */
-    @Builder.Default
-    private List<String> piiFields = Arrays.asList(
-            "personalInfo.fullName",
-            "personalInfo.email",
-            "personalInfo.phone",
-            "personalInfo.address",
-            "personalInfo.city",
-            "personalInfo.country",
-            "personalInfo.linkedin",
-            "personalInfo.github",
-            "personalInfo.website"
-    );
     
     /**
      * Detected primary language of the document.
