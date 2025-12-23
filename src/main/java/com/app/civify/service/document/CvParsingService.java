@@ -169,7 +169,6 @@ public class CvParsingService {
                     .success(true)
                     .resumeData(resumeData)
                     .resumeId(resumeId)
-                    .rawText(processedDoc.getRawText())
                     .confidence(processedDoc.getConfidence())
                     .processingMethod(processedDoc.getProcessingMethod())
                     .detectedLanguage(processedDoc.getPrimaryLanguage())

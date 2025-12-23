@@ -1,5 +1,6 @@
 package com.app.civify.dto.resume;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,6 +13,7 @@ import java.util.Map;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class ResumeData implements Serializable {
     private PersonalInfo personalInfo = new PersonalInfo();
     private List<ResumeSection> sections = new ArrayList<>();
@@ -37,6 +39,7 @@ public class ResumeData implements Serializable {
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class ResumeSection implements Serializable {
         private String id;
         private String title;
@@ -50,6 +53,7 @@ public class ResumeData implements Serializable {
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class SectionItem implements Serializable {
         private String id;
         private String title; // e.g., Company Name or School Name

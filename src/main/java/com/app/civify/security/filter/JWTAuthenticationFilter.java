@@ -109,7 +109,7 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
         response.setStatus(status);
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
-        
+
         CommonResponse<?> errorResponse = CommonResponse.error(errorCode, message);
         ObjectMapper mapper = new ObjectMapper();
         mapper.findAndRegisterModules(); // Register JavaTimeModule for proper date serialization

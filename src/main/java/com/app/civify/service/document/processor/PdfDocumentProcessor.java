@@ -3,6 +3,7 @@ package com.app.civify.service.document.processor;
 import com.app.civify.dto.document.DocumentType;
 import com.app.civify.dto.document.OcrResult;
 import com.app.civify.dto.document.ProcessedDocument;
+import com.app.civify.exception.BadRequestException;
 import com.app.civify.service.document.DocumentProcessor;
 import com.app.civify.service.document.ocr.SmartOcrService;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +51,9 @@ public class PdfDocumentProcessor implements DocumentProcessor {
         try (PDDocument document = Loader.loadPDF(file.getBytes())) {
             int pageCount = document.getNumberOfPages();
             log.info("Processing PDF: {}, pages: {}", file.getOriginalFilename(), pageCount);
+            if (pageCount > 5){
+                throw new BadRequestException("Can't proceed a cv larger than 5 pages");
+            }
 
             // First, try direct text extraction
             PDFTextStripper stripper = new PDFTextStripper();

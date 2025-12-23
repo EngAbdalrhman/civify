@@ -1,6 +1,7 @@
 package com.app.civify.dto.document;
 
 import com.app.civify.dto.resume.ResumeData;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -16,6 +17,7 @@ import java.util.List;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class CvParseResponse {
     
     private boolean success;
@@ -31,11 +33,6 @@ public class CvParseResponse {
      * The ID of the saved resume (if saved to database).
      */
     private String resumeId;
-    
-    /**
-     * Raw extracted text from the document.
-     */
-    private String rawText;
     
     /**
      * Detected primary language of the document.
