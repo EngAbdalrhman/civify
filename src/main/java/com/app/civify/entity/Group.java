@@ -28,6 +28,10 @@ public class Group {
     @Column(name = "is_default", nullable = false)
     private Boolean isDefault = false;
 
+    @Builder.Default
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
     // One group has many users
     @OneToMany(mappedBy = "group", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnore

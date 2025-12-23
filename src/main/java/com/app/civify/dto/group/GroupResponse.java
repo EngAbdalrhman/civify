@@ -20,6 +20,7 @@ public class GroupResponse {
     private String name;
     private Boolean isSystemGroup;
     private Boolean isDefault;
+    private Boolean isActive;
     private List<PermissionDto> permissions;
     
     @Data

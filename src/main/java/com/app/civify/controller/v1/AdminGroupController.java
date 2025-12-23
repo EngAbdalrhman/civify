@@ -233,6 +233,35 @@ public class AdminGroupController {
         return ResponseEntity.ok(CommonResponse.success("Group deleted successfully", null));
     }
 
+    @Operation(
+            summary = "Toggle group active status",
+            description = "Activates or deactivates a group",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @CivifyAuthorization(permission = "GROUP.MODIFY")
+    @PatchMapping("/{groupId}/toggle-active")
+    public ResponseEntity<CommonResponse<GroupResponse>> toggleGroupActive(@PathVariable Long groupId) {
+        log.info("Admin toggling active status for group: {}", groupId);
+
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group not found: " + groupId));
+
+        // Prevent modifying system groups
+        if (Boolean.TRUE.equals(group.getIsSystemGroup())) {
+            throw new BadRequestException("Cannot modify system group: " + group.getName());
+        }
+
+        // Toggle active status
+        group.setIsActive(!Boolean.TRUE.equals(group.getIsActive()));
+        Group saved = groupRepository.save(group);
+        
+        log.info("Toggled active status for group: {} to {}", saved.getName(), saved.getIsActive());
+
+        return ResponseEntity.ok(CommonResponse.success(
+                saved.getIsActive() ? "Group activated" : "Group deactivated", 
+                toResponse(saved)));
+    }
+
     private GroupResponse toResponse(Group group) {
         List<GroupResponse.PermissionDto> permissionDtos = null;
         if (group.getPermissions() != null) {
@@ -251,7 +280,9 @@ public class AdminGroupController {
                 .name(group.getName())
                 .isSystemGroup(group.getIsSystemGroup())
                 .isDefault(group.getIsDefault())
+                .isActive(group.getIsActive())
                 .permissions(permissionDtos)
                 .build();
     }
 }
+

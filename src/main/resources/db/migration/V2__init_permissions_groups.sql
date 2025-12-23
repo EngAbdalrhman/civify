@@ -34,6 +34,11 @@ INSERT INTO permissions (name, description, category)
 SELECT 'API.ACCESS', 'Access Developer API', 'API'
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'API.ACCESS');
 
+-- Admin
+INSERT INTO permissions (name, description, category)
+SELECT 'ADMIN.DASHBOARD.VIEW', 'View Admin Dashboard', 'ADMIN'
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'ADMIN.DASHBOARD.VIEW');
+
 -- Admin User Permissions
 INSERT INTO permissions (name, description, category)
 SELECT 'USER.VIEW', 'View Users List and Details', 'ADMIN'
@@ -118,6 +123,16 @@ WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'API.KEY.CREATE');
 INSERT INTO permissions (name, description, category)
 SELECT 'API.KEY.REVOKE', 'Revoke API Keys', 'API'
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'API.KEY.REVOKE');
+
+-- Stats Admin Permission
+INSERT INTO permissions (name, description, category)
+SELECT 'STATS.VIEW', 'View Platform Statistics Dashboard', 'ADMIN'
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'STATS.VIEW');
+
+-- API Usage Admin Permission
+INSERT INTO permissions (name, description, category)
+SELECT 'API_USAGE.VIEW', 'View API Usage Statistics', 'ADMIN'
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'API_USAGE.VIEW');
 
 -- =====================================================
 -- 2. Initialize Groups

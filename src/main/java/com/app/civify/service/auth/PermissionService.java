@@ -4,6 +4,7 @@ import com.app.civify.entity.Group;
 import com.app.civify.entity.Permission;
 import com.app.civify.entity.User;
 import com.app.civify.repository.GroupRepository;
+import com.app.civify.repository.UserRepository;
 import com.app.civify.service.subscription.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,7 @@ public class PermissionService {
 
     private final SubscriptionService subscriptionService;
     private final GroupRepository groupRepository;
+    private final UserRepository userRepository;
 
     private static final String FREE_PLAN_GROUP_NAME = "Free User"; // Make sure this matches Init
 
@@ -43,8 +45,9 @@ public class PermissionService {
             return Collections.emptySet();
         }
 
-        User user = getUserById(userId); // Need to fetch user separately
+        User user = getUserById(userId);
         if (user == null || user.getGroup() == null) {
+            log.warn("User {} not found or has no group assigned", userId);
             return Collections.emptySet();
         }
 
@@ -52,7 +55,7 @@ public class PermissionService {
 
         // 1. System Groups (Admins) always have their permissions
         if (Boolean.TRUE.equals(group.getIsSystemGroup())) {
-            log.debug("User {} is system group, returning full permissions", user.getEmail());
+            log.debug("User {} is system group '{}', returning full permissions", user.getEmail(), group.getName());
             return extractPermissionNames(group.getPermissions());
         }
 
@@ -90,14 +93,10 @@ public class PermissionService {
     }
 
     /**
-     * Helper method to fetch user by ID
+     * Helper method to fetch user by ID directly from repository
      */
     private User getUserById(Long userId) {
-        // This should ideally use a UserRepository
-        // For now, assuming SubscriptionService can help
-        return subscriptionService.getActiveSubscription(userId)
-                .map(sub -> sub.getUser())
-                .orElse(null);
+        return userRepository.findById(userId).orElse(null);
     }
 
     private Set<String> extractPermissionNames(List<Permission> permissions) {
