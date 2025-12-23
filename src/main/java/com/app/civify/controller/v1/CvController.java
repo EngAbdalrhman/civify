@@ -5,8 +5,11 @@ import com.app.civify.dto.cv.CvTailorRequest;
 import com.app.civify.dto.cv.CvTailorResponse;
 import com.app.civify.dto.document.CvParseRequest;
 import com.app.civify.dto.document.CvParseResponse;
+import com.app.civify.entity.User;
+import com.app.civify.repository.UserRepository;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.cv.CvEnhancementService;
+import com.app.civify.service.cvlog.CvOperationLogService;
 import com.app.civify.service.document.CvParsingService;
 import com.app.civify.util.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +19,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +40,8 @@ public class CvController {
 
     private final CvParsingService cvParsingService;
     private final CvEnhancementService cvEnhancementService;
+    private final CvOperationLogService cvOperationLogService;
+    private final UserRepository userRepository;
 
     @Operation(
             summary = "Upload and parse CV",
@@ -54,8 +60,10 @@ public class CvController {
     public ResponseEntity<CommonResponse<CvParseResponse>> upload(
             @RequestPart("file") MultipartFile file,
             @RequestParam(value = "language", required = false) String language,
-            @RequestParam(value = "save", defaultValue = "true") boolean save) {
+            @RequestParam(value = "save", defaultValue = "true") boolean save,
+            HttpServletRequest httpRequest) {
         
+        long startTime = System.currentTimeMillis();
         log.info("Uploading CV: {}, size: {} bytes", file.getOriginalFilename(), file.getSize());
         
         var request = CvParseRequest.builder()
@@ -64,7 +72,24 @@ public class CvController {
                 .build();
                 
         Long userId = getCurrentUserId();
+        User user = userId != null ? userRepository.findById(userId).orElse(null) : null;
         CvParseResponse response = cvParsingService.parseCv(file, request, userId);
+        
+        long processingTime = System.currentTimeMillis() - startTime;
+        
+        // Log the operation
+        cvOperationLogService.logUpload(
+                user,
+                response.getResumeData(),
+                "/api/v1/cvs/upload",
+                processingTime,
+                response.isSuccess(),
+                response.isSuccess() ? null : response.getMessage(),
+                getClientIp(httpRequest),
+                httpRequest.getHeader("User-Agent"),
+                file.getOriginalFilename(),
+                language
+        );
         
         if (response.isSuccess()) {
             return ResponseEntity.ok(CommonResponse.success("CV parsed successfully", response));
@@ -89,12 +114,33 @@ public class CvController {
     })
     @PostMapping("/tailor")
     public ResponseEntity<CommonResponse<CvTailorResponse>> tailor(
-            @Valid @RequestBody CvTailorRequest request) {
+            @Valid @RequestBody CvTailorRequest request,
+            HttpServletRequest httpRequest) {
         
+        long startTime = System.currentTimeMillis();
         log.info("Tailoring CV for job: {}", 
             request.getJobTitle() != null ? request.getJobTitle() : "unspecified");
         
+        Long userId = getCurrentUserId();
+        User user = userId != null ? userRepository.findById(userId).orElse(null) : null;
+        
         CvTailorResponse response = cvEnhancementService.tailorCv(request);
+        
+        long processingTime = System.currentTimeMillis() - startTime;
+        
+        // Log the operation
+        cvOperationLogService.logTailor(
+                user,
+                request.getResumeData(),
+                "/api/v1/cvs/tailor",
+                processingTime,
+                true,
+                null,
+                getClientIp(httpRequest),
+                httpRequest.getHeader("User-Agent"),
+                request.getJobTitle()
+        );
+        
         return ResponseEntity.ok(CommonResponse.success("CV tailored successfully", response));
     }
 
@@ -105,4 +151,13 @@ public class CvController {
         }
         return null;
     }
+
+    private String getClientIp(HttpServletRequest request) {
+        String xfHeader = request.getHeader("X-Forwarded-For");
+        if (xfHeader == null || xfHeader.isEmpty()) {
+            return request.getRemoteAddr();
+        }
+        return xfHeader.split(",")[0].trim();
+    }
 }
+
