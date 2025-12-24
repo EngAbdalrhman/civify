@@ -175,11 +175,15 @@ public class CvEnhancementService {
             request.getJobTitle() != null ? request.getJobTitle() : "unspecified");
 
         try {
-            // Parallel execution for performance
+            // Phase 1: Start parallel tasks that don't depend on tailored CV
+            // - Tailor the CV content
+            // - Calculate ORIGINAL ATS score (before tailoring)
+            // - Other optional tasks
             CompletableFuture<ResumeData> tailoredCvFuture = CompletableFuture.supplyAsync(
                 () -> tailorCvContent(request.getResumeData(), request.getJobDescription()), executor);
             
-            CompletableFuture<AtsScore> atsScoreFuture = CompletableFuture.supplyAsync(
+            // Calculate ORIGINAL CV's ATS score for "before" comparison
+            CompletableFuture<AtsScore> originalAtsScoreFuture = CompletableFuture.supplyAsync(
                 () -> calculateAtsScore(request.getResumeData(), request.getJobDescription()), executor);
 
             CompletableFuture<InterviewPrep> interviewFuture = request.isIncludeInterviewQuestions()
@@ -197,13 +201,21 @@ public class CvEnhancementService {
                     () -> generateCoverLetter(request), executor)
                 : CompletableFuture.completedFuture(null);
 
-            // Wait for all futures
-            CompletableFuture.allOf(tailoredCvFuture, atsScoreFuture, 
+            // Wait for tailored CV to be ready first
+            ResumeData tailoredCv = tailoredCvFuture.get();
+            
+            // Phase 2: Calculate TAILORED CV's ATS score (this is the "after" score)
+            CompletableFuture<AtsScore> tailoredAtsScoreFuture = CompletableFuture.supplyAsync(
+                () -> calculateAtsScore(tailoredCv, request.getJobDescription()), executor);
+
+            // Wait for all remaining futures
+            CompletableFuture.allOf(originalAtsScoreFuture, tailoredAtsScoreFuture,
                 interviewFuture, roadmapFuture, coverLetterFuture).join();
 
             return CvTailorResponse.builder()
-                    .tailoredCv(tailoredCvFuture.get())
-                    .atsScore(atsScoreFuture.get())
+                    .tailoredCv(tailoredCv)
+                    .atsScore(tailoredAtsScoreFuture.get())              // Score for TAILORED CV
+                    .originalAtsScore(originalAtsScoreFuture.get())     // Score for ORIGINAL CV
                     .interviewPrep(interviewFuture.get())
                     .roadmap(roadmapFuture.get())
                     .coverLetter(coverLetterFuture.get())

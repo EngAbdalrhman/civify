@@ -24,9 +24,15 @@ public class CvTailorResponse {
     private ResumeData tailoredCv;
 
     /**
-     * ATS (Applicant Tracking System) analysis.
+     * ATS (Applicant Tracking System) analysis for the TAILORED CV.
      */
     private AtsScore atsScore;
+
+    /**
+     * ATS analysis for the ORIGINAL CV before tailoring.
+     * Used for showing improvement (before/after comparison).
+     */
+    private AtsScore originalAtsScore;
 
     /**
      * Interview preparation materials. Null if not requested.

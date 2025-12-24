@@ -123,6 +123,19 @@ public class SecurityConfig {
                                 .userService(oAuth2UserService)
                         )
                         .successHandler(oAuth2SuccessHandler)
+                        .failureHandler((request, response, exception) -> {
+                            // Log the error for debugging
+                            org.slf4j.LoggerFactory.getLogger(SecurityConfig.class)
+                                .error("OAuth2 login failed: {}", exception.getMessage(), exception);
+                            
+                            // Redirect to frontend callback with error parameter
+                            String errorMessage = exception.getMessage() != null 
+                                ? exception.getMessage() 
+                                : "OAuth login failed";
+                            String targetUrl = frontendUrl + "/auth/callback?error=" + 
+                                java.net.URLEncoder.encode(errorMessage, java.nio.charset.StandardCharsets.UTF_8);
+                            response.sendRedirect(targetUrl);
+                        })
                 );
         ;
 
