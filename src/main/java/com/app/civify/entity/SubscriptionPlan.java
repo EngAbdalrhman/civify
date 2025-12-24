@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,9 +39,6 @@ public class SubscriptionPlan extends BaseEntity {
     @Column(nullable = false)
     private Boolean watermark = true; // true = has watermark, false = no watermark
 
-    // @Column(nullable = false)
-    // private Boolean dashboard = false; // REMOVED: Managed by Permissions
-
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "linked_group_id")
     private Group linkedGroup;
@@ -51,6 +49,28 @@ public class SubscriptionPlan extends BaseEntity {
 
     @Column(nullable = false)
     private Boolean active = true;
+
+    // ==================== BILLING RESTRICTIONS ====================
+    /**
+     * Whether annual billing is allowed for this plan.
+     * If false, only monthly billing is available.
+     */
+    @Column(nullable = false)
+    private Boolean allowAnnualBilling = true;
+
+    /**
+     * Whether users can renew this plan.
+     * If false, users must switch to a different plan after expiry.
+     */
+    @Column(nullable = false)
+    private Boolean renewalAllowed = true;
+
+    /**
+     * Deadline after which this plan cannot be purchased (e.g., for Beta plans).
+     * Null means no deadline.
+     */
+    @Column
+    private LocalDate purchaseDeadline;
 
     // ==================== NEW RELATIONSHIPS ====================
     /**

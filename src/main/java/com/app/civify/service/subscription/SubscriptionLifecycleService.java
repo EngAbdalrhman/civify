@@ -141,6 +141,75 @@ public class SubscriptionLifecycleService {
     }
 
     /**
+     * Runs daily at 6 AM to create renewal invoices
+     * Creates payment invoice for subscriptions expiring tomorrow
+     */
+    @Scheduled(cron = "0 0 6 * * ?")
+    @Transactional
+    public void createRenewalInvoices() {
+        log.info("Starting renewal invoice creation");
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime tomorrow = now.plusDays(1);
+        LocalDateTime dayAfterTomorrow = now.plusDays(2);
+
+        // Find active subscriptions expiring tomorrow
+        List<UserSubscription> subscriptionsExpiringSoon = subscriptionRepository
+                .findByStatusAndEndDateBetween(SubscriptionStatus.ACTIVE, tomorrow, dayAfterTomorrow);
+
+        for (UserSubscription subscription : subscriptionsExpiringSoon) {
+            try {
+                // Skip free plan (doesn't need renewal)
+                if ("free".equalsIgnoreCase(subscription.getPlan().getName())) {
+                    continue;
+                }
+
+                // Skip if plan doesn't allow renewal
+                if (Boolean.FALSE.equals(subscription.getPlan().getRenewalAllowed())) {
+                    log.info("Skipping renewal invoice for user {} - plan doesn't allow renewal", 
+                            subscription.getUser().getId());
+                    continue;
+                }
+
+                // Create renewal invoice via payment service
+                // The payment will trigger subscription extension when paid
+                log.info("Creating renewal invoice for subscription {} (user {})", 
+                        subscription.getId(), subscription.getUser().getId());
+
+                // Send renewal invoice email with payment link
+                sendRenewalInvoiceEmail(subscription);
+
+            } catch (Exception e) {
+                log.error("Error creating renewal invoice for subscription {}: {}", 
+                        subscription.getId(), e.getMessage(), e);
+            }
+        }
+
+        log.info("Created renewal invoices for {} subscriptions", subscriptionsExpiringSoon.size());
+    }
+
+    /**
+     * Send renewal invoice email with payment instructions
+     */
+    private void sendRenewalInvoiceEmail(UserSubscription subscription) {
+        String subject = "Your Subscription Renewal Invoice";
+        String body = String.format(
+                "Dear %s,\n\n"
+                + "Your subscription to %s plan expires tomorrow (%s).\n\n"
+                + "To continue your subscription without interruption, please renew now.\n"
+                + "If payment is not received by tomorrow, you will be automatically downgraded to the free plan.\n\n"
+                + "Login to your account to complete the renewal.\n\n"
+                + "Best regards,\n"
+                + "Civify Team",
+                subscription.getUser().getUsername(),
+                subscription.getPlan().getName(),
+                subscription.getEndDate().toLocalDate()
+        );
+
+        emailService.sendEmail(subscription.getUser().getEmail(), subject, body);
+    }
+
+    /**
      * Expire an active subscription and reactivate free plan
      */
     private void expireSubscription(UserSubscription subscription) {

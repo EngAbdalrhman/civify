@@ -102,6 +102,8 @@ public class SecurityConfig {
                         .requestMatchers("/health").permitAll()
                         .requestMatchers("/v1/subscriptions/**", "/subscriptions/**").permitAll() // Allow public access to plans
                         .requestMatchers("/v1/payments/config", "/payments/config").permitAll() // Allow public access to payment config
+                        // Guest CV operations (SaaS trial)
+                        .requestMatchers("/v1/cvs/upload", "/v1/cvs/tailor").permitAll()
                         // External API endpoints (handled by ApiKeyAuthenticationFilter)
                         .requestMatchers("/api/v1/external/**").permitAll()
                         // Admin endpoints

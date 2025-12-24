@@ -89,6 +89,26 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
         SubscriptionPlan plan = planRepository.findById(planId)
                 .orElseThrow(() -> new ResourceNotFoundException("Plan not found"));
 
+        // ==================== BILLING RESTRICTIONS ====================
+        // Check if plan has passed purchase deadline
+        if (plan.getPurchaseDeadline() != null && 
+            java.time.LocalDate.now().isAfter(plan.getPurchaseDeadline())) {
+            throw new BadRequestException("This plan is no longer available for purchase");
+        }
+
+        // Check if annual billing is allowed for this plan
+        if (isAnnual && Boolean.FALSE.equals(plan.getAllowAnnualBilling())) {
+            throw new BadRequestException("Annual billing is not available for this plan. Please select monthly billing.");
+        }
+
+        // Check if renewal is allowed (for returning users)
+        Optional<UserSubscription> previousSub = subscriptionRepository
+                .findByUserIdAndPlanIdAndStatus(userId, planId, SubscriptionStatus.EXPIRED);
+        if (previousSub.isPresent() && Boolean.FALSE.equals(plan.getRenewalAllowed())) {
+            throw new BadRequestException("This plan cannot be renewed. Please choose a different plan.");
+        }
+        // =============================================================
+
         // Don't allow creating another subscription if user already has a pending one
         Optional<UserSubscription> pendingSubscription = subscriptionRepository
                 .findByUserIdAndStatus(userId, SubscriptionStatus.PENDING)
