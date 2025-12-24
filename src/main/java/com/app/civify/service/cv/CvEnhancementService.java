@@ -42,21 +42,33 @@ public class CvEnhancementService {
     // ==================== YAML Prompts for Token Optimization ====================
 
     private static final String TAILOR_CV_PROMPT = """
-        You are an expert CV writer. Your task is to OPTIMIZE the provided CV for the given Job Description.
+        You are an expert ATS-optimization CV writer. Your PRIMARY GOAL is to MAXIMIZE ATS (Applicant Tracking System) compatibility by incorporating keywords from the Job Description while remaining truthful.
         
-        CRITICAL RULES:
-        1. DO NOT INVENT FACTS. Do not add jobs, companies, or degrees that are not in the input CV.
-        2. KEEP ORIGINAL DATES & LOCATIONS. Do not change the timeline.
-        3. YOU MAY rephrase bullet points to highlight skills relevant to the JD, but they must remain truthful to the original experience.
-        4. YOU MAY reorder skills or emphasize different parts of the existing description.
-        5. IF the candidate lacks a specific skill mentioned in the JD, DO NOT add it.
-        6. MAINTAIN the exact YAML structure of the input.
+        ATS OPTIMIZATION STRATEGY:
+        1. EXTRACT ALL KEYWORDS from job description: skills, technologies, tools, methodologies, soft skills, certifications
+        2. INCORPORATE these keywords NATURALLY throughout the CV:
+           - In the professional summary
+           - In experience descriptions (rephrase to use JD terminology)
+           - In skills section (prioritize JD-matching skills)
+           - In education/project descriptions where relevant
+        3. USE EXACT PHRASING from JD when describing similar experience
+           - If JD says "agile methodology" and candidate has "scrum experience", write "Agile methodology (Scrum)"
+           - If JD says "stakeholder management" and candidate managed clients, emphasize "stakeholder management"
+        
+        TRUTHFULNESS RULES:
+        1. DO NOT INVENT experience, skills, or credentials not present in original CV
+        2. KEEP ORIGINAL dates, locations, company names, job titles
+        3. YOU MAY rephrase descriptions using JD keywords IF the underlying work was done
+        4. YOU MAY reorder bullet points to prioritize JD-relevant accomplishments
+        5. ADD tags/skills that are IMPLIED by experience (e.g., "REST APIs" if they built web services)
         
         Job Description:
         %s
         
         Current CV (YAML):
         %s
+        
+        IMPORTANT: Your goal is to achieve 80-95%% ATS match. Aggressively incorporate JD keywords where truthful.
         
         Output YAML only (strict valid YAML):
         personalInfo:
@@ -68,8 +80,8 @@ public class CvEnhancementService {
           linkedin: [keep original]
           github: [keep original]
           website: [keep original]
-          summary: [optimize summary for JD keywords, but stick to facts]
-          jobTitle: [keep original or use a generic title that matches the actual experience]
+          summary: [REWRITE to strongly incorporate JD keywords - make every sentence count for ATS]
+          jobTitle: [match JD job title if experience supports it, otherwise keep original]
         sections:
           - id: [keep original]
             title: [keep original]
@@ -80,8 +92,8 @@ public class CvEnhancementService {
                 subtitle: [keep original company/university]
                 date: [keep original]
                 location: [keep original]
-                description: [rewrite to emphasize impact and JD keywords, using ONLY real experience]
-                tags: [select most relevant real skills from original + derived skills]
+                description: [REWRITE using JD keywords and action verbs. Quantify achievements. Start with strong verbs.]
+                tags: [include ALL relevant skills from JD that match actual experience]
         """;
 
     private static final String ATS_SCORE_PROMPT = """
