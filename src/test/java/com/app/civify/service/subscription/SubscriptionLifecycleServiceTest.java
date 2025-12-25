@@ -1,8 +1,8 @@
 // package com.app.civify.service.subscription;
 
-// import com.app.civify.entity.SubscriptionPlan;
+// import com.app.civify.entity.plans.SubscriptionPlan;
 // import com.app.civify.entity.User;
-// import com.app.civify.entity.UserSubscription;
+// import com.app.civify.entity.plans.UserSubscription;
 // import com.app.civify.entity.enums.SubscriptionStatus;
 // import com.app.civify.repository.UserSubscriptionRepository;
 // import com.app.civify.util.EmailService;

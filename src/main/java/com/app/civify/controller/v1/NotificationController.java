@@ -3,10 +3,13 @@ package com.app.civify.controller.v1;
 import com.app.civify.entity.Notification;
 import com.app.civify.entity.User;
 import com.app.civify.repository.NotificationRepository;
+import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.notification.PostgresNotificationListener;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -51,8 +54,16 @@ public class NotificationController {
      * Auto-sends any missed notifications on connection.
      */
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamNotifications(@AuthenticationPrincipal User user) {
+    public SseEmitter streamNotifications(@AuthenticationPrincipal UserPrincipal userPrincipal) {
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE); // No timeout
+
+        // Safely extract user from principal
+        User user = userPrincipal != null ? userPrincipal.getUser() : null;
+        if (user == null) {
+            log.warn("SSE connection attempted without valid user principal");
+            emitter.completeWithError(new IllegalStateException("User not authenticated"));
+            return emitter;
+        }
 
         try {
             // Register connection with listener
@@ -134,8 +145,15 @@ public class NotificationController {
      * Get undelivered notification count for user
      */
     @GetMapping("/unread-count")
-    public Map<String, Long> getUnreadCount(@AuthenticationPrincipal User user) {
+    public ResponseEntity<Map<String, Long>> getUnreadCount(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+        // Safely extract user from principal
+        User user = userPrincipal != null ? userPrincipal.getUser() : null;
+        if (user == null) {
+            log.warn("Unread count requested without valid user principal");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
         Long count = notificationRepository.countUndeliveredForUser(user.getId());
-        return Map.of("count", count);
+        return ResponseEntity.ok(Map.of("count", count));
     }
 }
