@@ -1,5 +1,6 @@
 package com.app.civify.util.persistence;
 
+import jakarta.persistence.criteria.Expression;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -226,16 +227,63 @@ public class CommonService {
             } else if (operation == FilterOperation.MATCH_EXACT) {
                 return criteriaBuilder.equal(path.as(String.class), String.valueOf(value));
             } else if (operation == FilterOperation.GREATER_THAN) {
-                return criteriaBuilder.greaterThan(path.as(Comparable.class), (Comparable) value);
+                // Use type-specific comparison to avoid casting issues with LocalDateTime
+                if (targetType.equals(LocalDateTime.class)) {
+                    return criteriaBuilder.greaterThan(path.as(LocalDateTime.class), (LocalDateTime) value);
+                } else if (targetType.equals(LocalDate.class)) {
+                    return criteriaBuilder.greaterThan(path.as(LocalDate.class), (LocalDate) value);
+                }
+                // Use raw Expression type to avoid generic casting issues
+                @SuppressWarnings("rawtypes")
+                Expression rawPath = path;
+                @SuppressWarnings("unchecked")
+                Predicate result = criteriaBuilder.greaterThan(rawPath, (Comparable) value);
+                return result;
             } else if (operation == FilterOperation.GREATER_THAN_EQUAL) {
-                return criteriaBuilder.greaterThanOrEqualTo(path.as(Comparable.class), (Comparable) value);
+                if (targetType.equals(LocalDateTime.class)) {
+                    return criteriaBuilder.greaterThanOrEqualTo(path.as(LocalDateTime.class), (LocalDateTime) value);
+                } else if (targetType.equals(LocalDate.class)) {
+                    return criteriaBuilder.greaterThanOrEqualTo(path.as(LocalDate.class), (LocalDate) value);
+                }
+                @SuppressWarnings("rawtypes")
+                Expression rawPath = path;
+                @SuppressWarnings("unchecked")
+                Predicate result = criteriaBuilder.greaterThanOrEqualTo(rawPath, (Comparable) value);
+                return result;
             } else if (operation == FilterOperation.LESS_THAN) {
-                return criteriaBuilder.lessThan(path.as(Comparable.class), (Comparable) value);
+                if (targetType.equals(LocalDateTime.class)) {
+                    return criteriaBuilder.lessThan(path.as(LocalDateTime.class), (LocalDateTime) value);
+                } else if (targetType.equals(LocalDate.class)) {
+                    return criteriaBuilder.lessThan(path.as(LocalDate.class), (LocalDate) value);
+                }
+                @SuppressWarnings("rawtypes")
+                Expression rawPath = path;
+                @SuppressWarnings("unchecked")
+                Predicate result = criteriaBuilder.lessThan(rawPath, (Comparable) value);
+                return result;
             } else if (operation == FilterOperation.LESS_THAN_EQUAL) {
-                return criteriaBuilder.lessThanOrEqualTo(path.as(Comparable.class), (Comparable) value);
+                if (targetType.equals(LocalDateTime.class)) {
+                    return criteriaBuilder.lessThanOrEqualTo(path.as(LocalDateTime.class), (LocalDateTime) value);
+                } else if (targetType.equals(LocalDate.class)) {
+                    return criteriaBuilder.lessThanOrEqualTo(path.as(LocalDate.class), (LocalDate) value);
+                }
+                @SuppressWarnings("rawtypes")
+                Expression rawPath = path;
+                @SuppressWarnings("unchecked")
+                Predicate result = criteriaBuilder.lessThanOrEqualTo(rawPath, (Comparable) value);
+                return result;
             } else if (operation == FilterOperation.BETWEEN) {
                 if (value2 != null) {
-                    return criteriaBuilder.between(path.as(Comparable.class), (Comparable) value, (Comparable) value2);
+                    if (targetType.equals(LocalDateTime.class)) {
+                        return criteriaBuilder.between(path.as(LocalDateTime.class), (LocalDateTime) value, (LocalDateTime) value2);
+                    } else if (targetType.equals(LocalDate.class)) {
+                        return criteriaBuilder.between(path.as(LocalDate.class), (LocalDate) value, (LocalDate) value2);
+                    }
+                    @SuppressWarnings("rawtypes")
+                    Expression rawPath = path;
+                    @SuppressWarnings("unchecked")
+                    Predicate result = criteriaBuilder.between(rawPath, (Comparable) value, (Comparable) value2);
+                    return result;
                 }
             } else if (operation == FilterOperation.IN_LONG_LIST || operation == FilterOperation.IN_STRING_LIST || operation == FilterOperation.IN_INTEGER_LIST) {
                 if (rawValue instanceof Collection) {

@@ -4,27 +4,30 @@ import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.entity.plans.PromoCode;
 import com.app.civify.entity.plans.SubscriptionPlan;
 import com.app.civify.entity.plans.UserSubscription;
+import com.app.civify.security.UserPrincipal;
+import com.app.civify.security.annotation.CivifyAuthorization;
 import com.app.civify.service.payment.PromoCodeService;
 import com.app.civify.service.subscription.SubscriptionService;
 import com.app.civify.service.user.UserService;
+import com.app.civify.util.CommonResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
 @ApiV1Controller
 @RequestMapping("/subscriptions")
@@ -42,13 +45,13 @@ public class SubscriptionController {
             description = "Retrieves a list of all active subscription plans available to users."
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Plans retrieved successfully",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = SubscriptionPlan.class)))
+            @ApiResponse(responseCode = "200", description = "Plans retrieved successfully",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class)))
     })
     @GetMapping("/plans")
-    public ResponseEntity<List<SubscriptionPlan>> getAllPlans() {
+    public ResponseEntity<CommonResponse<List<SubscriptionPlan>>> getAllPlans() {
         List<SubscriptionPlan> plans = subscriptionService.getAllActivePlans();
-        return ResponseEntity.ok(plans);
+        return ResponseEntity.ok(CommonResponse.success(plans));
     }
 
     @Operation(
@@ -56,15 +59,15 @@ public class SubscriptionController {
             description = "Retrieves a specific subscription plan by its ID."
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Plan retrieved successfully",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = SubscriptionPlan.class))),
-        @ApiResponse(responseCode = "404", description = "Plan not found",
-                content = @Content(mediaType = "application/json"))
+            @ApiResponse(responseCode = "200", description = "Plan retrieved successfully",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Plan not found",
+                    content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/plans/{planId}")
-    public ResponseEntity<SubscriptionPlan> getPlanById(@PathVariable Long planId) {
+    public ResponseEntity<CommonResponse<SubscriptionPlan>> getPlanById(@PathVariable Long planId) {
         return subscriptionService.getPlanById(planId)
-                .map(ResponseEntity::ok)
+                .map(plan -> ResponseEntity.ok(CommonResponse.success(plan)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -73,41 +76,38 @@ public class SubscriptionController {
             description = "Validates a promo code for checkout and returns discount information."
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Promo code validated"),
-        @ApiResponse(responseCode = "400", description = "Invalid promo code")
+            @ApiResponse(responseCode = "200", description = "Promo code validated"),
+            @ApiResponse(responseCode = "400", description = "Invalid promo code")
     })
     @PostMapping("/validate-promo")
-    public ResponseEntity<Map<String, Object>> validatePromoCode(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<CommonResponse<Map<String, Object>>> validatePromoCode(@RequestBody Map<String, Object> request) {
         String code = (String) request.get("code");
         Number amountNum = (Number) request.get("amount");
         BigDecimal amount = amountNum != null ? BigDecimal.valueOf(amountNum.doubleValue()) : BigDecimal.ZERO;
-        
+
         if (code == null || code.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of(
-                "valid", false,
-                "message", "Promo code is required"
-            ));
+            return ResponseEntity.badRequest().body(CommonResponse.error("Promo code is required"));
         }
-        
+
         Optional<PromoCode> promoOpt = promoCodeService.validatePromoCode(code, amount);
-        
+
         if (promoOpt.isEmpty()) {
-            return ResponseEntity.ok(Map.of(
-                "valid", false,
-                "message", "Invalid or expired promo code"
-            ));
+            return ResponseEntity.ok(CommonResponse.success("Invalid or expired promo code", Map.of(
+                    "valid", false,
+                    "message", "Invalid or expired promo code"
+            )));
         }
-        
+
         PromoCode promo = promoOpt.get();
         BigDecimal discountAmount = promo.calculateDiscount(amount);
-        
-        return ResponseEntity.ok(Map.of(
-            "valid", true,
-            "discountType", promo.getDiscountType().name(),
-            "discountValue", promo.getDiscountValue(),
-            "discountAmount", discountAmount,
-            "message", "Promo code applied successfully"
-        ));
+
+        return ResponseEntity.ok(CommonResponse.success(Map.of(
+                "valid", true,
+                "discountType", promo.getDiscountType().name(),
+                "discountValue", promo.getDiscountValue(),
+                "discountAmount", discountAmount,
+                "message", "Promo code applied successfully"
+        )));
     }
 
     @Operation(
@@ -116,19 +116,19 @@ public class SubscriptionController {
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Subscription retrieved successfully",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserSubscription.class))),
-        @ApiResponse(responseCode = "401", description = "Unauthorized",
-                content = @Content(mediaType = "application/json")),
-        @ApiResponse(responseCode = "404", description = "No active subscription found",
-                content = @Content(mediaType = "application/json"))
+            @ApiResponse(responseCode = "200", description = "Subscription retrieved successfully",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized",
+                    content = @Content(mediaType = "application/json")),
+            @ApiResponse(responseCode = "404", description = "No active subscription found",
+                    content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/my-subscription")
-    @com.app.civify.security.annotation.CivifyAuthorization(permission = "CV.CREATE")
-    public ResponseEntity<UserSubscription> getMyActiveSubscription(Authentication authentication) {
-        Long userId = getUserIdFromAuthentication(authentication);
+    @CivifyAuthorization(permission = "CV.CREATE")
+    public ResponseEntity<CommonResponse<UserSubscription>> getMyActiveSubscription(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+        Long userId = userPrincipal.getId();
         return subscriptionService.getActiveSubscription(userId)
-                .map(ResponseEntity::ok)
+                .map(sub -> ResponseEntity.ok(CommonResponse.success(sub)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -138,17 +138,17 @@ public class SubscriptionController {
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Subscriptions retrieved successfully",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserSubscription.class))),
-        @ApiResponse(responseCode = "401", description = "Unauthorized",
-                content = @Content(mediaType = "application/json"))
+            @ApiResponse(responseCode = "200", description = "Subscriptions retrieved successfully",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized",
+                    content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/my-subscriptions")
-    @com.app.civify.security.annotation.CivifyAuthorization(permission = "CV.CREATE")
-    public ResponseEntity<List<UserSubscription>> getMySubscriptions(Authentication authentication) {
-        Long userId = getUserIdFromAuthentication(authentication);
+    @CivifyAuthorization(permission = "CV.CREATE")
+    public ResponseEntity<CommonResponse<List<UserSubscription>>> getMySubscriptions(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+        Long userId = userPrincipal.getId();
         List<UserSubscription> subscriptions = subscriptionService.getUserSubscriptions(userId);
-        return ResponseEntity.ok(subscriptions);
+        return ResponseEntity.ok(CommonResponse.success(subscriptions));
     }
 
     @Operation(
@@ -157,29 +157,27 @@ public class SubscriptionController {
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Subscription cancelled successfully",
-                content = @Content(mediaType = "application/json")),
-        @ApiResponse(responseCode = "400", description = "Cancellation failed",
-                content = @Content(mediaType = "application/json")),
-        @ApiResponse(responseCode = "401", description = "Unauthorized",
-                content = @Content(mediaType = "application/json"))
+            @ApiResponse(responseCode = "200", description = "Subscription cancelled successfully",
+                    content = @Content(mediaType = "application/json")),
+            @ApiResponse(responseCode = "400", description = "Cancellation failed",
+                    content = @Content(mediaType = "application/json")),
+            @ApiResponse(responseCode = "401", description = "Unauthorized",
+                    content = @Content(mediaType = "application/json"))
     })
     @PostMapping("/cancel/{subscriptionId}")
-    @com.app.civify.security.annotation.CivifyAuthorization(permission = "CV.CREATE")
-    public ResponseEntity<Map<String, String>> cancelSubscription(
+    @CivifyAuthorization(permission = "CV.CREATE")
+    public ResponseEntity<CommonResponse<Map<String, String>>> cancelSubscription(
             @PathVariable Long subscriptionId,
-            Authentication authentication) {
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
         try {
             subscriptionService.cancelSubscription(subscriptionId);
-            return ResponseEntity.ok(Map.of(
+            return ResponseEntity.ok(CommonResponse.success(Map.of(
                     "message", "Subscription cancelled successfully"
-            ));
+            )));
         } catch (Exception e) {
             log.error("Error cancelling subscription: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", e.getMessage()
-            ));
+            return ResponseEntity.badRequest().body(CommonResponse.error(e.getMessage()));
         }
     }
 
@@ -189,30 +187,28 @@ public class SubscriptionController {
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Subscription renewed successfully",
-                content = @Content(mediaType = "application/json")),
-        @ApiResponse(responseCode = "400", description = "Renewal failed",
-                content = @Content(mediaType = "application/json")),
-        @ApiResponse(responseCode = "401", description = "Unauthorized",
-                content = @Content(mediaType = "application/json"))
+            @ApiResponse(responseCode = "200", description = "Subscription renewed successfully",
+                    content = @Content(mediaType = "application/json")),
+            @ApiResponse(responseCode = "400", description = "Renewal failed",
+                    content = @Content(mediaType = "application/json")),
+            @ApiResponse(responseCode = "401", description = "Unauthorized",
+                    content = @Content(mediaType = "application/json"))
     })
     @PostMapping("/renew/{subscriptionId}")
-    @com.app.civify.security.annotation.CivifyAuthorization(permission = "CV.CREATE")
-    public ResponseEntity<Map<String, String>> renewSubscription(
+    @CivifyAuthorization(permission = "CV.CREATE")
+    public ResponseEntity<CommonResponse<Map<String, String>>> renewSubscription(
             @PathVariable Long subscriptionId,
             @RequestParam(defaultValue = "false") boolean isAnnual,
-            Authentication authentication) {
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
         try {
             subscriptionService.renewSubscription(subscriptionId, isAnnual);
-            return ResponseEntity.ok(Map.of(
+            return ResponseEntity.ok(CommonResponse.success(Map.of(
                     "message", "Subscription renewed successfully"
-            ));
+            )));
         } catch (Exception e) {
             log.error("Error renewing subscription: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", e.getMessage()
-            ));
+            return ResponseEntity.badRequest().body(CommonResponse.error(e.getMessage()));
         }
     }
 
@@ -222,30 +218,30 @@ public class SubscriptionController {
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Feature access checked successfully",
-                content = @Content(mediaType = "application/json")),
-        @ApiResponse(responseCode = "401", description = "Unauthorized",
-                content = @Content(mediaType = "application/json"))
+            @ApiResponse(responseCode = "200", description = "Feature access checked successfully",
+                    content = @Content(mediaType = "application/json")),
+            @ApiResponse(responseCode = "401", description = "Unauthorized",
+                    content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/can-use/{feature}")
-    @com.app.civify.security.annotation.CivifyAuthorization(permission = "CV.CREATE")
-    public ResponseEntity<Map<String, Object>> canUseFeature(
+    @CivifyAuthorization(permission = "CV.CREATE")
+    public ResponseEntity<CommonResponse<Map<String, Object>>> canUseFeature(
             @PathVariable String feature,
-            Authentication authentication) {
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
         try {
-            Long userId = getUserIdFromAuthentication(authentication);
+            Long userId = userPrincipal.getId();
             boolean canUse = subscriptionService.canUserUseFeature(userId, feature);
 
-            return ResponseEntity.ok(Map.of(
+            return ResponseEntity.ok(CommonResponse.success(Map.of(
                     "feature", feature,
                     "canUse", canUse
-            ));
+            )));
         } catch (Exception e) {
             log.error("Error checking feature access: {}", e.getMessage());
-            return ResponseEntity.ok(Map.of(
+            return ResponseEntity.ok(CommonResponse.success(Map.of(
                     "canUse", false
-            ));
+            )));
         }
     }
 
@@ -255,4 +251,3 @@ public class SubscriptionController {
         return user != null ? user.getId() : null;
     }
 }
-

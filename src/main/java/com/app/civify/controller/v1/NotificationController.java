@@ -1,5 +1,6 @@
 package com.app.civify.controller.v1;
 
+import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.entity.Notification;
 import com.app.civify.entity.User;
 import com.app.civify.repository.NotificationRepository;
@@ -13,7 +14,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -25,7 +25,7 @@ import java.util.Map;
  * 
  * FRONTEND USAGE:
  * ```javascript
- * const eventSource = new EventSource('/api/v1/notifications/stream', {
+ * const eventSource = new EventSource('/v1/notifications/stream', {
  *   withCredentials: true
  * });
  * 
@@ -40,8 +40,8 @@ import java.util.Map;
  * - Marked as delivered = TRUE immediately after sending
  * - Quartz fallback skips delivered = TRUE notifications
  */
-@RestController
-@RequestMapping("/api/v1/notifications")
+@ApiV1Controller
+@RequestMapping("/notifications")
 @Slf4j
 @RequiredArgsConstructor
 public class NotificationController {
