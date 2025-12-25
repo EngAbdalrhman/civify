@@ -152,4 +152,39 @@ public class PromoCodeServiceImpl extends CommonService implements PromoCodeServ
     public Optional<PromoCode> getPromoCodeById(Long id) {
         return promoCodeRepository.findById(id);
     }
+
+    @Override
+    public Optional<PromoCode> findByCode(String code) {
+        return promoCodeRepository.findByCodeAndActiveTrue(code.toUpperCase());
+    }
+
+    @Override
+    public Optional<PromoCode> validatePromoCode(String code, BigDecimal amount) {
+        log.debug("Validating promo code: {} for amount: {}", code, amount);
+        
+        Optional<PromoCode> promoOpt = promoCodeRepository.findByCodeAndActiveTrue(code.toUpperCase());
+        
+        if (promoOpt.isEmpty()) {
+            log.debug("Promo code not found or inactive: {}", code);
+            return Optional.empty();
+        }
+        
+        PromoCode promo = promoOpt.get();
+        
+        // Check if promo is valid (not expired, not over usage limit)
+        if (!promo.isValid()) {
+            log.debug("Promo code is not valid (expired or usage limit reached): {}", code);
+            return Optional.empty();
+        }
+        
+        // Check minimum purchase requirement
+        if (promo.getMinimumPurchase() != null && amount.compareTo(promo.getMinimumPurchase()) < 0) {
+            log.debug("Amount {} is below minimum purchase {} for promo: {}", 
+                amount, promo.getMinimumPurchase(), code);
+            return Optional.empty();
+        }
+        
+        return Optional.of(promo);
+    }
 }
+

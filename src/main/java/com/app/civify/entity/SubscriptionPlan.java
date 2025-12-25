@@ -3,6 +3,7 @@ package com.app.civify.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -55,14 +56,16 @@ public class SubscriptionPlan extends BaseEntity {
      * Whether annual billing is allowed for this plan.
      * If false, only monthly billing is available.
      */
-    @Column(nullable = false)
+    @Column
+    @ColumnDefault("true")
     private Boolean allowAnnualBilling = true;
 
     /**
      * Whether users can renew this plan.
      * If false, users must switch to a different plan after expiry.
      */
-    @Column(nullable = false)
+    @Column
+    @ColumnDefault("true")
     private Boolean renewalAllowed = true;
 
     /**

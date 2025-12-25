@@ -1,19 +1,23 @@
 package com.app.civify.controller.v1;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
+import com.app.civify.entity.PromoCode;
 import com.app.civify.entity.SubscriptionPlan;
 import com.app.civify.entity.UserSubscription;
+import com.app.civify.entity.enums.DiscountType;
+import com.app.civify.service.payment.PromoCodeService;
 import com.app.civify.service.subscription.SubscriptionService;
 import com.app.civify.service.user.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -32,6 +36,7 @@ public class SubscriptionController {
 
     private final SubscriptionService subscriptionService;
     private final UserService userService;
+    private final PromoCodeService promoCodeService;
 
     @Operation(
             summary = "Get all subscription plans",
@@ -62,6 +67,48 @@ public class SubscriptionController {
         return subscriptionService.getPlanById(planId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @Operation(
+            summary = "Validate promo code",
+            description = "Validates a promo code for checkout and returns discount information."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Promo code validated"),
+        @ApiResponse(responseCode = "400", description = "Invalid promo code")
+    })
+    @PostMapping("/validate-promo")
+    public ResponseEntity<Map<String, Object>> validatePromoCode(@RequestBody Map<String, Object> request) {
+        String code = (String) request.get("code");
+        Number amountNum = (Number) request.get("amount");
+        BigDecimal amount = amountNum != null ? BigDecimal.valueOf(amountNum.doubleValue()) : BigDecimal.ZERO;
+        
+        if (code == null || code.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "valid", false,
+                "message", "Promo code is required"
+            ));
+        }
+        
+        Optional<PromoCode> promoOpt = promoCodeService.validatePromoCode(code, amount);
+        
+        if (promoOpt.isEmpty()) {
+            return ResponseEntity.ok(Map.of(
+                "valid", false,
+                "message", "Invalid or expired promo code"
+            ));
+        }
+        
+        PromoCode promo = promoOpt.get();
+        BigDecimal discountAmount = promo.calculateDiscount(amount);
+        
+        return ResponseEntity.ok(Map.of(
+            "valid", true,
+            "discountType", promo.getDiscountType().name(),
+            "discountValue", promo.getDiscountValue(),
+            "discountAmount", discountAmount,
+            "message", "Promo code applied successfully"
+        ));
     }
 
     @Operation(
@@ -209,3 +256,4 @@ public class SubscriptionController {
         return user != null ? user.getId() : null;
     }
 }
+

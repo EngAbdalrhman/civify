@@ -19,4 +19,17 @@ public interface PromoCodeService {
     void deletePromoCode(Long id);
 
     Optional<PromoCode> getPromoCodeById(Long id);
+
+    /**
+     * Validate a promo code for checkout
+     * @param code The promo code string
+     * @param amount The purchase amount
+     * @return Optional containing the promo code if valid, empty if invalid
+     */
+    Optional<PromoCode> validatePromoCode(String code, java.math.BigDecimal amount);
+
+    /**
+     * Find promo code by code string
+     */
+    Optional<PromoCode> findByCode(String code);
 }

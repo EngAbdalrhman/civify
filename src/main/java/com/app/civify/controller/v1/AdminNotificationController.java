@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 
 import com.app.civify.service.notification.NotificationService;
 
+import java.util.List;
 import java.util.Map;
 
 @ApiV1Controller
@@ -33,10 +34,29 @@ public class AdminNotificationController {
         return ResponseEntity.ok(Map.of("message", "Notification queued for all users"));
     }
 
+    @Operation(summary = "Send notification to specific users")
+    @PostMapping("/send-to-users")
+    @CivifyAuthorization(permission = "NOTIF.SEND")
+    public ResponseEntity<Map<String, String>> sendNotificationToUsers(@RequestBody SendToUsersRequest request) {
+        for (Long userId : request.getUserIds()) {
+            notificationService.sendToUser(userId, request.getTitle(), request.getMessage(), request.getType());
+        }
+        return ResponseEntity.ok(Map.of("message", "Notification queued for " + request.getUserIds().size() + " users"));
+    }
+
     @Data
     public static class NotificationRequest {
         private String title;
         private String message;
         private String type; // e.g., INFO, WARNING, PROMO
     }
+
+    @Data
+    public static class SendToUsersRequest {
+        private String title;
+        private String message;
+        private String type;
+        private List<Long> userIds;
+    }
 }
+

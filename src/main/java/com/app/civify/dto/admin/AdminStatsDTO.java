@@ -16,4 +16,10 @@ public class AdminStatsDTO {
     private long totalApiCalls;
     private long apiCallsThisMonth;
     private long activeSubscriptions;
+    
+    // Period information
+    private String period;      // MONTHLY, QUARTERLY, YEARLY, OVERALL
+    private String periodStart; // ISO date string
+    private String periodEnd;   // ISO date string
 }
+
