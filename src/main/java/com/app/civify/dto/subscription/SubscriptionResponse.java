@@ -26,4 +26,6 @@ public class SubscriptionResponse {
     private LocalDateTime endDate;
     private SubscriptionStatus status;
     private String paymentTransactionId;
+    private LocalDateTime usageResetDate;
+    private Integer currentTokenUsage;
 }
