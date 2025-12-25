@@ -716,6 +716,25 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
         // Removed Dashboard validation
     }
     @Override
+    public PagedResponse<UserSubscription> filterSubscriptions(InputDataModel inputData) {
+        log.debug("Filtering subscriptions with criteria: {}", inputData);
+        Page<UserSubscription> page = filterEntities(subscriptionRepository, inputData);
+
+        PagedResponse<UserSubscription> response = new PagedResponse<>();
+        response.setContent(page.getContent());
+        response.setPage(page.getNumber());
+        response.setSize(page.getSize());
+        response.setTotalElements(page.getTotalElements());
+        response.setTotalPages(page.getTotalPages());
+        response.setFirst(page.isFirst());
+        response.setLast(page.isLast());
+        response.setHasNext(page.hasNext());
+        response.setHasPrevious(page.hasPrevious());
+
+        return response;
+    }
+
+    @Override
     public Page<UserSubscription> getAllSubscriptions(String status, org.springframework.data.domain.Pageable pageable) {
         if (status != null && !status.isEmpty()) {
             try {

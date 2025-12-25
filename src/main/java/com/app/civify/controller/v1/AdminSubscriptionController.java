@@ -41,4 +41,18 @@ public class AdminSubscriptionController {
         // Let's assume getAllSubscriptions exists or I will add it to Service.
         return ResponseEntity.ok(subscriptionService.getAllSubscriptions(status, pageable));
     }
+
+    @Operation(summary = "Filter subscriptions with advanced criteria")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Subscriptions filtered successfully",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.app.civify.util.CommonResponse.class)))
+    })
+    @PostMapping("/filter")
+    @CivifyAuthorization(permission = "SUBSCRIPTION.VIEW")
+    public ResponseEntity<com.app.civify.util.CommonResponse<com.app.civify.util.filter.PagedResponse<UserSubscription>>> filterSubscriptions(
+            @org.springframework.web.bind.annotation.RequestBody com.app.civify.util.filter.InputDataModel inputData) {
+        
+        com.app.civify.util.filter.PagedResponse<UserSubscription> response = subscriptionService.filterSubscriptions(inputData);
+        return ResponseEntity.ok(com.app.civify.util.CommonResponse.success(response));
+    }
 }

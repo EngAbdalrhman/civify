@@ -104,6 +104,11 @@ public interface SubscriptionService {
     com.app.civify.util.filter.PagedResponse<SubscriptionPlan> filterPlans(com.app.civify.util.filter.InputDataModel inputData);
 
     /**
+     * Filter subscriptions with advanced criteria (Admin only)
+     */
+    com.app.civify.util.filter.PagedResponse<UserSubscription> filterSubscriptions(com.app.civify.util.filter.InputDataModel inputData);
+
+    /**
      * Get all user subscriptions with pagination and optional status filter (Admin)
      */
     org.springframework.data.domain.Page<UserSubscription> getAllSubscriptions(String status, org.springframework.data.domain.Pageable pageable);
