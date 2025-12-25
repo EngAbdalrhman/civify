@@ -121,6 +121,13 @@ public class User extends BaseEntity implements Serializable {
         return !isDeleted;
     }
 
+    public String getName() {
+        if (firstName != null || lastName != null) {
+            return (firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "");
+        }
+        return username;
+    }
+
     public java.util.Collection<? extends GrantedAuthority> getAuthorities() {
         if (group == null || group.getPermissions() == null) {
             return java.util.Collections.emptyList();

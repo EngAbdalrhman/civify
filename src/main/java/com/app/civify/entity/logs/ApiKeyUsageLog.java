@@ -57,4 +57,20 @@ public class ApiKeyUsageLog {
             timestamp = LocalDateTime.now();
         }
     }
+
+    // Helpers for Admin API
+    public String getUserName() {
+        return user != null ? user.getName() : null;
+    }
+
+    public String getUserEmail() {
+        return user != null ? user.getEmail() : null;
+    }
+
+    public String getApiKey() {
+        if (apiKey != null) {
+            return apiKey.getKeyPreview(); 
+        }
+        return null;
+    }
 }

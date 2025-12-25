@@ -135,7 +135,7 @@ public class ApiUsageLogServiceImpl extends CommonService implements ApiUsageLog
                 .ipAddress(log.getIpAddress())
                 .errorMessage(log.getErrorMessage())
                 .timestamp(log.getTimestamp())
-                .apiKeyId(log.getApiKey() != null ? log.getApiKey().getId() : null)
+                .apiKey(log.getApiKey())
                 .build();
     }
 }

@@ -157,4 +157,13 @@ public class UserSubscription extends BaseEntity {
             usageResetDate = now.plusMonths(1).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
         }
     }
+
+    // Expose user details for Admin API
+    public String getUserName() {
+        return user != null ? user.getName() : null;
+    }
+
+    public String getUserEmail() {
+        return user != null ? user.getEmail() : null;
+    }
 }

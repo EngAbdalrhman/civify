@@ -25,6 +25,6 @@ public class ApiKeyUsageLogDTO {
     private String ipAddress;
     private String errorMessage;
     private LocalDateTime timestamp;
-    private Long apiKeyId;
+    private String apiKey;
 }
 

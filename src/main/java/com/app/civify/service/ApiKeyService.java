@@ -4,6 +4,7 @@ import com.app.civify.entity.security.ApiKey;
 import com.app.civify.entity.User;
 import com.app.civify.entity.logs.ApiKeyUsageLog;
 import com.app.civify.repository.ApiKeyRepository;
+import com.app.civify.repository.ApiKeyUsageLogRepository;
 import com.app.civify.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,7 +24,7 @@ public class ApiKeyService {
     private final ApiKeyRepository apiKeyRepository;
     private final UserRepository userRepository;
 
-    private final com.app.civify.repository.ApiKeyUsageLogRepository apiKeyUsageLogRepository;
+    private final ApiKeyUsageLogRepository apiKeyUsageLogRepository;
 
     private static final String KEY_PREFIX = "cv-fy-";
     private static final int KEY_LENGTH = 32;
