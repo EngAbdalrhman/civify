@@ -48,4 +48,11 @@ public interface ApiKeyUsageLogRepository extends JpaRepository<ApiKeyUsageLog, 
      * Count success/failure for user stats.
      */
     long countByUserIdAndSuccess(Long userId, boolean success);
+
+
+    @Query("SELECT count(l) FROM ApiKeyUsageLog l WHERE l.timestamp BETWEEN :start AND :end")
+    Long countByDateRange(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
 }

@@ -3,7 +3,9 @@ package com.app.civify.controller.v1;
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.admin.AdminStatsDTO;
 import com.app.civify.entity.enums.CvOperationAction;
+import com.app.civify.repository.ApiKeyUsageLogRepository;
 import com.app.civify.repository.CvOperationLogRepository;
+import com.app.civify.security.annotation.CivifyAuthorization;
 import com.app.civify.service.user.UserService;
 import com.app.civify.service.subscription.SubscriptionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,6 +35,7 @@ public class AdminStatsController {
     private final UserService userService;
     private final SubscriptionService subscriptionService;
     private final CvOperationLogRepository cvOperationLogRepository;
+    private final ApiKeyUsageLogRepository apiKeyUsageLogRepository;
 
     /**
      * Time period options for statistics
@@ -49,7 +52,7 @@ public class AdminStatsController {
             description = "Retrieves key statistics for the admin dashboard with optional time period filter. Admin only.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
-    @com.app.civify.security.annotation.CivifyAuthorization(permission = "SYSTEM.LOGS.VIEW")
+    @CivifyAuthorization(permission = "SYSTEM.LOGS.VIEW")
     @GetMapping
     public ResponseEntity<AdminStatsDTO> getStats(
             @Parameter(description = "Time period for statistics (MONTHLY, QUARTERLY, YEARLY, OVERALL)")
@@ -83,14 +86,12 @@ public class AdminStatsController {
         } else {
             // Period-based stats
             long periodCVs = countOperationsInPeriod(CvOperationAction.UPLOAD, startDate, endDate);
-            long periodApiCalls = cvOperationLogRepository.findByDateRange(startDate, endDate, Pageable.unpaged()).getTotalElements();
+            long periodApiCalls = apiKeyUsageLogRepository.countByDateRange(startDate, endDate);
             
             totalCVs = periodCVs;
             totalApiCalls = periodApiCalls;
             apiCallsThisMonth = periodApiCalls; // Same as period stats
         }
-        
-        long activeSubscriptions = subscribedUsers;
 
         AdminStatsDTO stats = AdminStatsDTO.builder()
                 .totalUsers(totalUsers)
@@ -98,7 +99,7 @@ public class AdminStatsController {
                 .totalCVs(totalCVs)
                 .totalApiCalls(totalApiCalls)
                 .apiCallsThisMonth(apiCallsThisMonth)
-                .activeSubscriptions(activeSubscriptions)
+                .activeSubscriptions(subscribedUsers)
                 .period(period.name())
                 .periodStart(startDate != null ? startDate.toString() : null)
                 .periodEnd(endDate.toString())
