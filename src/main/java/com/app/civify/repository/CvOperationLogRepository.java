@@ -1,6 +1,6 @@
 package com.app.civify.repository;
 
-import com.app.civify.entity.CvOperationLog;
+import com.app.civify.entity.logs.CvOperationLog;
 import com.app.civify.entity.enums.CvOperationAction;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

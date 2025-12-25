@@ -3,6 +3,7 @@ package com.app.civify.service.user;
 import com.app.civify.dto.user.UserCustomeMapper;
 import com.app.civify.dto.user.UserResponseDTO;
 import com.app.civify.entity.User;
+import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.exception.ResourceNotFoundException;
 import com.app.civify.repository.ApiKeyUsageLogRepository;
 import com.app.civify.repository.CvRepository;
@@ -62,7 +63,7 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
             dto.setApiUsageCount(Math.toIntExact(apiKeyUsageLogRepository.countByUserIdAndMonth(dto.getId(), currentMonth)));
 
             // Plan
-            List<com.app.civify.entity.UserSubscription> activeSubs = subscriptionRepository.findByUserIdAndStatus(
+            List<UserSubscription> activeSubs = subscriptionRepository.findByUserIdAndStatus(
                     dto.getId(), 
                     com.app.civify.entity.enums.SubscriptionStatus.ACTIVE
             );

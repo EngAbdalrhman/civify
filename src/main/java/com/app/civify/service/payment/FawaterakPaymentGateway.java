@@ -2,7 +2,7 @@ package com.app.civify.service.payment;
 
 import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
-import com.app.civify.entity.PaymentTransaction;
+import com.app.civify.entity.plans.PaymentTransaction;
 import com.app.civify.entity.enums.PaymentStatus;
 import com.app.civify.repository.PaymentRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;

@@ -5,7 +5,8 @@ import com.app.civify.dto.plan.PlanCreateRequest;
 import com.app.civify.dto.plan.PlanDetailResponse;
 import com.app.civify.dto.plan.PlanMapper;
 import com.app.civify.dto.plan.PlanUpdateRequest;
-import com.app.civify.entity.SubscriptionPlan;
+import com.app.civify.entity.plans.SubscriptionPlan;
+import com.app.civify.entity.security.Group;
 import com.app.civify.service.subscription.SubscriptionService;
 import com.app.civify.util.CommonResponse;
 import com.app.civify.util.filter.PagedResponse;
@@ -20,7 +21,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -169,7 +169,7 @@ public class AdminPlanController {
 
             // Link group if specified
             if (request.getLinkedGroupId() != null) {
-                com.app.civify.entity.Group linkedGroup = groupRepository.findById(request.getLinkedGroupId())
+                Group linkedGroup = groupRepository.findById(request.getLinkedGroupId())
                         .orElseThrow(() -> new com.app.civify.exception.ResourceNotFoundException(
                                 "Group not found: " + request.getLinkedGroupId()));
                 plan.setLinkedGroup(linkedGroup);

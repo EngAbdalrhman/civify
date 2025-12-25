@@ -1,7 +1,7 @@
 package com.app.civify.service.auth;
 
-import com.app.civify.entity.Group;
-import com.app.civify.entity.Permission;
+import com.app.civify.entity.security.Group;
+import com.app.civify.entity.security.Permission;
 import com.app.civify.entity.User;
 import com.app.civify.repository.GroupRepository;
 import com.app.civify.repository.UserRepository;

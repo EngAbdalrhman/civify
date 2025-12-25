@@ -1,10 +1,9 @@
 package com.app.civify.controller.v1;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
-import com.app.civify.entity.PromoCode;
-import com.app.civify.entity.SubscriptionPlan;
-import com.app.civify.entity.UserSubscription;
-import com.app.civify.entity.enums.DiscountType;
+import com.app.civify.entity.plans.PromoCode;
+import com.app.civify.entity.plans.SubscriptionPlan;
+import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.service.payment.PromoCodeService;
 import com.app.civify.service.subscription.SubscriptionService;
 import com.app.civify.service.user.UserService;

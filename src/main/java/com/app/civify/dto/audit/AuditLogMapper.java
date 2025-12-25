@@ -1,6 +1,6 @@
 package com.app.civify.dto.audit;
 
-import com.app.civify.entity.AuditLog;
+import com.app.civify.entity.logs.AuditLog;
 import org.springframework.stereotype.Component;
 
 /**

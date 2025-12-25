@@ -1,7 +1,7 @@
 package com.app.civify.controller.v1;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
-import com.app.civify.entity.UserSubscription;
+import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.security.annotation.CivifyAuthorization;
 import com.app.civify.service.subscription.SubscriptionService;
 import io.swagger.v3.oas.annotations.Operation;

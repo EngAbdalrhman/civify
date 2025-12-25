@@ -1,6 +1,6 @@
 package com.app.civify.repository;
 
-import com.app.civify.entity.AuditLog;
+import com.app.civify.entity.logs.AuditLog;
 import com.app.civify.entity.enums.AuditAction;
 import com.app.civify.util.persistence.CommonRepo;
 import org.springframework.data.domain.Page;

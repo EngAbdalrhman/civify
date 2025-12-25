@@ -1,5 +1,6 @@
-package com.app.civify.entity;
+package com.app.civify.entity.plans;
 
+import com.app.civify.entity.utils.BaseEntity;
 import com.app.civify.entity.enums.BillingCycle;
 import jakarta.persistence.*;
 import lombok.Data;

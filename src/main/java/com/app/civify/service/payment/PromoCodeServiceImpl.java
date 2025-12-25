@@ -1,6 +1,6 @@
 package com.app.civify.service.payment;
 
-import com.app.civify.entity.PromoCode;
+import com.app.civify.entity.plans.PromoCode;
 import com.app.civify.exception.BadRequestException;
 import com.app.civify.exception.ResourceNotFoundException;
 import com.app.civify.repository.PromoCodeRepository;

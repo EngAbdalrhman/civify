@@ -5,7 +5,7 @@ import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.paymob.PaymobAuthResponse;
 import com.app.civify.dto.payment.paymob.PaymobOrderResponse;
 import com.app.civify.dto.payment.paymob.PaymobPaymentKeyResponse;
-import com.app.civify.entity.PaymentTransaction;
+import com.app.civify.entity.plans.PaymentTransaction;
 import com.app.civify.entity.enums.PaymentStatus;
 import com.app.civify.repository.PaymentRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;

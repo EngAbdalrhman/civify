@@ -1,7 +1,8 @@
 package com.app.civify.service;
 
-import com.app.civify.entity.ApiKey;
+import com.app.civify.entity.security.ApiKey;
 import com.app.civify.entity.User;
+import com.app.civify.entity.logs.ApiKeyUsageLog;
 import com.app.civify.repository.ApiKeyRepository;
 import com.app.civify.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -76,7 +77,7 @@ public class ApiKeyService {
 
     @Transactional
     public void logUsage(User user, ApiKey apiKey, String endpoint, String method, int statusCode, boolean success, String ipAddress, String errorMessage) {
-        com.app.civify.entity.ApiKeyUsageLog log = com.app.civify.entity.ApiKeyUsageLog.builder()
+        ApiKeyUsageLog log = ApiKeyUsageLog.builder()
                 .user(user)
                 .apiKey(apiKey)
                 .endpoint(endpoint)

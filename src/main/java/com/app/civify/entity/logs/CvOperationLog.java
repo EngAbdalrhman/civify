@@ -1,5 +1,6 @@
-package com.app.civify.entity;
+package com.app.civify.entity.logs;
 
+import com.app.civify.entity.User;
 import com.app.civify.entity.enums.CvOperationAction;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

@@ -2,7 +2,7 @@ package com.app.civify.service.job;
 
 import com.app.civify.dto.job.JobApplicationRequest;
 import com.app.civify.dto.job.JobApplicationResponse;
-import com.app.civify.entity.JobApplication;
+import com.app.civify.entity.resume.JobApplication;
 import com.app.civify.entity.User;
 import com.app.civify.exception.ResourceNotFoundException;
 import com.app.civify.repository.JobApplicationRepository;

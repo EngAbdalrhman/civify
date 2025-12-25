@@ -1,7 +1,8 @@
-package com.app.civify.entity;
+package com.app.civify.entity.resume;
 
 import com.app.civify.converter.ResumeDataConverter;
 import com.app.civify.dto.resume.ResumeData;
+import com.app.civify.entity.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

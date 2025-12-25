@@ -1,9 +1,9 @@
 package com.app.civify.config;
 
-import com.app.civify.entity.PlanFeature;
-import com.app.civify.entity.PlanFeatureLimit;
-import com.app.civify.entity.PlanPricing;
-import com.app.civify.entity.SubscriptionPlan;
+import com.app.civify.entity.plans.PlanFeature;
+import com.app.civify.entity.plans.PlanFeatureLimit;
+import com.app.civify.entity.plans.PlanPricing;
+import com.app.civify.entity.plans.SubscriptionPlan;
 import com.app.civify.entity.enums.BillingCycle;
 import com.app.civify.entity.enums.FeatureType;
 import com.app.civify.repository.PlanFeatureRepository;

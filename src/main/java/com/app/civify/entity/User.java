@@ -1,6 +1,9 @@
 package com.app.civify.entity;
 
 
+import com.app.civify.entity.plans.UserSubscription;
+import com.app.civify.entity.security.Group;
+import com.app.civify.entity.utils.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;

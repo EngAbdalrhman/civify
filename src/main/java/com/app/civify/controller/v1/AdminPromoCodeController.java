@@ -1,7 +1,7 @@
 package com.app.civify.controller.v1;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
-import com.app.civify.entity.PromoCode;
+import com.app.civify.entity.plans.PromoCode;
 import com.app.civify.service.payment.PromoCodeService;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
@@ -16,7 +16,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @ApiV1Controller

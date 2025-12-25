@@ -1,4 +1,4 @@
-package com.app.civify.entity;
+package com.app.civify.entity.security;
 
 
 import jakarta.persistence.*;

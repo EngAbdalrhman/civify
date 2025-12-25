@@ -1,6 +1,6 @@
 package com.app.civify.service.usage;
 
-import com.app.civify.entity.UserSubscription;
+import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.entity.enums.CvGenerationType;
 import com.app.civify.entity.enums.SubscriptionStatus;
 import com.app.civify.exception.BadRequestException;

@@ -1,6 +1,6 @@
 package com.app.civify.repository;
 
-import com.app.civify.entity.JobApplication;
+import com.app.civify.entity.resume.JobApplication;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

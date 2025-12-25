@@ -1,6 +1,6 @@
 package com.app.civify.service.auth;
 
-import com.app.civify.entity.Permission;
+import com.app.civify.entity.security.Permission;
 import com.app.civify.exception.BadRequestException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

@@ -1,6 +1,6 @@
 package com.app.civify.repository;
 
-import com.app.civify.entity.UserSubscription;
+import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.entity.enums.SubscriptionStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

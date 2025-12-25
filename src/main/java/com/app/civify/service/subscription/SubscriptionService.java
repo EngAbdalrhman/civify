@@ -2,8 +2,8 @@ package com.app.civify.service.subscription;
 
 import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.dto.subscription.PriceCalculationResponse;
-import com.app.civify.entity.SubscriptionPlan;
-import com.app.civify.entity.UserSubscription;
+import com.app.civify.entity.plans.SubscriptionPlan;
+import com.app.civify.entity.plans.UserSubscription;
 
 import java.util.List;
 import java.util.Optional;

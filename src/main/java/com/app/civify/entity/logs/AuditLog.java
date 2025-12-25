@@ -1,4 +1,4 @@
-package com.app.civify.entity;
+package com.app.civify.entity.logs;
 
 import com.app.civify.entity.enums.AuditAction;
 import jakarta.persistence.*;

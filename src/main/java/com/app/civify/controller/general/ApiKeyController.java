@@ -1,6 +1,6 @@
 package com.app.civify.controller.general;
 
-import com.app.civify.entity.ApiKey;
+import com.app.civify.entity.security.ApiKey;
 import com.app.civify.entity.User;
 import com.app.civify.service.ApiKeyService;
 import com.app.civify.service.user.UserService;

@@ -1,7 +1,7 @@
 package com.app.civify.service.cvlog;
 
 import com.app.civify.dto.resume.ResumeData;
-import com.app.civify.entity.CvOperationLog;
+import com.app.civify.entity.logs.CvOperationLog;
 import com.app.civify.entity.User;
 import com.app.civify.entity.enums.CvOperationAction;
 import com.app.civify.util.filter.PagedResponse;

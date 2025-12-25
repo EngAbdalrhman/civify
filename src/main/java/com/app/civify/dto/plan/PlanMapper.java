@@ -1,6 +1,6 @@
 package com.app.civify.dto.plan;
 
-import com.app.civify.entity.*;
+import com.app.civify.entity.plans.*;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;

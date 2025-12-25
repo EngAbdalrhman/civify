@@ -1,6 +1,6 @@
 package com.app.civify.repository;
 
-import com.app.civify.entity.SubscriptionPlan;
+import com.app.civify.entity.plans.SubscriptionPlan;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

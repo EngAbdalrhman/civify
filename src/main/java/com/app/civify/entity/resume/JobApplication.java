@@ -1,5 +1,7 @@
-package com.app.civify.entity;
+package com.app.civify.entity.resume;
 
+import com.app.civify.entity.utils.BaseEntity;
+import com.app.civify.entity.User;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;

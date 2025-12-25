@@ -2,7 +2,7 @@ package com.app.civify.service;
 
 import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.dto.resume.ResumeDto;
-import com.app.civify.entity.Resume;
+import com.app.civify.entity.resume.Resume;
 import com.app.civify.entity.User;
 import com.app.civify.repository.ResumeRepository;
 import com.app.civify.repository.UserRepository;

@@ -1,6 +1,6 @@
 package com.app.civify.repository;
 
-import com.app.civify.entity.PromoCode;
+import com.app.civify.entity.plans.PromoCode;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

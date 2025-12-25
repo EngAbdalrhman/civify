@@ -1,5 +1,7 @@
-package com.app.civify.entity;
+package com.app.civify.entity.security;
 
+import com.app.civify.entity.User;
+import com.app.civify.entity.utils.BaseEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;

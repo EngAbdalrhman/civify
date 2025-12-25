@@ -2,7 +2,7 @@ package com.app.civify.service.auth;
 
 import com.app.civify.dto.auth.AuthRequest;
 import com.app.civify.dto.auth.AuthResponse;
-import com.app.civify.entity.Group;
+import com.app.civify.entity.security.Group;
 import com.app.civify.entity.User;
 import com.app.civify.exception.BadRequestException;
 import com.app.civify.repository.GroupRepository;

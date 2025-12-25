@@ -1,6 +1,6 @@
 package com.app.civify.repository;
 
-import com.app.civify.entity.PlanFeature;
+import com.app.civify.entity.plans.PlanFeature;
 import com.app.civify.entity.enums.FeatureType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;

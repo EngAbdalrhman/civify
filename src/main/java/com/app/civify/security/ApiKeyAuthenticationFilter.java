@@ -1,6 +1,6 @@
 package com.app.civify.security;
 
-import com.app.civify.entity.ApiKey;
+import com.app.civify.entity.security.ApiKey;
 import com.app.civify.service.ApiKeyService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -15,7 +15,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
 
 @Component
 @RequiredArgsConstructor

@@ -3,7 +3,7 @@ package com.app.civify.service.audit;
 import com.app.civify.dto.audit.AuditLogDTO;
 import com.app.civify.dto.audit.AuditLogMapper;
 import com.app.civify.dto.audit.AuditLogRequest;
-import com.app.civify.entity.AuditLog;
+import com.app.civify.entity.logs.AuditLog;
 import com.app.civify.entity.enums.AuditAction;
 import com.app.civify.repository.AuditLogRepository;
 import com.app.civify.service.filter.GenericFilterService;
@@ -23,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;

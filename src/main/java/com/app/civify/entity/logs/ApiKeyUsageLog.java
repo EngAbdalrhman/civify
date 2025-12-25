@@ -1,5 +1,7 @@
-package com.app.civify.entity;
+package com.app.civify.entity.logs;
 
+import com.app.civify.entity.security.ApiKey;
+import com.app.civify.entity.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
