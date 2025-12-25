@@ -4,6 +4,7 @@ import com.app.civify.security.authenticationProvider.JWTAuthenticationProvider;
 import com.app.civify.security.filter.JWTAuthenticationFilter;
 import com.app.civify.security.filter.JWTRefreshFilter;
 import com.app.civify.security.filter.JwtValidationFilter;
+import com.app.civify.filter.RateLimitFilter;
 import com.app.civify.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,6 +38,7 @@ public class SecurityConfig {
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
 
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
+    private final RateLimitFilter rateLimitFilter;
 
     @Value("${app.frontend.base-url}")
     private String frontendUrl;
@@ -113,6 +115,7 @@ public class SecurityConfig {
                 )
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class) // Rate limit first
                 .addFilterBefore(apiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class) // API Key filter first
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class) // generate token filter
                 .addFilterAfter(jwtValidationFilter, JWTAuthenticationFilter.class) // validate token filter

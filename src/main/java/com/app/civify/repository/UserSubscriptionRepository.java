@@ -47,5 +47,5 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
     Long countByUserIdAndStatus(Long userId, SubscriptionStatus status);
 
     // Admin queries
-   Page<UserSubscription> findByStatus(SubscriptionStatus status, Pageable pageable);
+    Page<UserSubscription> findByStatus(SubscriptionStatus status, Pageable pageable);
 }

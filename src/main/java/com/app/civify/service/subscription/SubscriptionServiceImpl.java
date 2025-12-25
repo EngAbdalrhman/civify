@@ -716,12 +716,16 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
         // Removed Dashboard validation
     }
     @Override
-    public PagedResponse<UserSubscription> filterSubscriptions(InputDataModel inputData) {
+    public PagedResponse<com.app.civify.dto.subscription.UserSubscriptionDto> filterSubscriptions(InputDataModel inputData) {
         log.debug("Filtering subscriptions with criteria: {}", inputData);
         Page<UserSubscription> page = filterEntities(subscriptionRepository, inputData);
 
-        PagedResponse<UserSubscription> response = new PagedResponse<>();
-        response.setContent(page.getContent());
+        List<com.app.civify.dto.subscription.UserSubscriptionDto> dtos = page.getContent().stream()
+                .map(this::mapToDto)
+                .collect(java.util.stream.Collectors.toList());
+
+        PagedResponse<com.app.civify.dto.subscription.UserSubscriptionDto> response = new PagedResponse<>();
+        response.setContent(dtos);
         response.setPage(page.getNumber());
         response.setSize(page.getSize());
         response.setTotalElements(page.getTotalElements());
@@ -735,16 +739,38 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
     }
 
     @Override
-    public Page<UserSubscription> getAllSubscriptions(String status, org.springframework.data.domain.Pageable pageable) {
+    public Page<com.app.civify.dto.subscription.UserSubscriptionDto> getAllSubscriptions(String status, org.springframework.data.domain.Pageable pageable) {
+        Page<UserSubscription> page;
         if (status != null && !status.isEmpty()) {
             try {
                 SubscriptionStatus subStatus = SubscriptionStatus.valueOf(status.toUpperCase());
-                return subscriptionRepository.findByStatus(subStatus, pageable);
+                page = subscriptionRepository.findByStatus(subStatus, pageable);
             } catch (IllegalArgumentException e) {
-                // Invalid status, return empty or all? Let's return empty to indicate error in filter
                 throw new BadRequestException("Invalid subscription status: " + status);
             }
+        } else {
+            page = subscriptionRepository.findAll(pageable);
         }
-        return subscriptionRepository.findAll(pageable);
+        return page.map(this::mapToDto);
+    }
+
+    private com.app.civify.dto.subscription.UserSubscriptionDto mapToDto(UserSubscription sub) {
+        return com.app.civify.dto.subscription.UserSubscriptionDto.builder()
+                .id(sub.getId())
+                .userId(sub.getUser().getId())
+                .userName(sub.getUser().getName())
+                .userEmail(sub.getUser().getEmail())
+                .planId(sub.getPlan().getId())
+                .planName(sub.getPlan().getName())
+                .startDate(sub.getStartDate())
+                .endDate(sub.getEndDate())
+                .status(sub.getStatus())
+                .currentCvCount(sub.getCurrentCvCount())
+                .currentApiCount(sub.getCurrentApiCount())
+                .currentTokenUsage(sub.getCurrentTokenUsage())
+                .usageResetDate(sub.getUsageResetDate())
+                .promoCode(sub.getPromoCode() != null ? sub.getPromoCode().getCode() : null)
+                .paymentTransactionId(sub.getPaymentTransactionId())
+                .build();
     }
 }

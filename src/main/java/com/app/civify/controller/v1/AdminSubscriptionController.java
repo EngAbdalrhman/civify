@@ -33,12 +33,9 @@ public class AdminSubscriptionController {
     })
     @GetMapping
     @CivifyAuthorization(permission = "SUBSCRIPTION.VIEW")
-    public ResponseEntity<Page<UserSubscription>> getAllSubscriptions(
+    public ResponseEntity<Page<com.app.civify.dto.subscription.UserSubscriptionDto>> getAllSubscriptions(
             @RequestParam(required = false) String status,
             Pageable pageable) {
-        // Assuming subscriptionService has a method for this, otherwise I'll need to add it.
-        // For now, I'll rely on a basic findAll equivalent or create it.
-        // Let's assume getAllSubscriptions exists or I will add it to Service.
         return ResponseEntity.ok(subscriptionService.getAllSubscriptions(status, pageable));
     }
 
@@ -49,10 +46,10 @@ public class AdminSubscriptionController {
     })
     @PostMapping("/filter")
     @CivifyAuthorization(permission = "SUBSCRIPTION.VIEW")
-    public ResponseEntity<com.app.civify.util.CommonResponse<com.app.civify.util.filter.PagedResponse<UserSubscription>>> filterSubscriptions(
+    public ResponseEntity<com.app.civify.util.CommonResponse<com.app.civify.util.filter.PagedResponse<com.app.civify.dto.subscription.UserSubscriptionDto>>> filterSubscriptions(
             @org.springframework.web.bind.annotation.RequestBody com.app.civify.util.filter.InputDataModel inputData) {
         
-        com.app.civify.util.filter.PagedResponse<UserSubscription> response = subscriptionService.filterSubscriptions(inputData);
+        com.app.civify.util.filter.PagedResponse<com.app.civify.dto.subscription.UserSubscriptionDto> response = subscriptionService.filterSubscriptions(inputData);
         return ResponseEntity.ok(com.app.civify.util.CommonResponse.success(response));
     }
 }
