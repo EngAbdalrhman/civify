@@ -14,7 +14,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -356,16 +359,25 @@ public class FawaterakPaymentGateway implements PaymentGateway {
             }
             String signature = root.get("hashKey").asText();
 
-            // Calculate expected hash using providerKey
-            // Note: We hash the payload as received. If Fawaterak logic differs (e.g. sorted params),
-            // this might need adjustment, but we must enforce the signature presence check.
-            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
-            mac.init(new javax.crypto.spec.SecretKeySpec(providerKey.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] digest = mac.doFinal(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            // Build query param string per Fawaterak documentation
+            // Format: InvoiceId={invoice_id}&InvoiceKey={invoice_key}&PaymentMethod={payment_method}
+            String invoiceId = root.path("invoice_id").asText("");
+            String invoiceKey = root.path("invoice_key").asText("");
+            String paymentMethod = root.path("payment_method").asText("");
+            
+            String queryParam = String.format("InvoiceId=%s&InvoiceKey=%s&PaymentMethod=%s",
+                invoiceId, invoiceKey, paymentMethod);
+            
+            log.debug("Fawaterak signature verification - queryParam: {}", queryParam);
+            
+            // HMAC SHA256 with provider key
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(providerKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] digest = mac.doFinal(queryParam.getBytes(StandardCharsets.UTF_8));
             String expected = bytesToHex(digest);
             
             if (!signature.equalsIgnoreCase(expected)) {
-                log.warn("Fawaterak signature mismatch. Received: {}, Calculated: {}", signature, expected);
+                log.warn("Fawaterak signature mismatch. Received: {}, Expected: {}", signature, expected);
                 return false;
             }
             return true;

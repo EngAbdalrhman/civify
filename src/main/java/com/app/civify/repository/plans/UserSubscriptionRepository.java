@@ -48,4 +48,17 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
 
     // Admin queries
     Page<UserSubscription> findByStatus(SubscriptionStatus status, Pageable pageable);
+
+    // For billing cycle - find subscriptions where usageResetDate has passed  
+    List<UserSubscription> findByUsageResetDateBefore(LocalDateTime date);
+    
+    // For invoicing - find renewable subscriptions expiring in specified window
+    @Query("SELECT s FROM UserSubscription s WHERE s.status = :status " +
+           "AND s.plan.renewalAllowed = true " +
+           "AND s.endDate BETWEEN :startDate AND :endDate " +
+           "AND LOWER(s.plan.name) != 'free'")
+    List<UserSubscription> findRenewableSubscriptionsExpiringBetween(
+            @Param("status") SubscriptionStatus status, 
+            @Param("startDate") LocalDateTime startDate, 
+            @Param("endDate") LocalDateTime endDate);
 }
