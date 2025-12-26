@@ -3,6 +3,7 @@ package com.app.civify.controller.v1.security;
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.group.GroupCreateRequest;
 import com.app.civify.dto.group.GroupResponse;
+import com.app.civify.entity.enums.AuditAction;
 import com.app.civify.entity.security.Group;
 import com.app.civify.entity.security.Permission;
 import com.app.civify.exception.BadRequestException;
@@ -10,6 +11,7 @@ import com.app.civify.exception.ResourceNotFoundException;
 import com.app.civify.repository.security.GroupRepository;
 import com.app.civify.repository.security.PermissionRepository;
 import com.app.civify.security.annotation.CivifyAuthorization;
+import com.app.civify.service.audit.AuditService;
 import com.app.civify.util.CommonResponse;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
@@ -24,7 +26,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -40,6 +44,7 @@ public class AdminGroupController {
     private final GroupRepository groupRepository;
     private final PermissionRepository permissionRepository;
     private final CommonService commonService;
+    private final AuditService auditService;
 
     @Operation(
             summary = "Filter groups with advanced criteria",
@@ -160,6 +165,9 @@ public class AdminGroupController {
         log.info("Created group: {} with {} permissions", saved.getName(), 
                 saved.getPermissions() != null ? saved.getPermissions().size() : 0);
 
+        logAudit(saved.getId(), AuditAction.CREATE, null, groupToMap(saved),
+                "Created group: " + saved.getName());
+
         return ResponseEntity.ok(CommonResponse.success("Group created successfully", toResponse(saved)));
     }
 
@@ -201,6 +209,9 @@ public class AdminGroupController {
         log.info("Updated group: {} with {} permissions", saved.getName(), 
                 saved.getPermissions() != null ? saved.getPermissions().size() : 0);
 
+        logAudit(saved.getId(), AuditAction.UPDATE, null, groupToMap(saved),
+                "Updated group: " + saved.getName());
+
         return ResponseEntity.ok(CommonResponse.success("Group updated successfully", toResponse(saved)));
     }
 
@@ -227,8 +238,12 @@ public class AdminGroupController {
             throw new BadRequestException("Cannot delete default group: " + group.getName());
         }
 
+        String groupName = group.getName();
         groupRepository.delete(group);
-        log.info("Deleted group: {}", group.getName());
+        log.info("Deleted group: {}", groupName);
+
+        logAudit(groupId, AuditAction.DELETE, groupToMap(group), null,
+                "Deleted group: " + groupName);
 
         return ResponseEntity.ok(CommonResponse.success("Group deleted successfully", null));
     }
@@ -257,6 +272,10 @@ public class AdminGroupController {
         
         log.info("Toggled active status for group: {} to {}", saved.getName(), saved.getIsActive());
 
+        String action = saved.getIsActive() ? "Activated" : "Deactivated";
+        logAudit(saved.getId(), AuditAction.UPDATE, null, null,
+                action + " group: " + saved.getName());
+
         return ResponseEntity.ok(CommonResponse.success(
                 saved.getIsActive() ? "Group activated" : "Group deactivated", 
                 toResponse(saved)));
@@ -283,6 +302,25 @@ public class AdminGroupController {
                 .isActive(group.getIsActive())
                 .permissions(permissionDtos)
                 .build();
+    }
+
+    private void logAudit(Long entityId, AuditAction action, Map<String, Object> oldVal,
+                          Map<String, Object> newVal, String comment) {
+        try {
+            auditService.logAudit("Group", entityId.toString(), action, oldVal, newVal, comment);
+        } catch (Exception e) {
+            log.warn("Failed to log audit for Group action: {}", action, e);
+        }
+    }
+
+    private Map<String, Object> groupToMap(Group group) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("name", group.getName());
+        map.put("isSystemGroup", group.getIsSystemGroup());
+        map.put("isDefault", group.getIsDefault());
+        map.put("isActive", group.getIsActive());
+        map.put("permissionCount", group.getPermissions() != null ? group.getPermissions().size() : 0);
+        return map;
     }
 }
 
