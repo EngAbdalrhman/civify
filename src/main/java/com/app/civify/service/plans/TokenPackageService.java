@@ -33,16 +33,80 @@ public class TokenPackageService {
         return tokenPackageRepository.findByActiveTrue();
     }
 
+    public List<TokenPackage> getAllPackages() {
+        return tokenPackageRepository.findAll();
+    }
+
+    public TokenPackage getPackageById(Long id) {
+        return tokenPackageRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Token package not found with id: " + id));
+    }
+
+    @Transactional
     public TokenPackage createPackage(TokenPackage tokenPackage) {
+        tokenPackage.setActive(true);
         TokenPackage saved = tokenPackageRepository.save(tokenPackage);
-        try {
-            auditService.logAudit("TokenPackage", saved.getId().toString(), 
-                    AuditAction.CREATE, 
-                    "Created token package: " + saved.getName() + " (" + saved.getTokens() + " tokens)");
-        } catch (Exception e) {
-            log.warn("Failed to log audit for token package creation", e);
-        }
+        logAudit(saved.getId(), AuditAction.CREATE, null, saved,
+                "Created token package: " + saved.getName() + " (" + saved.getTokens() + " tokens)");
         return saved;
+    }
+
+    @Transactional
+    public TokenPackage updatePackage(Long id, TokenPackage updated) {
+        TokenPackage existing = getPackageById(id);
+        
+        // Capture old state for audit
+        TokenPackage oldState = new TokenPackage();
+        oldState.setName(existing.getName());
+        oldState.setTokens(existing.getTokens());
+        oldState.setPrice(existing.getPrice());
+        oldState.setCurrency(existing.getCurrency());
+        oldState.setDescription(existing.getDescription());
+        oldState.setActive(existing.getActive());
+        
+        // Apply updates
+        existing.setName(updated.getName());
+        existing.setTokens(updated.getTokens());
+        existing.setPrice(updated.getPrice());
+        existing.setCurrency(updated.getCurrency());
+        existing.setDescription(updated.getDescription());
+        if (updated.getActive() != null) {
+            existing.setActive(updated.getActive());
+        }
+        
+        TokenPackage saved = tokenPackageRepository.save(existing);
+        logAudit(saved.getId(), AuditAction.UPDATE, oldState, saved,
+                "Updated token package: " + saved.getName());
+        return saved;
+    }
+
+    @Transactional
+    public void deactivatePackage(Long id) {
+        TokenPackage existing = getPackageById(id);
+        existing.setActive(false);
+        tokenPackageRepository.save(existing);
+        logAudit(id, AuditAction.DELETE, null, null,
+                "Deactivated token package: " + existing.getName());
+    }
+
+    private void logAudit(Long entityId, AuditAction action, TokenPackage oldVal, TokenPackage newVal, String comment) {
+        try {
+            Map<String, Object> oldMap = oldVal != null ? toMap(oldVal) : null;
+            Map<String, Object> newMap = newVal != null ? toMap(newVal) : null;
+            auditService.logAudit("TokenPackage", entityId.toString(), action, oldMap, newMap, comment);
+        } catch (Exception e) {
+            log.warn("Failed to log audit for TokenPackage action: {}", action, e);
+        }
+    }
+
+    private Map<String, Object> toMap(TokenPackage pkg) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("name", pkg.getName());
+        map.put("tokens", pkg.getTokens());
+        map.put("price", pkg.getPrice());
+        map.put("currency", pkg.getCurrency());
+        map.put("active", pkg.getActive());
+        return map;
     }
 
     @Transactional
