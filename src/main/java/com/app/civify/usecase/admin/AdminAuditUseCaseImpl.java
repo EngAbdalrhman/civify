@@ -3,6 +3,7 @@ package com.app.civify.usecase.admin;
 import com.app.civify.dto.audit.AuditLogDTO;
 import com.app.civify.dto.audit.AuditLogRequest;
 import com.app.civify.service.audit.AuditService;
+import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
 import com.app.civify.util.persistence.CommonService;
 import lombok.RequiredArgsConstructor;
@@ -24,15 +25,51 @@ public class AdminAuditUseCaseImpl extends CommonService implements AdminAuditUs
     }
 
     @Override
-    public PagedResponse<AuditLogDTO> getAuditHistory(String entityType, String entityId, int page, int size) {
+    public PagedResponse<AuditLogDTO> getAuditHistory(String entityType, String entityId, InputDataModel inputData) {
         log.debug("UseCase: Retrieving audit logs for {}/{}", entityType, entityId);
-        return auditService.getAuditHistory(entityType, entityId, page, size);
+        
+        // Add entity type and ID filters to inputData
+        inputData.addFilter("entityType", com.app.civify.util.filter.FilterOperation.EQUAL, entityType);
+        inputData.addFilter("entityId", com.app.civify.util.filter.FilterOperation.EQUAL, entityId);
+        
+        AuditLogRequest request = new AuditLogRequest();
+        request.setEntityType(entityType);
+        request.setEntityId(entityId);
+        request.setPage(inputData.getPage());
+        request.setSize(inputData.getSize());
+        
+        return auditService.getAuditHistory(request);
     }
 
     @Override
-    public PagedResponse<AuditLogDTO> getAuditHistoryByType(String entityType, int page, int size) {
+    public PagedResponse<AuditLogDTO> getAuditHistoryByType(String entityType, InputDataModel inputData) {
         log.debug("UseCase: Retrieving audit logs for entity type: {}", entityType);
-        return auditService.getAuditHistoryByType(entityType, page, size);
+        
+        inputData.addFilter("entityType", com.app.civify.util.filter.FilterOperation.EQUAL, entityType);
+        
+        AuditLogRequest request = new AuditLogRequest();
+        request.setEntityType(entityType);
+        request.setPage(inputData.getPage());
+        request.setSize(inputData.getSize());
+        
+        return auditService.getAuditHistory(request);
+    }
+
+    @Override
+    public PagedResponse<AuditLogDTO> getAllAuditLogs(InputDataModel inputData) {
+        log.debug("UseCase: Retrieving all audit logs with pagination");
+        
+        AuditLogRequest request = new AuditLogRequest();
+        request.setPage(inputData.getPage());
+        request.setSize(inputData.getSize());
+        
+        // Use sorts from inputData if available
+        if (!inputData.getSorts().isEmpty()) {
+            request.setSortBy(inputData.getSorts().get(0).getFieldName());
+            request.setSortDirection(inputData.getSorts().get(0).getDirection().name());
+        }
+        
+        return auditService.getAuditHistory(request);
     }
 
     @Override
