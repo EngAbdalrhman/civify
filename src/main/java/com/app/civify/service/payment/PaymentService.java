@@ -17,6 +17,16 @@ public interface PaymentService {
     PaymentCreationResult createPayment(Long userId, double amount, String gateway);
 
     /**
+     * Create a payment transaction with metadata
+     *
+     * @param userId User ID
+     * @param amount Amount
+     * @param metadata Metadata (e.g. type=TOKEN_TOPUP)
+     * @return PaymentCreationResult
+     */
+    PaymentCreationResult createPayment(Long userId, double amount, Map<String, Object> metadata);
+
+    /**
      * Verify a payment transaction
      *
      * @param paymentId Payment ID to verify

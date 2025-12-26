@@ -17,11 +17,25 @@ import java.util.Map;
 public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentGatewayManager gatewayManager;
+    private final com.app.civify.repository.plans.PaymentRepository paymentRepository;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+
+    @org.springframework.context.annotation.Lazy
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.app.civify.service.plans.TokenPackageService tokenPackageService;
 
     @Override
     public PaymentCreationResult createPayment(Long userId, double amount, String gateway) {
         log.info("Creating payment for user {} with amount {} using gateway {}", userId, amount, gateway);
         return gatewayManager.createPayment(gateway, userId, amount, null);
+    }
+
+    @Override
+    public PaymentCreationResult createPayment(Long userId, double amount, Map<String, Object> metadata) {
+        log.info("Creating payment for user {} with amount {} and metadata {}", userId, amount, metadata);
+        // Use default gateway or determine from config where 'default' is needed
+        // For now, assuming 'fawaterak' or 'paymob' is configured as default in manager or we pass null to let manager decide
+        return gatewayManager.createPayment(null, userId, amount, metadata);
     }
 
     @Override
@@ -33,7 +47,28 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     public void handlePaymentCallback(String gateway, String orderId, String rawPayload, Map<String, String> headers) {
         log.info("Handling payment callback for gateway {} order {}", gateway, orderId);
-        gatewayManager.handleCallback(gateway, rawPayload, headers);
+        com.app.civify.dto.payment.PaymentCallbackResult result = gatewayManager.handleCallback(gateway, rawPayload, headers);
+        
+        if (result.isSuccess()) {
+            try {
+                // Fetch transaction to check metadata
+                com.app.civify.entity.plans.PaymentTransaction transaction = paymentRepository.findByOrderId(orderId)
+                        .orElseThrow(() -> new RuntimeException("Transaction not found for order: " + orderId));
+                
+                if (transaction.getMetadata() != null) {
+                    Map<String, Object> meta = objectMapper.readValue(transaction.getMetadata(), Map.class);
+                    
+                    if ("TOKEN_TOPUP".equals(meta.get("type"))) {
+                        Long userId = transaction.getUserId(); // or from meta.get("userId")
+                        Integer tokens = (Integer) meta.get("tokens");
+                        log.info("Processing TOKEN_TOPUP for user {}: {} tokens", userId, tokens);
+                        tokenPackageService.fulfillTokenPurchase(userId, tokens);
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Failed to process payment fulfillment: {}", e.getMessage(), e);
+            }
+        }
     }
 
     @Override

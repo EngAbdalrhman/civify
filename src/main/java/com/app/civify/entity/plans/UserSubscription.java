@@ -78,8 +78,11 @@ public class UserSubscription extends BaseEntity {
      * Check if subscription is currently active and not expired
      */
     public boolean isActive() {
-        return status == SubscriptionStatus.ACTIVE
-                && LocalDateTime.now().isBefore(endDate);
+        // Allow 3-day grace period for payment processing/retries
+        // The scheduler downgrades after 2 days, so this ensures service continuity 
+        // until the scheduler actually marks it EXPIRED.
+        return status == SubscriptionStatus.ACTIVE 
+                && LocalDateTime.now().isBefore(endDate.plusDays(3));
     }
 
     /**

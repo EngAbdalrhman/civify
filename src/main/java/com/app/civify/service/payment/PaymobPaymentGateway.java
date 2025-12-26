@@ -237,18 +237,61 @@ public class PaymobPaymentGateway implements PaymentGateway {
         try {
             String expected = headers.getOrDefault("hmac", headers.getOrDefault("HMAC", null));
             if (expected == null || expected.isBlank()) {
+                // Try query params if header not found (sometimes sent as 'hmac' param)
+                // But for now, just return false if missing.
                 return false;
             }
-            // Use raw payload directly
+
+            JsonNode n = objectMapper.readTree(payload);
+            
+            // Paymob HMAC Calculation: Concatenate values of specific keys in order
+            // keys: amount_cents, created_at, currency, error_occured, has_parent_transaction, id, 
+            // integration_id, is_3d_secure, is_auth, is_capture, is_refunded, is_standalone_payment, 
+            // is_voided, order.id, owner, pending, source_data.pan, source_data.sub_type, 
+            // source_data.type, success
+            
+            StringBuilder sb = new StringBuilder();
+            sb.append(getValue(n, "amount_cents"));
+            sb.append(getValue(n, "created_at"));
+            sb.append(getValue(n, "currency"));
+            sb.append(getValue(n, "error_occured"));
+            sb.append(getValue(n, "has_parent_transaction"));
+            sb.append(getValue(n, "id"));
+            sb.append(getValue(n, "integration_id"));
+            sb.append(getValue(n, "is_3d_secure"));
+            sb.append(getValue(n, "is_auth"));
+            sb.append(getValue(n, "is_capture"));
+            sb.append(getValue(n, "is_refunded"));
+            sb.append(getValue(n, "is_standalone_payment"));
+            sb.append(getValue(n, "is_voided"));
+            sb.append(getValue(n.path("order"), "id")); // Nested order.id
+            sb.append(getValue(n, "owner"));
+            sb.append(getValue(n, "pending"));
+            sb.append(getValue(n.path("source_data"), "pan"));
+            sb.append(getValue(n.path("source_data"), "sub_type"));
+            sb.append(getValue(n.path("source_data"), "type"));
+            sb.append(getValue(n, "success"));
+
+            String concatenated = sb.toString();
+            
             javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA512");
             mac.init(new javax.crypto.spec.SecretKeySpec(hmacSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA512"));
-            byte[] digest = mac.doFinal(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            String actual = bytesToHex(digest);
-            return expected.equalsIgnoreCase(actual);
+            byte[] digest = mac.doFinal(concatenated.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            String calculated = bytesToHex(digest);
+
+            return expected.equalsIgnoreCase(calculated);
+
         } catch (Exception e) {
             log.warn("Paymob signature verification failed: {}", e.getMessage());
             return false;
         }
+    }
+
+    private String getValue(JsonNode node, String key) {
+        if (node == null || node.isNull() || !node.has(key)) return "";
+        JsonNode val = node.get(key);
+        if (val.isBoolean()) return val.asBoolean() ? "true" : "false";
+        return val.asText();
     }
 
     private String bytesToHex(byte[] bytes) {
