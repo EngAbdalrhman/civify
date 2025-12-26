@@ -3,12 +3,9 @@ package com.app.civify.controller.v1.plans;
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.plan.PlanCreateRequest;
 import com.app.civify.dto.plan.PlanDetailResponse;
-import com.app.civify.dto.plan.PlanMapper;
 import com.app.civify.dto.plan.PlanUpdateRequest;
 import com.app.civify.entity.plans.SubscriptionPlan;
-import com.app.civify.entity.security.Group;
-import com.app.civify.repository.security.GroupRepository;
-import com.app.civify.service.subscription.SubscriptionService;
+import com.app.civify.usecase.admin.AdminPlanUseCase;
 import com.app.civify.util.CommonResponse;
 import com.app.civify.util.filter.PagedResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,7 +22,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Admin controller for managing subscription plans All endpoints require ADMIN
@@ -36,12 +32,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Admin - Plan Management", description = "Admin endpoints for managing subscription plans")
-// @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AdminPlanController {
 
-    private final SubscriptionService subscriptionService;
-    private final PlanMapper planMapper;
-    private final GroupRepository groupRepository;
+    private final AdminPlanUseCase adminPlanUseCase;
 
     @Operation(
             summary = "Filter plans with advanced criteria",
@@ -65,7 +58,7 @@ public class AdminPlanController {
     public ResponseEntity<CommonResponse<PagedResponse<SubscriptionPlan>>> filterPlans(@Valid @RequestBody com.app.civify.util.filter.InputDataModel inputData) {
         log.info("Admin filtering plans with criteria: {}", inputData);
 
-        com.app.civify.util.filter.PagedResponse<SubscriptionPlan> pagedResponse = subscriptionService.filterPlans(inputData);
+        PagedResponse<SubscriptionPlan> pagedResponse = adminPlanUseCase.filterPlans(inputData);
 
         return ResponseEntity.ok(CommonResponse.success("Plans filtered successfully", pagedResponse));
     }
@@ -91,10 +84,7 @@ public class AdminPlanController {
     @GetMapping
     public ResponseEntity<List<PlanDetailResponse>> getAllPlans() {
         log.info("Admin fetching all subscription plans");
-        List<SubscriptionPlan> plans = subscriptionService.getAllPlans();
-        List<PlanDetailResponse> response = plans.stream()
-                .map(planMapper::toDetailResponse)
-                .collect(Collectors.toList());
+        List<PlanDetailResponse> response = adminPlanUseCase.getAllPlans();
         return ResponseEntity.ok(response);
     }
 
@@ -119,17 +109,7 @@ public class AdminPlanController {
     @GetMapping("/{planId}")
     public ResponseEntity<PlanDetailResponse> getPlanWithStats(@PathVariable Long planId) {
         log.info("Admin fetching plan {} with statistics", planId);
-
-        return subscriptionService.getPlanById(planId)
-                .map(plan -> {
-                    long activeSubscriptionCount = subscriptionService.getActiveSubscriptionCountForPlan(planId);
-
-                    PlanDetailResponse response = planMapper.toDetailResponse(plan);
-                    response.setActiveSubscriptionCount(activeSubscriptionCount);
-
-                    return ResponseEntity.ok(response);
-                })
-                .orElse(ResponseEntity.notFound().build());
+        return ResponseEntity.ok(adminPlanUseCase.getPlanWithStats(planId));
     }
 
     @Operation(
@@ -155,31 +135,7 @@ public class AdminPlanController {
         log.info("Admin creating new subscription plan: {}", request.getName());
 
         try {
-            // For now, create a basic plan using legacy fields
-            // TODO: Implement full plan creation with features, pricing, discounts, and integrations
-            SubscriptionPlan plan = new SubscriptionPlan();
-            plan.setName(request.getName());
-            plan.setDescription(request.getDescription());
-            plan.setDetails(request.getDetails());
-            plan.setCvLimit(request.getCvLimit());
-            plan.setApiLimit(request.getApiLimit());
-            plan.setWatermark(request.getWatermark());
-            plan.setMonthlyPrice(request.getMonthlyPrice());
-            plan.setAnnualPrice(request.getAnnualPrice());
-            plan.setActive(request.getActive());
-
-            // Link group if specified
-            if (request.getLinkedGroupId() != null) {
-                Group linkedGroup = groupRepository.findById(request.getLinkedGroupId())
-                        .orElseThrow(() -> new com.app.civify.exception.ResourceNotFoundException(
-                                "Group not found: " + request.getLinkedGroupId()));
-                plan.setLinkedGroup(linkedGroup);
-                log.info("Linked plan '{}' to group '{}'", request.getName(), linkedGroup.getName());
-            }
-
-            SubscriptionPlan createdPlan = subscriptionService.createPlan(plan);
-            PlanDetailResponse response = planMapper.toDetailResponse(createdPlan);
-
+            PlanDetailResponse response = adminPlanUseCase.createPlan(request);
             return ResponseEntity
                     .status(HttpStatus.CREATED)
                     .body(CommonResponse.success("Plan created successfully", response));
@@ -221,40 +177,7 @@ public class AdminPlanController {
         log.info("Admin updating subscription plan: {}", planId);
 
         try {
-            // For now, update basic plan using legacy fields
-            // TODO: Implement full plan update with features, pricing, discounts, and integrations
-            SubscriptionPlan updatedPlan = new SubscriptionPlan();
-            if (request.getName() != null) {
-                updatedPlan.setName(request.getName());
-            }
-            if (request.getDescription() != null) {
-                updatedPlan.setDescription(request.getDescription());
-            }
-            if (request.getDetails() != null) {
-                updatedPlan.setDetails(request.getDetails());
-            }
-            if (request.getCvLimit() != null) {
-                updatedPlan.setCvLimit(request.getCvLimit());
-            }
-            if (request.getApiLimit() != null) {
-                updatedPlan.setApiLimit(request.getApiLimit());
-            }
-            if (request.getWatermark() != null) {
-                updatedPlan.setWatermark(request.getWatermark());
-            }
-            if (request.getMonthlyPrice() != null) {
-                updatedPlan.setMonthlyPrice(request.getMonthlyPrice());
-            }
-            if (request.getAnnualPrice() != null) {
-                updatedPlan.setAnnualPrice(request.getAnnualPrice());
-            }
-            if (request.getActive() != null) {
-                updatedPlan.setActive(request.getActive());
-            }
-
-            SubscriptionPlan updated = subscriptionService.updatePlan(planId, updatedPlan);
-            PlanDetailResponse response = planMapper.toDetailResponse(updated);
-
+            PlanDetailResponse response = adminPlanUseCase.updatePlan(planId, request);
             return ResponseEntity.ok(CommonResponse.success("Plan updated successfully", response));
         } catch (Exception e) {
             log.error("Error updating plan: {}", e.getMessage());
@@ -287,7 +210,7 @@ public class AdminPlanController {
         log.info("Admin activating subscription plan: {}", planId);
 
         try {
-            SubscriptionPlan activated = subscriptionService.activatePlan(planId);
+            SubscriptionPlan activated = adminPlanUseCase.activatePlan(planId);
             return ResponseEntity.ok(CommonResponse.success("Plan activated successfully", activated));
         } catch (Exception e) {
             log.error("Error activating plan: {}", e.getMessage());
@@ -325,7 +248,7 @@ public class AdminPlanController {
         log.info("Admin deactivating subscription plan: {}", planId);
 
         try {
-            SubscriptionPlan deactivated = subscriptionService.deactivatePlan(planId);
+            SubscriptionPlan deactivated = adminPlanUseCase.deactivatePlan(planId);
             return ResponseEntity.ok(CommonResponse.success("Plan deactivated successfully", deactivated));
         } catch (Exception e) {
             log.error("Error deactivating plan: {}", e.getMessage());
@@ -363,7 +286,7 @@ public class AdminPlanController {
         log.info("Admin deleting subscription plan: {}", planId);
 
         try {
-            subscriptionService.deletePlan(planId);
+            adminPlanUseCase.deletePlan(planId);
             return ResponseEntity.ok(CommonResponse.success("Plan deleted successfully", null));
         } catch (Exception e) {
             log.error("Error deleting plan: {}", e.getMessage());

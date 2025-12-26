@@ -2,13 +2,15 @@ package com.app.civify.controller.v1.admin;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.user.UserResponseDTO;
-import com.app.civify.service.user.AdminUserService;
+import com.app.civify.security.annotation.CivifyAuthorization;
+import com.app.civify.usecase.admin.AdminUserUseCase;
 import com.app.civify.util.CommonResponse;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,7 +33,7 @@ import jakarta.validation.Valid;
 // @PreAuthorize("hasAuthority('ROLE_ADMIN')") - Removed in favor of Granular Permissions
 public class AdminUserController {
 
-    private final AdminUserService adminUserService;
+    private final AdminUserUseCase adminUserUseCase;
 
     @Operation(
             summary = "Filter users with advanced criteria",
@@ -39,23 +41,23 @@ public class AdminUserController {
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @ApiResponses(value = {
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+        @ApiResponse(
                 responseCode = "200",
                 description = "Users filtered successfully",
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))
         ),
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+        @ApiResponse(
                 responseCode = "400",
                 description = "Invalid filter criteria",
                 content = @Content(mediaType = "application/json")
         )
     })
-    @com.app.civify.security.annotation.CivifyAuthorization(permission = "USER.VIEW")
+    @CivifyAuthorization(permission = "USER.VIEW")
     @PostMapping("/filter")
     public ResponseEntity<CommonResponse<PagedResponse<UserResponseDTO>>> filterUsers(@Valid @RequestBody InputDataModel inputData) {
         log.info("Admin filtering users with criteria: {}", inputData);
 
-        PagedResponse<UserResponseDTO> pagedResponse = adminUserService.filterUsers(inputData);
+        PagedResponse<UserResponseDTO> pagedResponse = adminUserUseCase.filterUsers(inputData);
 
         return ResponseEntity.ok(CommonResponse.success("Users filtered successfully", pagedResponse));
     }
@@ -66,20 +68,20 @@ public class AdminUserController {
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @ApiResponses(value = {
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+        @ApiResponse(
                 responseCode = "200",
                 description = "Users retrieved successfully",
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))
         )
     })
-    @com.app.civify.security.annotation.CivifyAuthorization(permission = "USER.VIEW")
+    @CivifyAuthorization(permission = "USER.VIEW")
     @GetMapping
     public ResponseEntity<CommonResponse<PagedResponse<UserResponseDTO>>> getAllUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         log.info("Admin fetching all users - page: {}, size: {}", page, size);
 
-        PagedResponse<UserResponseDTO> pagedResponse = adminUserService.getAllUsers(page, size);
+        PagedResponse<UserResponseDTO> pagedResponse = adminUserUseCase.getAllUsers(page, size);
 
         return ResponseEntity.ok(CommonResponse.success("Users retrieved successfully", pagedResponse));
     }
@@ -90,18 +92,18 @@ public class AdminUserController {
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @ApiResponses(value = {
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+        @ApiResponse(
                 responseCode = "200",
                 description = "User retrieved successfully",
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))
         ),
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+        @ApiResponse(
                 responseCode = "404",
                 description = "User not found",
                 content = @Content(mediaType = "application/json")
         )
     })
-    @com.app.civify.security.annotation.CivifyAuthorization(permission = "USER.VIEW")
+    @CivifyAuthorization(permission = "USER.VIEW")
     @GetMapping("/{userId}")
     public ResponseEntity<CommonResponse<UserResponseDTO>> getUserById(
             @PathVariable Long userId,
@@ -109,8 +111,8 @@ public class AdminUserController {
         log.info("Admin fetching user with ID: {} (includeStats: {})", userId, includeStats);
 
         UserResponseDTO userDTO = includeStats
-                ? adminUserService.getUserByIdWithStats(userId)
-                : adminUserService.getUserById(userId);
+                ? adminUserUseCase.getUserByIdWithStats(userId)
+                : adminUserUseCase.getUserById(userId);
 
         return ResponseEntity.ok(CommonResponse.success("User retrieved successfully", userDTO));
     }
@@ -131,7 +133,7 @@ public class AdminUserController {
                 content = @Content(mediaType = "application/json")
         )
     })
-    @com.app.civify.security.annotation.CivifyAuthorization(permission = "USER.MODIFY")
+    @CivifyAuthorization(permission = "USER.MODIFY")
     @PutMapping("/{userId}/limits")
     public ResponseEntity<CommonResponse<UserResponseDTO>> updateUserLimits(
             @PathVariable Long userId,
@@ -139,7 +141,7 @@ public class AdminUserController {
             @RequestParam(required = false) Integer apiLimit) {
         log.info("Admin updating limits for user {}: CV={}, API={}", userId, cvLimit, apiLimit);
 
-        UserResponseDTO userDTO = adminUserService.updateUserLimits(userId, cvLimit, apiLimit);
+        UserResponseDTO userDTO = adminUserUseCase.updateUserLimits(userId, cvLimit, apiLimit);
 
         return ResponseEntity.ok(CommonResponse.success("User limits updated successfully", userDTO));
     }

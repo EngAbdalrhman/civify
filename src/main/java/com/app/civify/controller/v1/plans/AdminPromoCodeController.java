@@ -2,7 +2,8 @@ package com.app.civify.controller.v1.plans;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.entity.plans.PromoCode;
-import com.app.civify.service.payment.PromoCodeService;
+import com.app.civify.security.annotation.CivifyAuthorization;
+import com.app.civify.usecase.admin.AdminPromoCodeUseCase;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
 import com.app.civify.util.CommonResponse;
@@ -26,7 +27,7 @@ import org.springframework.web.bind.annotation.*;
 // @PreAuthorize("hasRole('ADMIN')")
 public class AdminPromoCodeController {
 
-    private final PromoCodeService promoCodeService;
+    private final AdminPromoCodeUseCase promoCodeUseCase;
 
     @Operation(
             summary = "Filter promo codes",
@@ -37,10 +38,10 @@ public class AdminPromoCodeController {
             @ApiResponse(responseCode = "200", description = "Promo codes retrieved successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = PagedResponse.class)))
     })
-    @com.app.civify.security.annotation.CivifyAuthorization(permission = "PROMO.VIEW")
+    @CivifyAuthorization(permission = "PROMO.VIEW")
     @PostMapping("/filter")
     public ResponseEntity<CommonResponse<PagedResponse<PromoCode>>> filterPromoCodes(@RequestBody InputDataModel inputData) {
-        return ResponseEntity.ok(CommonResponse.success(promoCodeService.filterPromoCodes(inputData)));
+        return ResponseEntity.ok(CommonResponse.success(promoCodeUseCase.filterPromoCodes(inputData)));
     }
 
     @Operation(
@@ -54,10 +55,10 @@ public class AdminPromoCodeController {
             @ApiResponse(responseCode = "400", description = "Invalid input",
                     content = @Content(mediaType = "application/json"))
     })
-    @com.app.civify.security.annotation.CivifyAuthorization(permission = "PROMO.MODIFY")
+    @CivifyAuthorization(permission = "PROMO.MODIFY")
     @PostMapping
     public ResponseEntity<CommonResponse<PromoCode>> createPromoCode(@RequestBody PromoCode promoCode) {
-        return ResponseEntity.ok(CommonResponse.success(promoCodeService.createPromoCode(promoCode)));
+        return ResponseEntity.ok(CommonResponse.success(promoCodeUseCase.createPromoCode(promoCode)));
     }
 
     @Operation(
@@ -71,10 +72,10 @@ public class AdminPromoCodeController {
             @ApiResponse(responseCode = "404", description = "Promo code not found",
                     content = @Content(mediaType = "application/json"))
     })
-    @com.app.civify.security.annotation.CivifyAuthorization(permission = "PROMO.MODIFY")
+    @CivifyAuthorization(permission = "PROMO.MODIFY")
     @PutMapping("/{id}")
     public ResponseEntity<CommonResponse<PromoCode>> updatePromoCode(@PathVariable Long id, @RequestBody PromoCode promoCode) {
-        return ResponseEntity.ok(CommonResponse.success(promoCodeService.updatePromoCode(id, promoCode)));
+        return ResponseEntity.ok(CommonResponse.success(promoCodeUseCase.updatePromoCode(id, promoCode)));
     }
 
     @Operation(
@@ -88,10 +89,10 @@ public class AdminPromoCodeController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Promo code not found",
                     content = @Content(mediaType = "application/json"))
     })
-    @com.app.civify.security.annotation.CivifyAuthorization(permission = "PROMO.MODIFY")
+    @CivifyAuthorization(permission = "PROMO.MODIFY")
     @PostMapping("/{id}/deactivate")
     public ResponseEntity<CommonResponse<PromoCode>> deactivatePromoCode(@PathVariable Long id) {
-        return ResponseEntity.ok(CommonResponse.success(promoCodeService.deactivatePromoCode(id)));
+        return ResponseEntity.ok(CommonResponse.success(promoCodeUseCase.deactivatePromoCode(id)));
     }
 
     @Operation(
@@ -105,10 +106,10 @@ public class AdminPromoCodeController {
             @ApiResponse(responseCode = "404", description = "Promo code not found",
                     content = @Content(mediaType = "application/json"))
     })
-    @com.app.civify.security.annotation.CivifyAuthorization(permission = "PROMO.MODIFY")
+    @CivifyAuthorization(permission = "PROMO.MODIFY")
     @DeleteMapping("/{id}")
     public ResponseEntity<CommonResponse<Void>> deletePromoCode(@PathVariable Long id) {
-        promoCodeService.deletePromoCode(id);
+        promoCodeUseCase.deletePromoCode(id);
         return ResponseEntity.ok(CommonResponse.success("Promo code deleted successfully", null));
     }
 }

@@ -1,16 +1,12 @@
 package com.app.civify.controller.v1.plans;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
+import com.app.civify.dto.subscription.PromoValidationResponse;
 import com.app.civify.dto.subscription.SubscriptionResponse;
-import com.app.civify.entity.plans.PromoCode;
 import com.app.civify.entity.plans.SubscriptionPlan;
-import com.app.civify.entity.plans.UserSubscription;
-import com.app.civify.exception.ResourceNotFoundException;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.security.annotation.CivifyAuthorization;
-import com.app.civify.service.payment.PromoCodeService;
-import com.app.civify.service.subscription.SubscriptionService;
-import com.app.civify.service.user.UserService;
+import com.app.civify.usecase.user.SubscriptionUseCase;
 import com.app.civify.util.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -28,8 +24,6 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 @ApiV1Controller
 @RequestMapping("/subscriptions")
@@ -38,9 +32,7 @@ import java.util.stream.Collectors;
 @Tag(name = "Subscriptions", description = "Subscription management endpoints")
 public class SubscriptionController {
 
-    private final SubscriptionService subscriptionService;
-    private final UserService userService;
-    private final PromoCodeService promoCodeService;
+    private final SubscriptionUseCase subscriptionUseCase;
 
     @Operation(
             summary = "Get all subscription plans",
@@ -52,7 +44,7 @@ public class SubscriptionController {
     })
     @GetMapping("/plans")
     public ResponseEntity<CommonResponse<List<SubscriptionPlan>>> getAllPlans() {
-        List<SubscriptionPlan> plans = subscriptionService.getAllActivePlans();
+        List<SubscriptionPlan> plans = subscriptionUseCase.getAllActivePlans();
         return ResponseEntity.ok(CommonResponse.success(plans));
     }
 
@@ -68,8 +60,7 @@ public class SubscriptionController {
     })
     @GetMapping("/plans/{planId}")
     public ResponseEntity<CommonResponse<SubscriptionPlan>> getPlanById(@PathVariable Long planId) {
-        SubscriptionPlan plan = subscriptionService.getPlanById(planId)
-                .orElseThrow(() -> new ResourceNotFoundException("Subscription Plan not found with id: " + planId));
+        SubscriptionPlan plan = subscriptionUseCase.getPlanById(planId);
         return ResponseEntity.ok(CommonResponse.success(plan));
     }
 
@@ -78,38 +69,19 @@ public class SubscriptionController {
             description = "Validates a promo code for checkout and returns discount information."
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Promo code validated"),
+            @ApiResponse(responseCode = "200", description = "Promo code validated",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid promo code")
     })
     @PostMapping("/validate-promo")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> validatePromoCode(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<CommonResponse<PromoValidationResponse>> validatePromoCode(@RequestBody Map<String, Object> request) {
         String code = (String) request.get("code");
         Number amountNum = (Number) request.get("amount");
         BigDecimal amount = amountNum != null ? BigDecimal.valueOf(amountNum.doubleValue()) : BigDecimal.ZERO;
         
-        if (code == null || code.isBlank()) {
-            return ResponseEntity.badRequest().body(CommonResponse.error("Promo code is required"));
-        }
+        PromoValidationResponse response = subscriptionUseCase.validatePromoCode(code, amount);
         
-        Optional<PromoCode> promoOpt = promoCodeService.validatePromoCode(code, amount);
-        
-        if (promoOpt.isEmpty()) {
-            return ResponseEntity.ok(CommonResponse.success("Invalid or expired promo code", Map.of(
-                    "valid", false,
-                    "message", "Invalid or expired promo code"
-            )));
-        }
-        
-        PromoCode promo = promoOpt.get();
-        BigDecimal discountAmount = promo.calculateDiscount(amount);
-        
-        return ResponseEntity.ok(CommonResponse.success(Map.of(
-                "valid", true,
-                "discountType", promo.getDiscountType().name(),
-                "discountValue", promo.getDiscountValue(),
-                "discountAmount", discountAmount,
-                "message", "Promo code applied successfully"
-        )));
+        return ResponseEntity.ok(CommonResponse.success(response.getMessage(), response));
     }
 
     @Operation(
@@ -129,10 +101,8 @@ public class SubscriptionController {
     @CivifyAuthorization(permission = "CV.CREATE")
     public ResponseEntity<CommonResponse<SubscriptionResponse>> getMyActiveSubscription(@AuthenticationPrincipal UserPrincipal userPrincipal) {
         Long userId = userPrincipal.getId();
-        UserSubscription sub = subscriptionService.getActiveSubscription(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("No active subscription found"));
-
-        return ResponseEntity.ok(CommonResponse.success(mapToResponse(sub)));
+        SubscriptionResponse sub = subscriptionUseCase.getActiveSubscription(userId);
+        return ResponseEntity.ok(CommonResponse.success(sub));
     }
 
     @Operation(
@@ -150,13 +120,8 @@ public class SubscriptionController {
     @CivifyAuthorization(permission = "CV.CREATE")
     public ResponseEntity<CommonResponse<List<SubscriptionResponse>>> getMySubscriptions(@AuthenticationPrincipal UserPrincipal userPrincipal) {
         Long userId = userPrincipal.getId();
-        List<UserSubscription> subscriptions = subscriptionService.getUserSubscriptions(userId);
-        
-        List<SubscriptionResponse> response = subscriptions.stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
-                
-        return ResponseEntity.ok(CommonResponse.success(response));
+        List<SubscriptionResponse> subscriptions = subscriptionUseCase.getUserSubscriptions(userId);
+        return ResponseEntity.ok(CommonResponse.success(subscriptions));
     }
 
     @Operation(
@@ -179,7 +144,7 @@ public class SubscriptionController {
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
         try {
-            subscriptionService.cancelSubscription(subscriptionId);
+            subscriptionUseCase.cancelSubscription(subscriptionId);
             return ResponseEntity.ok(CommonResponse.success(Map.of(
                     "message", "Subscription cancelled successfully"
             )));
@@ -210,7 +175,7 @@ public class SubscriptionController {
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
         try {
-            subscriptionService.renewSubscription(subscriptionId, isAnnual);
+            subscriptionUseCase.renewSubscription(subscriptionId, isAnnual);
             return ResponseEntity.ok(CommonResponse.success(Map.of(
                     "message", "Subscription renewed successfully"
             )));
@@ -239,7 +204,7 @@ public class SubscriptionController {
 
         try {
             Long userId = userPrincipal.getId();
-            boolean canUse = subscriptionService.canUserUseFeature(userId, feature);
+            boolean canUse = subscriptionUseCase.canUseFeature(userId, feature);
 
             return ResponseEntity.ok(CommonResponse.success(Map.of(
                     "feature", feature,
@@ -251,26 +216,5 @@ public class SubscriptionController {
                     "canUse", false
             )));
         }
-    }
-
-    private SubscriptionResponse mapToResponse(UserSubscription sub) {
-        if (sub == null) return null;
-        return SubscriptionResponse.builder()
-                .id(sub.getId())
-                .userId(sub.getUser() != null ? sub.getUser().getId() : null)
-                .planId(sub.getPlan() != null ? sub.getPlan().getId() : null)
-                .planName(sub.getPlan() != null ? sub.getPlan().getName() : null)
-                .planDescription(sub.getPlan() != null ? sub.getPlan().getDescription() : null)
-                .cvLimit(sub.getPlan() != null ? sub.getPlan().getCvLimit() : null)
-                .apiLimit(sub.getPlan() != null ? sub.getPlan().getApiLimit() : null)
-                .currentCvCount(sub.getCurrentCvCount())
-                .currentApiCount(sub.getCurrentApiCount())
-                .startDate(sub.getStartDate())
-                .endDate(sub.getEndDate())
-                .status(sub.getStatus())
-                .paymentTransactionId(sub.getPaymentTransactionId())
-                .usageResetDate(sub.getUsageResetDate())
-                .currentTokenUsage(sub.getCurrentTokenUsage())
-                .build();
     }
 }

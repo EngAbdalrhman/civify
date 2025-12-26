@@ -3,7 +3,7 @@ package com.app.civify.controller.v1.logs;
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.audit.AuditLogDTO;
 import com.app.civify.dto.audit.AuditLogRequest;
-import com.app.civify.service.audit.AuditService;
+import com.app.civify.usecase.admin.AdminAuditUseCase;
 import com.app.civify.util.filter.PagedResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.*;
 // @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AdminAuditController {
 
-    private final AuditService auditService;
+    private final AdminAuditUseCase adminAuditUseCase;
 
     @Operation(
             summary = "Get audit logs with filtering",
@@ -40,7 +40,7 @@ public class AdminAuditController {
         log.info("Admin searching audit logs with filters: entityType={}, entityId={}, action={}",
                 request.getEntityType(), request.getEntityId(), request.getAction());
 
-        PagedResponse<AuditLogDTO> response = auditService.getAuditHistory(request);
+        PagedResponse<AuditLogDTO> response = adminAuditUseCase.searchAuditLogs(request);
         return ResponseEntity.ok(response);
     }
 
@@ -63,7 +63,7 @@ public class AdminAuditController {
 
         log.info("Admin retrieving audit logs for {}/{}", entityType, entityId);
 
-        PagedResponse<AuditLogDTO> response = auditService.getAuditHistory(entityType, entityId, page, size);
+        PagedResponse<AuditLogDTO> response = adminAuditUseCase.getAuditHistory(entityType, entityId, page, size);
         return ResponseEntity.ok(response);
     }
 
@@ -84,7 +84,7 @@ public class AdminAuditController {
 
         log.info("Admin retrieving audit logs for entity type: {}", entityType);
 
-        PagedResponse<AuditLogDTO> response = auditService.getAuditHistoryByType(entityType, page, size);
+        PagedResponse<AuditLogDTO> response = adminAuditUseCase.getAuditHistoryByType(entityType, page, size);
         return ResponseEntity.ok(response);
     }
 
@@ -103,7 +103,7 @@ public class AdminAuditController {
 
         log.info("Admin retrieving latest audit log for {}/{}", entityType, entityId);
 
-        AuditLogDTO auditLog = auditService.getLatestAudit(entityType, entityId);
+        AuditLogDTO auditLog = adminAuditUseCase.getLatestAudit(entityType, entityId);
         if (auditLog == null) {
             return ResponseEntity.notFound().build();
         }
@@ -135,7 +135,7 @@ public class AdminAuditController {
         request.setSortBy(sortBy);
         request.setSortDirection(sortDirection);
 
-        PagedResponse<AuditLogDTO> response = auditService.getAuditHistory(request);
+        PagedResponse<AuditLogDTO> response = adminAuditUseCase.searchAuditLogs(request);
         return ResponseEntity.ok(response);
     }
 }

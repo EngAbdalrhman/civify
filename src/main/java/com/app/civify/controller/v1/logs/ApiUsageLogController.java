@@ -5,8 +5,8 @@ import com.app.civify.dto.ApiKeyUsageLogDTO;
 import com.app.civify.entity.User;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.security.annotation.CivifyAuthorization;
-import com.app.civify.service.logs.ApiUsageLogService;
 import com.app.civify.service.logs.ApiUsageLogService.ApiUsageStatsDTO;
+import com.app.civify.usecase.logs.ApiUsageLogUseCase;
 import com.app.civify.util.CommonResponse;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * Controller for API Key Usage Logs
- * Delegates to ApiUsageLogService for business logic
+ * Delegates to ApiUsageLogUseCase for business logic
  */
 @Slf4j
 @ApiV1Controller
@@ -31,7 +31,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "API Usage Logs", description = "Endpoints for API usage logs")
 public class ApiUsageLogController {
 
-    private final ApiUsageLogService apiUsageLogService;
+    private final ApiUsageLogUseCase apiUsageLogUseCase;
 
     /**
      * User endpoint: Get current user's API usage logs for current month
@@ -55,7 +55,7 @@ public class ApiUsageLogController {
                     .body(CommonResponse.error("User not authenticated"));
         }
 
-        PagedResponse<ApiKeyUsageLogDTO> response = apiUsageLogService.filterMyLogs(user, inputData);
+        PagedResponse<ApiKeyUsageLogDTO> response = apiUsageLogUseCase.filterMyLogs(user, inputData);
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 
@@ -80,7 +80,7 @@ public class ApiUsageLogController {
                     .body(CommonResponse.error("User not authenticated"));
         }
 
-        ApiUsageStatsDTO stats = apiUsageLogService.getMyStats(user);
+        ApiUsageStatsDTO stats = apiUsageLogUseCase.getMyStats(user);
         return ResponseEntity.ok(CommonResponse.success(stats));
     }
 
@@ -97,7 +97,7 @@ public class ApiUsageLogController {
     public ResponseEntity<CommonResponse<PagedResponse<ApiKeyUsageLogDTO>>> filterLogs(
             @RequestBody InputDataModel inputData) {
         
-        PagedResponse<ApiKeyUsageLogDTO> response = apiUsageLogService.filterAllLogs(inputData);
+        PagedResponse<ApiKeyUsageLogDTO> response = apiUsageLogUseCase.filterAllLogs(inputData);
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 }
