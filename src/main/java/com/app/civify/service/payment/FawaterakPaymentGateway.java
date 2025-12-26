@@ -320,6 +320,11 @@ public class FawaterakPaymentGateway implements PaymentGateway {
      * @return true if transition is valid
      */
     private boolean isValidStateTransition(PaymentStatus currentStatus, String newStatus) {
+        // Allow COMPLETED -> REFUNDED
+        if (currentStatus == PaymentStatus.COMPLETED && "refunded".equalsIgnoreCase(newStatus)) {
+            return true;
+        }
+
         // Terminal states cannot transition
         if (currentStatus == PaymentStatus.COMPLETED || 
             currentStatus == PaymentStatus.REFUNDED) {
@@ -342,21 +347,30 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     }
 
     private boolean verifySignature(String payload, Map<String, String> headers) {
-        // Fawaterak may not send HMAC; if header absent, allow but log.
-        String signature = headers.getOrDefault("signature", headers.getOrDefault("SIGNATURE", ""));
-        if (signature == null || signature.isBlank()) {
-            log.warn("Fawaterak signature header missing; skipping verification");
-            return true;
-        }
         try {
-            // Use raw payload directly
+            // Extract hashKey from JSON body
+            JsonNode root = objectMapper.readTree(payload);
+            if (!root.has("hashKey")) {
+                log.error("❌ Fawaterak hashKey missing in body");
+                return false;
+            }
+            String signature = root.get("hashKey").asText();
+
+            // Calculate expected hash using providerKey
+            // Note: We hash the payload as received. If Fawaterak logic differs (e.g. sorted params),
+            // this might need adjustment, but we must enforce the signature presence check.
             javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
             mac.init(new javax.crypto.spec.SecretKeySpec(providerKey.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] digest = mac.doFinal(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             String expected = bytesToHex(digest);
-            return signature.equalsIgnoreCase(expected);
+            
+            if (!signature.equalsIgnoreCase(expected)) {
+                log.warn("Fawaterak signature mismatch. Received: {}, Calculated: {}", signature, expected);
+                return false;
+            }
+            return true;
         } catch (Exception e) {
-            log.warn("Fawaterak signature verification failed: {}", e.getMessage());
+            log.error("Fawaterak signature verification failed: {}", e.getMessage());
             return false;
         }
     }

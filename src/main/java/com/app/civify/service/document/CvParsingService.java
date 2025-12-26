@@ -149,16 +149,16 @@ public class CvParsingService {
 
             // Step 3: Optionally save to database (only for authenticated users)
             String resumeId = null;
-            if (request.isSaveToDatabase()) {
-                if (userId != null) {
-                    String title = request.getResumeTitle() != null ? request.getResumeTitle() : "Parsed CV";
-                    var savedResume = resumeService.createResume(userId, title, resumeData);
-                    resumeId = savedResume.getId();
-                    log.info("Resume saved with ID: {}", resumeId);
-                } else {
-                    log.warn("Guest user attempted to save CV - operation skipped");
-                }
-            }
+//            if (request.isSaveToDatabase()) {
+//                if (userId != null) {
+//                    String title = request.getResumeTitle() != null ? request.getResumeTitle() : "Parsed CV";
+//                    var savedResume = resumeService.createResume(userId, title, resumeData);
+//                    resumeId = savedResume.getId();
+//                    log.info("Resume saved with ID: {}", resumeId);
+//                } else {
+//                    log.warn("Guest user attempted to save CV - operation skipped");
+//                }
+//            }
 
             // Step 4: Charge tokens after successful parse
             if (userId != null) {
@@ -261,15 +261,22 @@ public class CvParsingService {
                 return null;
             }
 
-            // Parse as YAML only (no JSON fallback)
+            // Parse as YAML or JSON
             try {
                 ObjectMapper yamlMapper = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
                 yamlMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
                 return yamlMapper.readValue(parsedContent, ResumeData.class);
             } catch (Exception yamlEx) {
-                log.error("❌ YAML parsing failed: {}", yamlEx.getMessage());
-                log.error("Content that failed: {}", parsedContent);
-                return null;
+                // Fallback to JSON
+                try {
+                    return objectMapper.readValue(parsedContent, ResumeData.class);
+                } catch (Exception jsonEx) {
+                    log.error("❌ Parsing failed for both YAML and JSON.");
+                    log.error("YAML Error: {}", yamlEx.getMessage());
+                    log.error("JSON Error: {}", jsonEx.getMessage());
+                    log.error("Content: {}", parsedContent);
+                    return null;
+                }
             }
 
         } catch (Exception e) {
@@ -329,8 +336,15 @@ public class CvParsingService {
             yamlMapper.readTree(contentText); // Validate YAML structure
             return contentText;
         } catch (Exception e) {
-            log.warn("❌ Failed to parse AI output as YAML: {}", e.getMessage());
-            return null;
+            // Try JSON
+            try {
+                objectMapper.readTree(contentText);
+                log.debug("Fallback: Parsed valid JSON");
+                return contentText;
+            } catch (Exception jsonEx) {
+                log.warn("❌ Failed to parse AI output as YAML or JSON: {}", e.getMessage());
+                return null;
+            }
         }
     }
 

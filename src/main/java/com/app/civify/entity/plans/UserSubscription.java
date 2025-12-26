@@ -56,6 +56,14 @@ public class UserSubscription extends BaseEntity {
     @Column(nullable = false)
     private Integer currentTokenUsage = 0;
 
+    /**
+     * Extra tokens purchased via Top-up packages. 
+     * Valid until consumed, do not expire monthly.
+     * Consumed AFTER monthly limit is reached.
+     */
+    @Column(nullable = false)
+    private Integer extraTokens = 0;
+
     @Column(name = "usage_reset_date")
     private LocalDateTime usageResetDate;
 
@@ -108,7 +116,12 @@ public class UserSubscription extends BaseEntity {
             return true; // unlimited tokens
         }
         if (currentTokenUsage == null) currentTokenUsage = 0;
-        return currentTokenUsage + tokensNeeded <= plan.getTokenLimit();
+        if (extraTokens == null) extraTokens = 0;
+        
+        long monthlyRemaining = Math.max(0, (long) plan.getTokenLimit() - currentTokenUsage);
+        long totalAvailable = monthlyRemaining + extraTokens;
+        
+        return totalAvailable >= tokensNeeded;
     }
 
     /**
@@ -134,14 +147,26 @@ public class UserSubscription extends BaseEntity {
     }
 
     /**
-     * Charge tokens against the monthly allowance.
+     * Charge tokens against the monthly allowance OR extra tokens.
      */
     public void incrementTokenUsage(int tokensUsed) {
         resetUsageIfNewMonth();
-        if (currentTokenUsage == null) {
-            currentTokenUsage = 0;
+        if (currentTokenUsage == null) currentTokenUsage = 0;
+        if (extraTokens == null) extraTokens = 0;
+        
+        int limit = plan.getTokenLimit() != null ? plan.getTokenLimit() : Integer.MAX_VALUE;
+        int monthlyRemaining = Math.max(0, limit - currentTokenUsage);
+        
+        int deductFromMonthly = Math.min(tokensUsed, monthlyRemaining);
+        int deductFromExtra = tokensUsed - deductFromMonthly;
+        
+        // Always increment usage counter for tracking
+        currentTokenUsage += tokensUsed;
+        
+        // Deduct overflow from extra tokens
+        if (deductFromExtra > 0) {
+            extraTokens = Math.max(0, extraTokens - deductFromExtra);
         }
-        currentTokenUsage += Math.max(tokensUsed, 0);
     }
 
     /**
