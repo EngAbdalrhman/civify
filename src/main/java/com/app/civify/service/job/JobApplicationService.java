@@ -5,7 +5,7 @@ import com.app.civify.dto.job.JobApplicationResponse;
 import com.app.civify.entity.resume.JobApplication;
 import com.app.civify.entity.User;
 import com.app.civify.exception.ResourceNotFoundException;
-import com.app.civify.repository.JobApplicationRepository;
+import com.app.civify.repository.resume.JobApplicationRepository;
 import com.app.civify.service.user.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

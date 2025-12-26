@@ -4,7 +4,7 @@ import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.dto.resume.ResumeDto;
 import com.app.civify.entity.resume.Resume;
 import com.app.civify.entity.User;
-import com.app.civify.repository.ResumeRepository;
+import com.app.civify.repository.resume.ResumeRepository;
 import com.app.civify.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

@@ -3,7 +3,7 @@ package com.app.civify.service.logs;
 import com.app.civify.dto.ApiKeyUsageLogDTO;
 import com.app.civify.entity.User;
 import com.app.civify.entity.logs.ApiKeyUsageLog;
-import com.app.civify.repository.ApiKeyUsageLogRepository;
+import com.app.civify.repository.logs.ApiKeyUsageLogRepository;
 import com.app.civify.util.filter.FilterCriteria;
 import com.app.civify.util.filter.FilterOperation;
 import com.app.civify.util.filter.InputDataModel;

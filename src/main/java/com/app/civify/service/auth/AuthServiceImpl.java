@@ -5,7 +5,7 @@ import com.app.civify.dto.auth.AuthResponse;
 import com.app.civify.entity.security.Group;
 import com.app.civify.entity.User;
 import com.app.civify.exception.BadRequestException;
-import com.app.civify.repository.GroupRepository;
+import com.app.civify.repository.security.GroupRepository;
 import com.app.civify.repository.UserRepository;
 import com.app.civify.service.bloomfilter.BloomFilterService;
 import com.app.civify.service.subscription.SubscriptionService;

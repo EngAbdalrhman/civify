@@ -3,7 +3,7 @@ package com.app.civify.service.payment;
 import com.app.civify.entity.plans.PromoCode;
 import com.app.civify.exception.BadRequestException;
 import com.app.civify.exception.ResourceNotFoundException;
-import com.app.civify.repository.PromoCodeRepository;
+import com.app.civify.repository.plans.PromoCodeRepository;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
 import com.app.civify.util.persistence.CommonService;

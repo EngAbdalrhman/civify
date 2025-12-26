@@ -4,7 +4,7 @@ import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.entity.logs.CvOperationLog;
 import com.app.civify.entity.User;
 import com.app.civify.entity.enums.CvOperationAction;
-import com.app.civify.repository.CvOperationLogRepository;
+import com.app.civify.repository.logs.CvOperationLogRepository;
 import com.app.civify.util.filter.PagedResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

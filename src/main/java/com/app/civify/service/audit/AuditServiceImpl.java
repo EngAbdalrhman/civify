@@ -5,7 +5,7 @@ import com.app.civify.dto.audit.AuditLogMapper;
 import com.app.civify.dto.audit.AuditLogRequest;
 import com.app.civify.entity.logs.AuditLog;
 import com.app.civify.entity.enums.AuditAction;
-import com.app.civify.repository.AuditLogRepository;
+import com.app.civify.repository.logs.AuditLogRepository;
 import com.app.civify.service.filter.GenericFilterService;
 import com.app.civify.util.filter.*;
 import com.app.civify.util.persistence.CommonService;

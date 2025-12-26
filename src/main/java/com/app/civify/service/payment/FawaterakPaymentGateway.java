@@ -4,7 +4,7 @@ import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.entity.plans.PaymentTransaction;
 import com.app.civify.entity.enums.PaymentStatus;
-import com.app.civify.repository.PaymentRepository;
+import com.app.civify.repository.plans.PaymentRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
