@@ -1,6 +1,7 @@
 package com.app.civify.entity.plans;
 
 import com.app.civify.entity.utils.BaseEntity;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -22,6 +23,7 @@ public class PlanFeatureLimit extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "plan_id", nullable = false)
+    @JsonIgnore
     private SubscriptionPlan plan;
 
     @ManyToOne(fetch = FetchType.EAGER)

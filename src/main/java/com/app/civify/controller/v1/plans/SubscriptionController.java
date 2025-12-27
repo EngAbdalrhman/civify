@@ -1,9 +1,9 @@
 package com.app.civify.controller.v1.plans;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
+import com.app.civify.dto.plan.SimplePlanDTO;
 import com.app.civify.dto.subscription.PromoValidationResponse;
 import com.app.civify.dto.subscription.SubscriptionResponse;
-import com.app.civify.entity.plans.SubscriptionPlan;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.security.annotation.CivifyAuthorization;
 import com.app.civify.usecase.user.SubscriptionUseCase;
@@ -43,8 +43,8 @@ public class SubscriptionController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class)))
     })
     @GetMapping("/plans")
-    public ResponseEntity<CommonResponse<List<SubscriptionPlan>>> getAllPlans() {
-        List<SubscriptionPlan> plans = subscriptionUseCase.getAllActivePlans();
+    public ResponseEntity<CommonResponse<List<SimplePlanDTO>>> getAllPlans() {
+        List<SimplePlanDTO> plans = subscriptionUseCase.getAllActivePlans();
         return ResponseEntity.ok(CommonResponse.success(plans));
     }
     // maybe in the future we need to hash the id
@@ -60,8 +60,8 @@ public class SubscriptionController {
                     content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/plans/{planId}")
-    public ResponseEntity<CommonResponse<SubscriptionPlan>> getPlanById(@PathVariable Long planId) {
-        SubscriptionPlan plan = subscriptionUseCase.getPlanById(planId);
+    public ResponseEntity<CommonResponse<SimplePlanDTO>> getPlanById(@PathVariable Long planId) {
+        SimplePlanDTO plan = subscriptionUseCase.getPlanById(planId);
         return ResponseEntity.ok(CommonResponse.success(plan));
     }
 

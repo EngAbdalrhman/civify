@@ -3,6 +3,7 @@ package com.app.civify.entity.plans;
 import com.app.civify.entity.utils.BaseEntity;
 import com.app.civify.entity.enums.BillingCycle;
 import com.app.civify.entity.enums.DiscountType;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -26,6 +27,7 @@ public class PlanDiscount extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "plan_id", nullable = false)
+    @JsonIgnore
     private SubscriptionPlan plan;
 
     /**

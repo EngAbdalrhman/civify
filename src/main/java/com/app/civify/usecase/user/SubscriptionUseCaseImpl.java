@@ -1,11 +1,13 @@
 package com.app.civify.usecase.user;
 
+import com.app.civify.dto.plan.SimplePlanDTO;
 import com.app.civify.dto.subscription.PromoValidationResponse;
 import com.app.civify.dto.subscription.SubscriptionResponse;
 import com.app.civify.entity.plans.PromoCode;
 import com.app.civify.entity.plans.SubscriptionPlan;
 import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.exception.ResourceNotFoundException;
+import com.app.civify.mapper.SubscriptionPlanMapper;
 import com.app.civify.service.payment.PromoCodeService;
 import com.app.civify.service.subscription.SubscriptionService;
 import com.app.civify.util.persistence.CommonService;
@@ -25,16 +27,18 @@ public class SubscriptionUseCaseImpl extends CommonService implements Subscripti
 
     private final SubscriptionService subscriptionService;
     private final PromoCodeService promoCodeService;
+    private final SubscriptionPlanMapper planMapper;
 
     @Override
-    public List<SubscriptionPlan> getAllActivePlans() {
-        return subscriptionService.getAllActivePlans();
+    public List<SimplePlanDTO> getAllActivePlans() {
+        return planMapper.toSimplePlans(subscriptionService.getAllActivePlans());
     }
 
     @Override
-    public SubscriptionPlan getPlanById(Long planId) {
-        return subscriptionService.getPlanById(planId)
+    public SimplePlanDTO getPlanById(Long planId) {
+        SubscriptionPlan plan = subscriptionService.getPlanById(planId)
                 .orElseThrow(() -> new ResourceNotFoundException("Subscription Plan not found with id: " + planId));
+        return planMapper.toSimplePlan(plan);
     }
 
     @Override
