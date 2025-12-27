@@ -47,6 +47,7 @@ public class SubscriptionController {
         List<SubscriptionPlan> plans = subscriptionUseCase.getAllActivePlans();
         return ResponseEntity.ok(CommonResponse.success(plans));
     }
+    // maybe in the future we need to hash the id
 
     @Operation(
             summary = "Get subscription plan by ID",
@@ -123,6 +124,7 @@ public class SubscriptionController {
         List<SubscriptionResponse> subscriptions = subscriptionUseCase.getUserSubscriptions(userId);
         return ResponseEntity.ok(CommonResponse.success(subscriptions));
     }
+// ToDO   not needed
 
     @Operation(
             summary = "Cancel subscription",
@@ -144,6 +146,8 @@ public class SubscriptionController {
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
         try {
+
+            // big mistake security issue
             subscriptionUseCase.cancelSubscription(subscriptionId);
             return ResponseEntity.ok(CommonResponse.success(Map.of(
                     "message", "Subscription cancelled successfully"
@@ -153,6 +157,8 @@ public class SubscriptionController {
             return ResponseEntity.badRequest().body(CommonResponse.error(e.getMessage()));
         }
     }
+    // ToDO   not needed
+
 
     @Operation(
             summary = "Renew subscription",
@@ -185,6 +191,7 @@ public class SubscriptionController {
         }
     }
 
+// ToDO   not needed
     @Operation(
             summary = "Check feature access",
             description = "Checks if the current user can use a specific feature based on their subscription.",

@@ -44,7 +44,7 @@ public class PermissionService {
         if (userId == null) {
             return Collections.emptySet();
         }
-
+        // use bloom filter
         User user = getUserById(userId);
         if (user == null || user.getGroup() == null) {
             log.warn("User {} not found or has no group assigned", userId);
