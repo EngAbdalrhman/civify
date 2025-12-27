@@ -11,6 +11,7 @@ import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Where;
 
 @Entity
@@ -62,12 +63,12 @@ public class UserSubscription extends BaseEntity {
      * Consumed AFTER monthly limit is reached.
      */
     @Column(nullable = false)
+    @ColumnDefault("0")
     private Integer extraTokens = 0;
 
     @Column(name = "usage_reset_date")
     private LocalDateTime usageResetDate;
 
-    // Applied promo code (optional)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "promo_code_id")
     private PromoCode promoCode;

@@ -78,7 +78,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
             cartItems.add(cartItem);
 
             Map<String, Object> payloadMap = new HashMap<>();
-            payloadMap.put("payment_method_id", 2); // 2 for credit card, 3 for Fawry
+            payloadMap.put("payment_method_id", 2); // 2 for credit card, 3
             payloadMap.put("cartTotal", amount);
             payloadMap.put("currency", "EGP");
             payloadMap.put("customer", buildCustomerData(metadata));

@@ -2,6 +2,7 @@ package com.app.civify.service.payment;
 
 import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,7 +26,7 @@ public class PaymentGatewayManager {
     @Value("${payment.default.gateway:fawaterak}")
     private String defaultGateway;
 
-    @jakarta.annotation.PostConstruct
+    @PostConstruct
     public void init() {
         for (PaymentGateway gateway : allGateways) {
             registerGateway(gateway);
