@@ -4,6 +4,7 @@ import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.service.plans.TokenPackageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +24,8 @@ public class PaymentServiceImpl implements PaymentService {
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     @Lazy
-    private final TokenPackageService tokenPackageService;
+    @Autowired
+    private TokenPackageService tokenPackageService;
 
     @Override
     public PaymentCreationResult createPayment(Long userId, double amount, String gateway) {
