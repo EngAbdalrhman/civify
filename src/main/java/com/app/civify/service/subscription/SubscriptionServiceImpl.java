@@ -88,7 +88,7 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
     @Transactional
     public UserSubscription createSubscription(Long userId, Long planId, String promoCode, boolean isAnnual) {
         log.info("Creating subscription for user {} with plan {}", userId, planId);
-
+//use bloom filter
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -96,7 +96,8 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
                 .orElseThrow(() -> new ResourceNotFoundException("Plan not found"));
 
         // ==================== BILLING RESTRICTIONS ====================
-        // Check if plan has passed purchase deadline
+        // Check if plan has passed purchase deadline\
+        // TODO add isActive column to avoide time server issues
         if (plan.getPurchaseDeadline() != null && 
             java.time.LocalDate.now().isAfter(plan.getPurchaseDeadline())) {
             throw new BadRequestException("This plan is no longer available for purchase");
@@ -124,6 +125,7 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
         if (pendingSubscription.isPresent()) {
             throw new BadRequestException("User already has a pending subscription. Please complete or cancel it first.");
         }
+        //TODO we need to handle active suscription
 
         // For free plan, check if user already has it
         if (FREE_PLAN_NAME.equalsIgnoreCase(plan.getName())) {
@@ -148,7 +150,7 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
         LocalDateTime nextMonth = LocalDateTime.now().plusMonths(1).withDayOfMonth(1)
                 .withHour(0).withMinute(0).withSecond(0).withNano(0);
         subscription.setUsageResetDate(nextMonth);
-
+// TODO need to move it to calculation function
         // Apply promo code if provided
         if (promoCode != null && !promoCode.isEmpty()) {
             PromoCode promo = promoCodeRepository.findByCodeAndActiveTrue(promoCode)
@@ -383,6 +385,7 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
     @Override
     @Transactional
     public void cancelSubscription(Long subscriptionId) {
+        //handle groupId of user
         log.info("Cancelling subscription {}", subscriptionId);
 
         UserSubscription subscription = subscriptionRepository.findById(subscriptionId)

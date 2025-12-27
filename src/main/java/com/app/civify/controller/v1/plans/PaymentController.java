@@ -119,6 +119,8 @@ public class PaymentController {
     @GetMapping("/verify/{paymentId}")
     @com.app.civify.security.annotation.CivifyAuthorization(permission = "CV.CREATE")
     public ResponseEntity<Map<String, Object>> verifyPayment(@PathVariable String paymentId) {
+
+        //TODO move logic from controller
         try {
             boolean isVerified = paymentService.verifyPayment(paymentId);
 
@@ -137,6 +139,7 @@ public class PaymentController {
             ));
         }
     }
+    // TODO use bloom filter
 
     private Long getUserIdFromAuthentication(Authentication authentication) {
         if (authentication == null || authentication.getPrincipal() == null) {

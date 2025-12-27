@@ -18,10 +18,11 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 @Slf4j
 public class PaymentGatewayManager {
+    // TODO use factory + strategy + null object patterns
 
     private final Map<String, PaymentGateway> gateways = new ConcurrentHashMap<>();
     private final List<PaymentGateway> allGateways;
-
+// TODO use @ConfigurationProperties
     @Value("${payment.default.gateway:fawaterak}")
     private String defaultGateway;
 
@@ -88,6 +89,7 @@ public class PaymentGatewayManager {
      * Create payment using specific gateway
      */
     public PaymentCreationResult createPayment(String gatewayName, Long userId, double amount, Map<String, Object> metadata) {
+        // use null object pattern
         if (gatewayName == null || gatewayName.isEmpty()) {
             return createPayment(userId, amount, metadata);
         }
@@ -98,6 +100,7 @@ public class PaymentGatewayManager {
      * Verify payment using default gateway
      */
     public boolean verifyPayment(String transactionId) {
+        // TODO  take care you will depend only here on fwaterek
         // Try to determine gateway from transaction ID or use default
         return getDefaultGateway().verifyPayment(transactionId);
     }
