@@ -50,7 +50,7 @@ WHERE NOT EXISTS (
 -- =====================================================
 
 -- Insert free plan if it doesn't exist
-INSERT INTO subscription_plans (id, name, description, details, cv_limit, api_limit, watermark, dashboard, monthly_price, annual_price, active, created_at, updated_at, is_deleted)
+INSERT INTO subscription_plans (id, name, description, details, cv_limit, api_limit, watermark, monthly_price, annual_price, active, created_at, updated_at, is_deleted)
 SELECT 
     1 as id,
     'free' as name,
@@ -59,7 +59,6 @@ SELECT
     5 as cv_limit,
     10 as api_limit,
     true as watermark,
-    false as dashboard,
     0.00 as monthly_price,
     0.00 as annual_price,
     true as active,
