@@ -139,13 +139,13 @@ WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'API_USAGE.VIEW');
 -- =====================================================
 
 -- Default Group (Free User) - assigned to new registrations
-INSERT INTO groups (name, is_system_group, is_default)
-SELECT 'Free User', false, true
+INSERT INTO groups (name, is_active, is_system_group, is_default)
+SELECT 'Free User', true, false, true
 WHERE NOT EXISTS (SELECT 1 FROM groups WHERE name = 'Free User');
 
 -- Super Admin Group - all permissions
-INSERT INTO groups (name, is_system_group, is_default)
-SELECT 'Super Admin', true, false
+INSERT INTO groups (name, is_active, is_system_group, is_default)
+SELECT 'Super Admin', true, true, false
 WHERE NOT EXISTS (SELECT 1 FROM groups WHERE name = 'Super Admin');
 
 -- =====================================================
