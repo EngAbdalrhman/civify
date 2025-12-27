@@ -62,7 +62,7 @@ public class EmailVerificationService {
         cacheService.set(getVerificationKey(token), user.getEmail(), Duration.ofHours(hoursToExpire));
 
         // Build verification link with dynamic backend URL
-        String verificationLink = backendBaseUrl + "/apis/auth/verify-email?token=" + token;
+        String verificationLink = backendBaseUrl + "/auth/verify-email?token=" + token;
 
         // Load and populate HTML template
         String htmlBody = loadEmailTemplate(user.getUsername(), verificationLink);
