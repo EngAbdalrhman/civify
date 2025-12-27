@@ -15,9 +15,9 @@
 -- =====================================================
 
 -- Insert all plan features if they don't exist
-INSERT INTO plan_features (id, feature_type, name, description, has_limit, unit, active, display_order, created_date, updated_date, is_deleted)
+INSERT INTO plan_features (id, feature_type, name, description, has_limit, unit, active, display_order, created_at, updated_at, is_deleted)
 SELECT * FROM (
-    SELECT 1 as id, 'CV_GENERATION' as feature_type, 'CV Generation' as name, 'Generate tailored CVs' as description, true as has_limit, 'CVs' as unit, true as active, 0 as display_order, CURRENT_TIMESTAMP as created_date, CURRENT_TIMESTAMP as updated_date, false as is_deleted
+    SELECT 1 as id, 'CV_GENERATION' as feature_type, 'CV Generation' as name, 'Generate tailored CVs' as description, true as has_limit, 'CVs' as unit, true as active, 0 as display_order, CURRENT_TIMESTAMP as created_at, CURRENT_TIMESTAMP as updated_at, false as is_deleted
     UNION ALL
     SELECT 2, 'API_ACCESS', 'API Access', 'Access to REST API', true, 'API calls', true, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false
     UNION ALL
@@ -50,7 +50,7 @@ WHERE NOT EXISTS (
 -- =====================================================
 
 -- Insert free plan if it doesn't exist
-INSERT INTO subscription_plans (id, name, description, details, cv_limit, api_limit, watermark, dashboard, monthly_price, annual_price, active, created_date, updated_date, is_deleted)
+INSERT INTO subscription_plans (id, name, description, details, cv_limit, api_limit, watermark, dashboard, monthly_price, annual_price, active, created_at, updated_at, is_deleted)
 SELECT 
     1 as id,
     'free' as name,
@@ -63,8 +63,8 @@ SELECT
     0.00 as monthly_price,
     0.00 as annual_price,
     true as active,
-    CURRENT_TIMESTAMP as created_date,
-    CURRENT_TIMESTAMP as updated_date,
+    CURRENT_TIMESTAMP as created_at,
+    CURRENT_TIMESTAMP as updated_at,
     false as is_deleted
 WHERE NOT EXISTS (
     SELECT 1 FROM subscription_plans WHERE name = 'free'
@@ -79,7 +79,7 @@ WHERE NOT EXISTS (
 -- Adjust IDs if your database auto-increment starts differently
 
 -- CV Generation: 5 CVs/month
-INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_date, updated_date, is_deleted)
+INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_at, updated_at, is_deleted)
 SELECT 1, (SELECT id FROM plan_features WHERE feature_type = 'CV_GENERATION'), 5, true, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false
 WHERE NOT EXISTS (
     SELECT 1 FROM plan_feature_limits 
@@ -87,7 +87,7 @@ WHERE NOT EXISTS (
 );
 
 -- API Access: 10 calls/month
-INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_date, updated_date, is_deleted)
+INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_at, updated_at, is_deleted)
 SELECT 1, (SELECT id FROM plan_features WHERE feature_type = 'API_ACCESS'), 10, true, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false
 WHERE NOT EXISTS (
     SELECT 1 FROM plan_feature_limits 
@@ -95,7 +95,7 @@ WHERE NOT EXISTS (
 );
 
 -- Watermark Removal: Disabled
-INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_date, updated_date, is_deleted)
+INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_at, updated_at, is_deleted)
 SELECT 1, (SELECT id FROM plan_features WHERE feature_type = 'WATERMARK_REMOVAL'), null, false, 2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false
 WHERE NOT EXISTS (
     SELECT 1 FROM plan_feature_limits 
@@ -103,7 +103,7 @@ WHERE NOT EXISTS (
 );
 
 -- Dashboard Access: Disabled
-INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_date, updated_date, is_deleted)
+INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_at, updated_at, is_deleted)
 SELECT 1, (SELECT id FROM plan_features WHERE feature_type = 'DASHBOARD_ACCESS'), null, false, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false
 WHERE NOT EXISTS (
     SELECT 1 FROM plan_feature_limits 
@@ -111,7 +111,7 @@ WHERE NOT EXISTS (
 );
 
 -- Premium Templates: Disabled
-INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_date, updated_date, is_deleted)
+INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_at, updated_at, is_deleted)
 SELECT 1, (SELECT id FROM plan_features WHERE feature_type = 'PREMIUM_TEMPLATES'), null, false, 4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false
 WHERE NOT EXISTS (
     SELECT 1 FROM plan_feature_limits 
@@ -119,7 +119,7 @@ WHERE NOT EXISTS (
 );
 
 -- Export Formats: Enabled (PDF)
-INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_date, updated_date, is_deleted)
+INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_at, updated_at, is_deleted)
 SELECT 1, (SELECT id FROM plan_features WHERE feature_type = 'EXPORT_FORMATS'), null, true, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false
 WHERE NOT EXISTS (
     SELECT 1 FROM plan_feature_limits 
@@ -127,7 +127,7 @@ WHERE NOT EXISTS (
 );
 
 -- AI Model Access: Disabled
-INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_date, updated_date, is_deleted)
+INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_at, updated_at, is_deleted)
 SELECT 1, (SELECT id FROM plan_features WHERE feature_type = 'AI_MODEL_ACCESS'), null, false, 6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false
 WHERE NOT EXISTS (
     SELECT 1 FROM plan_feature_limits 
@@ -135,7 +135,7 @@ WHERE NOT EXISTS (
 );
 
 -- Priority Support: Disabled
-INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_date, updated_date, is_deleted)
+INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_at, updated_at, is_deleted)
 SELECT 1, (SELECT id FROM plan_features WHERE feature_type = 'PRIORITY_SUPPORT'), null, false, 7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false
 WHERE NOT EXISTS (
     SELECT 1 FROM plan_feature_limits 
@@ -143,7 +143,7 @@ WHERE NOT EXISTS (
 );
 
 -- Custom Branding: Disabled
-INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_date, updated_date, is_deleted)
+INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_at, updated_at, is_deleted)
 SELECT 1, (SELECT id FROM plan_features WHERE feature_type = 'CUSTOM_BRANDING'), null, false, 8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false
 WHERE NOT EXISTS (
     SELECT 1 FROM plan_feature_limits 
@@ -151,7 +151,7 @@ WHERE NOT EXISTS (
 );
 
 -- Team Collaboration: Disabled (0 users)
-INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_date, updated_date, is_deleted)
+INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_at, updated_at, is_deleted)
 SELECT 1, (SELECT id FROM plan_features WHERE feature_type = 'TEAM_COLLABORATION'), 0, false, 9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false
 WHERE NOT EXISTS (
     SELECT 1 FROM plan_feature_limits 
@@ -159,7 +159,7 @@ WHERE NOT EXISTS (
 );
 
 -- Storage Space: 1 GB
-INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_date, updated_date, is_deleted)
+INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_at, updated_at, is_deleted)
 SELECT 1, (SELECT id FROM plan_features WHERE feature_type = 'STORAGE_SPACE'), 1, true, 10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false
 WHERE NOT EXISTS (
     SELECT 1 FROM plan_feature_limits 
@@ -167,7 +167,7 @@ WHERE NOT EXISTS (
 );
 
 -- Integration Access: Disabled
-INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_date, updated_date, is_deleted)
+INSERT INTO plan_feature_limits (plan_id, feature_id, limit_value, enabled, display_order, created_at, updated_at, is_deleted)
 SELECT 1, (SELECT id FROM plan_features WHERE feature_type = 'INTEGRATION_ACCESS'), null, false, 11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false
 WHERE NOT EXISTS (
     SELECT 1 FROM plan_feature_limits 
@@ -179,7 +179,7 @@ WHERE NOT EXISTS (
 -- =====================================================
 
 -- Monthly pricing: $0.00
-INSERT INTO plan_pricing (plan_id, billing_cycle, price, original_price, discount_percentage, currency, active, display_order, recommended, created_date, updated_date, is_deleted)
+INSERT INTO plan_pricing (plan_id, billing_cycle, price, original_price, discount_percentage, currency, active, display_order, recommended, created_at, updated_at, is_deleted)
 SELECT 
     1 as plan_id,
     'MONTHLY' as billing_cycle,
@@ -190,15 +190,15 @@ SELECT
     true as active,
     0 as display_order,
     false as recommended,
-    CURRENT_TIMESTAMP as created_date,
-    CURRENT_TIMESTAMP as updated_date,
+    CURRENT_TIMESTAMP as created_at,
+    CURRENT_TIMESTAMP as updated_at,
     false as is_deleted
 WHERE NOT EXISTS (
     SELECT 1 FROM plan_pricing WHERE plan_id = 1 AND billing_cycle = 'MONTHLY'
 );
 
 -- Annual pricing: $0.00
-INSERT INTO plan_pricing (plan_id, billing_cycle, price, original_price, discount_percentage, currency, active, display_order, recommended, created_date, updated_date, is_deleted)
+INSERT INTO plan_pricing (plan_id, billing_cycle, price, original_price, discount_percentage, currency, active, display_order, recommended, created_at, updated_at, is_deleted)
 SELECT 
     1 as plan_id,
     'ANNUAL' as billing_cycle,
@@ -209,8 +209,8 @@ SELECT
     true as active,
     1 as display_order,
     true as recommended,
-    CURRENT_TIMESTAMP as created_date,
-    CURRENT_TIMESTAMP as updated_date,
+    CURRENT_TIMESTAMP as created_at,
+    CURRENT_TIMESTAMP as updated_at,
     false as is_deleted
 WHERE NOT EXISTS (
     SELECT 1 FROM plan_pricing WHERE plan_id = 1 AND billing_cycle = 'ANNUAL'
