@@ -139,59 +139,24 @@ public class SubscriptionController {
             @ApiResponse(responseCode = "401", description = "Unauthorized",
                     content = @Content(mediaType = "application/json"))
     })
-    @PostMapping("/cancel/{subscriptionId}")
+    @PostMapping("/cancel")
     @CivifyAuthorization(permission = "CV.CREATE")
     public ResponseEntity<CommonResponse<Map<String, String>>> cancelSubscription(
-            @PathVariable Long subscriptionId,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
         try {
-
-            // big mistake security issue
-            subscriptionUseCase.cancelSubscription(subscriptionId);
+            Long userId = userPrincipal.getId();
+            subscriptionUseCase.cancelActiveSubscription(userId);
             return ResponseEntity.ok(CommonResponse.success(Map.of(
-                    "message", "Subscription cancelled successfully"
+                    "message", "Subscription marked for cancellation. It will remain active until the end date."
             )));
         } catch (Exception e) {
             log.error("Error cancelling subscription: {}", e.getMessage());
             return ResponseEntity.badRequest().body(CommonResponse.error(e.getMessage()));
         }
     }
-    // ToDO   not needed
 
 
-    @Operation(
-            summary = "Renew subscription",
-            description = "Renews an existing subscription for another billing period.",
-            security = @SecurityRequirement(name = "bearer-jwt")
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Subscription renewed successfully",
-                    content = @Content(mediaType = "application/json")),
-            @ApiResponse(responseCode = "400", description = "Renewal failed",
-                    content = @Content(mediaType = "application/json")),
-            @ApiResponse(responseCode = "401", description = "Unauthorized",
-                    content = @Content(mediaType = "application/json"))
-    })
-    @PostMapping("/renew/{subscriptionId}")
-    @CivifyAuthorization(permission = "CV.CREATE")
-    public ResponseEntity<CommonResponse<Map<String, String>>> renewSubscription(
-            @PathVariable Long subscriptionId,
-            @RequestParam(defaultValue = "false") boolean isAnnual,
-            @AuthenticationPrincipal UserPrincipal userPrincipal) {
-
-        try {
-            subscriptionUseCase.renewSubscription(subscriptionId, isAnnual);
-            return ResponseEntity.ok(CommonResponse.success(Map.of(
-                    "message", "Subscription renewed successfully"
-            )));
-        } catch (Exception e) {
-            log.error("Error renewing subscription: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(CommonResponse.error(e.getMessage()));
-        }
-    }
-
-// ToDO   not needed
     @Operation(
             summary = "Check feature access",
             description = "Checks if the current user can use a specific feature based on their subscription.",

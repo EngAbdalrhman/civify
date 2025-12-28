@@ -65,9 +65,6 @@ public class User extends BaseEntity implements Serializable {
     @Column(name = "cv_limit")
     private Integer cvLimit;
 
-    @Column(name = "api_rate_limit")
-    private Integer apiRateLimit;
-
     // Additional fields
     @Column(name = "first_name")
     private String firstName;

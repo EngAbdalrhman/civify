@@ -32,7 +32,6 @@ public class SubscriptionPlan extends BaseEntity {
 
     // Feature Limits
     private Integer cvLimit; // null = unlimited
-    private Integer apiLimit; // null = unlimited
     /**
      * Optional monthly token allowance for AI/LLM usage (in tokens).
      * If set, requests will be billed against this budget instead of raw call counts.

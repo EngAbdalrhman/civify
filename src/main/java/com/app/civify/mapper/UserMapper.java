@@ -22,7 +22,6 @@ public interface UserMapper extends CommonMapper<User, UserDto> {
     @org.mapstruct.Mapping(target = "oauthProvider", ignore = true)
     @org.mapstruct.Mapping(target = "oauthSubject", ignore = true)
     @org.mapstruct.Mapping(target = "cvLimit", ignore = true)
-    @org.mapstruct.Mapping(target = "apiRateLimit", ignore = true)
     @org.mapstruct.Mapping(target = "isEmailVerified", ignore = true)
     @org.mapstruct.Mapping(target = "twoFactorEnabled", ignore = true)
     @org.mapstruct.Mapping(target = "lastLoginAt", ignore = true)

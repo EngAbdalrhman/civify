@@ -26,9 +26,7 @@ public class PlanDetailResponse {
     private String description;
     private String details;
     
-    // Legacy fields (for backward compatibility)
     private Integer cvLimit;
-    private Integer apiLimit;
     private Boolean watermark;
     private Boolean dashboard;
     private BigDecimal monthlyPrice;

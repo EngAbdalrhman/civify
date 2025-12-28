@@ -28,6 +28,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class SubscriptionJob implements Job {
 
+    private static final String FREE_PLAN_NAME = "Free";
+
     private final UserSubscriptionRepository subscriptionRepository;
     private final SubscriptionService subscriptionService;
     private final PaymentService paymentService;
@@ -39,7 +41,7 @@ public class SubscriptionJob implements Job {
         log.info("⏰ Starting SubscriptionJob execution...");
         try {
             processInvoicing();
-            processGracePeriodDowngrades();
+            processExpiredSubscriptions();
             processUsageResets();
         } catch (Exception e) {
             log.error("❌ SubscriptionJob failed", e);
@@ -50,9 +52,7 @@ public class SubscriptionJob implements Job {
     /**
      * Step 1: Invoicing
      * Create renewal invoices for subscriptions approaching their renewal date.
-     * - Auto-renewal is the default (unless user cancelled or plan has renewalAllowed=false)
-     * - Monthly subscriptions: invoice at day 29 (1 day before end)
-     * - Annual subscriptions: invoice at day 364 (1 day before end)
+     * Skip if autoRenew is false (user cancelled).
      */
     private void processInvoicing() {
         LocalDateTime now = LocalDateTime.now();
@@ -65,9 +65,22 @@ public class SubscriptionJob implements Job {
         );
 
         int invoiceCount = 0;
+        int skippedCount = 0;
         for (UserSubscription sub : expiringTomorrow) {
             try {
+                if (Boolean.FALSE.equals(sub.getAutoRenew())) {
+                    log.info("⏭️ Skipping invoice for subscription {} - autoRenew=false (user cancelled)", sub.getId());
+                    skippedCount++;
+                    continue;
+                }
+
                 SubscriptionPlan plan = sub.getPlan();
+                
+                // Skip free plan
+                if (FREE_PLAN_NAME.equalsIgnoreCase(plan.getName())) {
+                    continue;
+                }
+
                 boolean isAnnual = isAnnualSubscription(sub);
                 BigDecimal amount = isAnnual ? plan.getAnnualPrice() : plan.getMonthlyPrice();
                 
@@ -100,14 +113,14 @@ public class SubscriptionJob implements Job {
                 log.error("Error creating invoice for subscription {}: {}", sub.getId(), e.getMessage());
             }
         }
-        log.info("📝 Created {} renewal invoices.", invoiceCount);
+        log.info("📝 Created {} renewal invoices, skipped {} cancelled subscriptions.", invoiceCount, skippedCount);
     }
 
     /**
      * Determine if subscription is annual based on duration between start and end dates.
-     * Annual: ~365 days, Monthly: ~30 days
      */
     private boolean isAnnualSubscription(UserSubscription sub) {
+        // TODO check
         long daysBetween = ChronoUnit.DAYS.between(sub.getStartDate(), sub.getEndDate());
         return daysBetween > 180; // More than 6 months = annual
     }
@@ -117,6 +130,7 @@ public class SubscriptionJob implements Job {
      */
     private void sendRenewalNotificationEmail(UserSubscription sub, String paymentUrl, BigDecimal amount, boolean isAnnual) {
         try {
+            // TODO send HTML mail
             String subject = "Your Civify Subscription Renewal";
             String body = String.format(
                     "Hello %s,\n\n" +
@@ -138,31 +152,50 @@ public class SubscriptionJob implements Job {
     }
 
     /**
-     * Step 2: Grace Period Downgrade
-     * Downgrade subscriptions that expired > 2 days ago and are NOT paid.
+     * Step 2: Process Expired Subscriptions
+     * - Cancelled (autoRenew=false): Downgrade immediately at endDate
+     * - All others that passed endDate: Also downgrade (no grace period per user request)
      */
-    private void processGracePeriodDowngrades() {
-        LocalDateTime twoDaysAgo = LocalDateTime.now().minusDays(2);
-        List<UserSubscription> overdue = subscriptionRepository.findByStatusAndEndDateBefore(
-                SubscriptionStatus.ACTIVE, twoDaysAgo
+    private void processExpiredSubscriptions() {
+        LocalDateTime now = LocalDateTime.now();
+        
+        // Find all active subscriptions that have passed their endDate
+        List<UserSubscription> expired = subscriptionRepository.findByStatusAndEndDateBefore(
+                SubscriptionStatus.ACTIVE, now
         );
 
-        for (UserSubscription sub : overdue) {
-            log.info("📉 Downgrading overdue subscription {} (User {}) expired on {}", 
-                    sub.getId(), sub.getUser().getId(), sub.getEndDate());
+        int downgradedCount = 0;
+        for (UserSubscription sub : expired) {
             try {
+                // Skip free plan
+                if (FREE_PLAN_NAME.equalsIgnoreCase(sub.getPlan().getName())) {
+                    continue;
+                }
+                
+                String reason = Boolean.FALSE.equals(sub.getAutoRenew()) 
+                        ? "cancelled by user" 
+                        : "not renewed (payment not received)";
+                        
+                log.info("📉 Downgrading subscription {} (User {}) - {} - expired on {}", 
+                        sub.getId(), sub.getUser().getId(), reason, sub.getEndDate());
+                
                 sub.setStatus(SubscriptionStatus.EXPIRED);
                 subscriptionRepository.save(sub);
                 subscriptionService.reactivateFreePlan(sub.getUser().getId());
+                downgradedCount++;
             } catch (Exception e) {
                 log.error("Error downgrading subscription {}", sub.getId(), e);
             }
+        }
+        
+        if (downgradedCount > 0) {
+            log.info("📉 Downgraded {} expired subscriptions.", downgradedCount);
         }
     }
 
     /**
      * Step 3: Usage Resets
-     * Reset tokens/CVs if Billing Cycle Month has passed.
+     * Reset CVs and tokens if billing cycle month has passed.
      */
     private void processUsageResets() {
         LocalDateTime now = LocalDateTime.now();
@@ -172,7 +205,6 @@ public class SubscriptionJob implements Job {
             log.info("🔄 Resetting usage for subscription {} (User {})", sub.getId(), sub.getUser().getId());
             
             sub.setCurrentCvCount(0);
-            sub.setCurrentApiCount(0);
             sub.setCurrentTokenUsage(0);
             
             LocalDateTime nextDate = sub.getUsageResetDate().plusMonths(1);

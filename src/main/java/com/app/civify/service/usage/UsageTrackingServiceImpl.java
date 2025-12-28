@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Implementation of usage tracking service
- * Tracks API calls, UI CV generation, and stored CVs against subscription limits
+ * Tracks CV generation and stored CVs against subscription limits
  */
 @Service
 @RequiredArgsConstructor
@@ -22,15 +22,6 @@ public class UsageTrackingServiceImpl implements UsageTrackingService {
 
     private final UserSubscriptionRepository subscriptionRepository;
     private final CvRepository cvRepository;
-
-    @Override
-    public boolean canUseApi(Long userId) {
-        UserSubscription subscription = getActiveSubscription(userId);
-        if (subscription == null) {
-            return false;
-        }
-        return subscription.canUseApi();
-    }
 
     @Override
     public boolean canGenerateUiCv(Long userId) {
@@ -55,28 +46,6 @@ public class UsageTrackingServiceImpl implements UsageTrackingService {
 
         long storedCount = cvRepository.countByUserId(userId);
         return storedCount < cvLimit;
-    }
-
-    @Override
-    @Transactional
-    public void incrementApiUsage(Long userId) {
-        UserSubscription subscription = getActiveSubscription(userId);
-        if (subscription == null) {
-            throw new BadRequestException("No active subscription found");
-        }
-
-        if (!subscription.canUseApi()) {
-            throw new BadRequestException(
-                    "API call limit reached. Current: " + subscription.getCurrentApiCount() +
-                    ", Limit: " + subscription.getPlan().getApiLimit()
-            );
-        }
-
-        subscription.incrementApiCount();
-        subscriptionRepository.save(subscription);
-        
-        log.debug("API usage incremented for user {}. Count: {}/{}", 
-                userId, subscription.getCurrentApiCount(), subscription.getPlan().getApiLimit());
     }
 
     @Override
@@ -107,9 +76,6 @@ public class UsageTrackingServiceImpl implements UsageTrackingService {
         
         if (subscription == null) {
             return UsageStats.builder()
-                    .apiUsageCount(0)
-                    .apiLimit(0)
-                    .apiRemaining(0)
                     .uiCvCount(0)
                     .uiCvLimit(0)
                     .uiCvRemaining(0)
@@ -119,7 +85,6 @@ public class UsageTrackingServiceImpl implements UsageTrackingService {
                     .build();
         }
 
-        Integer apiLimit = subscription.getPlan().getApiLimit();
         Integer cvLimit = subscription.getPlan().getCvLimit();
         long storedCvCount = cvRepository.countByUserId(userId);
 
@@ -127,9 +92,6 @@ public class UsageTrackingServiceImpl implements UsageTrackingService {
                 .subscriptionId(subscription.getId())
                 .planName(subscription.getPlan().getName())
                 .subscriptionEndDate(subscription.getEndDate())
-                .apiUsageCount(subscription.getCurrentApiCount())
-                .apiLimit(apiLimit)
-                .apiRemaining(apiLimit != null ? Math.max(0, apiLimit - subscription.getCurrentApiCount()) : null)
                 .uiCvCount(subscription.getCurrentCvCount())
                 .uiCvLimit(cvLimit)
                 .uiCvRemaining(cvLimit != null ? Math.max(0, cvLimit - subscription.getCurrentCvCount()) : null)

@@ -118,7 +118,7 @@ public class AdminUserController {
     }
     @Operation(
             summary = "Update user limits",
-            description = "Updates custom limits (CV and API) for a user. Admin only.",
+            description = "Updates custom CV limit for a user. Admin only.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @ApiResponses(value = {
@@ -137,12 +137,12 @@ public class AdminUserController {
     @PutMapping("/{userId}/limits")
     public ResponseEntity<CommonResponse<UserResponseDTO>> updateUserLimits(
             @PathVariable Long userId,
-            @RequestParam(required = false) Integer cvLimit,
-            @RequestParam(required = false) Integer apiLimit) {
-        log.info("Admin updating limits for user {}: CV={}, API={}", userId, cvLimit, apiLimit);
+            @RequestParam(required = false) Integer cvLimit) {
+        log.info("Admin updating limits for user {}: CV={}", userId, cvLimit);
 
-        UserResponseDTO userDTO = adminUserUseCase.updateUserLimits(userId, cvLimit, apiLimit);
+        UserResponseDTO userDTO = adminUserUseCase.updateUserLimits(userId, cvLimit);
 
         return ResponseEntity.ok(CommonResponse.success("User limits updated successfully", userDTO));
     }
 }
+

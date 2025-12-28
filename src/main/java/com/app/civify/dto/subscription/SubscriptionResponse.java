@@ -19,13 +19,12 @@ public class SubscriptionResponse {
     private String planName;
     private String planDescription;
     private Integer cvLimit;
-    private Integer apiLimit;
     private Integer currentCvCount;
-    private Integer currentApiCount;
     private LocalDateTime startDate;
     private LocalDateTime endDate;
     private SubscriptionStatus status;
     private String paymentTransactionId;
     private LocalDateTime usageResetDate;
     private Integer currentTokenUsage;
+    private Boolean autoRenew;
 }

@@ -38,7 +38,7 @@ public class AdminUserUseCaseImpl extends CommonService implements AdminUserUseC
     }
 
     @Override
-    public UserResponseDTO updateUserLimits(Long userId, Integer cvLimit, Integer apiLimit) {
-        return adminUserService.updateUserLimits(userId, cvLimit, apiLimit);
+    public UserResponseDTO updateUserLimits(Long userId, Integer cvLimit) {
+        return adminUserService.updateUserLimits(userId, cvLimit);
     }
 }

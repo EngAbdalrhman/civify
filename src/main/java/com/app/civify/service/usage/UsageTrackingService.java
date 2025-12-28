@@ -4,16 +4,9 @@ import com.app.civify.entity.enums.CvGenerationType;
 
 /**
  * Service for tracking and validating user usage against subscription limits
- * Handles API calls, UI CV generation, and stored CV limits
+ * Handles CV generation and stored CV limits
  */
 public interface UsageTrackingService {
-
-    /**
-     * Check if user can make an API call (for CV generation via API key)
-     * @param userId User ID
-     * @return true if within limit
-     */
-    boolean canUseApi(Long userId);
 
     /**
      * Check if user can generate a CV via UI stepper
@@ -28,13 +21,6 @@ public interface UsageTrackingService {
      * @return true if within limit
      */
     boolean canStoreCv(Long userId);
-
-    /**
-     * Increment API usage counter
-     * @param userId User ID
-     * @throws com.app.civify.exception.BadRequestException if limit reached
-     */
-    void incrementApiUsage(Long userId);
 
     /**
      * Increment UI CV generation counter

@@ -26,7 +26,6 @@ public class SimplePlanDTO {
     private BigDecimal monthlyPrice;
     private BigDecimal annualPrice;
     private Integer cvLimit;
-    private Integer apiLimit;
     private Boolean watermark;
     private Boolean active;
     private Boolean allowAnnualBilling;

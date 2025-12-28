@@ -86,13 +86,8 @@ public class SubscriptionUseCaseImpl extends CommonService implements Subscripti
     }
 
     @Override
-    public void cancelSubscription(Long subscriptionId) {
-        subscriptionService.cancelSubscription(subscriptionId);
-    }
-
-    @Override
-    public void renewSubscription(Long subscriptionId, boolean isAnnual) {
-        subscriptionService.renewSubscription(subscriptionId, isAnnual);
+    public void cancelActiveSubscription(Long userId) {
+        subscriptionService.cancelActiveSubscription(userId);
     }
 
     @Override
@@ -109,15 +104,15 @@ public class SubscriptionUseCaseImpl extends CommonService implements Subscripti
                 .planName(sub.getPlan() != null ? sub.getPlan().getName() : null)
                 .planDescription(sub.getPlan() != null ? sub.getPlan().getDescription() : null)
                 .cvLimit(sub.getPlan() != null ? sub.getPlan().getCvLimit() : null)
-                .apiLimit(sub.getPlan() != null ? sub.getPlan().getApiLimit() : null)
                 .currentCvCount(sub.getCurrentCvCount())
-                .currentApiCount(sub.getCurrentApiCount())
                 .startDate(sub.getStartDate())
                 .endDate(sub.getEndDate())
                 .status(sub.getStatus())
                 .paymentTransactionId(sub.getPaymentTransactionId())
                 .usageResetDate(sub.getUsageResetDate())
                 .currentTokenUsage(sub.getCurrentTokenUsage())
+                .autoRenew(sub.getAutoRenew())
                 .build();
     }
 }
+

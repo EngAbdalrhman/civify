@@ -53,7 +53,6 @@ public class AdminSubscriptionUseCaseImpl extends CommonService implements Admin
                 .endDate(sub.getEndDate())
                 .status(sub.getStatus())
                 .currentCvCount(sub.getCurrentCvCount())
-                .currentApiCount(sub.getCurrentApiCount())
                 .currentTokenUsage(sub.getCurrentTokenUsage())
                 .usageResetDate(sub.getUsageResetDate())
                 .promoCode(sub.getPromoCode() != null ? sub.getPromoCode().getCode() : null)

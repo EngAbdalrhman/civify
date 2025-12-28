@@ -48,8 +48,7 @@ public class UserSubscription extends BaseEntity {
     @Column(nullable = false)
     private Integer currentCvCount = 0;
 
-    @Column(nullable = false)
-    private Integer currentApiCount = 0;
+
 
     /**
      * Monthly token usage (for AI/LLM metering). Reset monthly alongside other counters.
@@ -76,6 +75,14 @@ public class UserSubscription extends BaseEntity {
     private String paymentTransactionId;
 
     /**
+     * Whether subscription should auto-renew when it expires.
+     * Set to false when user cancels - subscription stays active until endDate.
+     */
+    @Column(name = "auto_renew", nullable = false)
+    @ColumnDefault("true")
+    private Boolean autoRenew = true;
+
+    /**
      * Check if subscription is currently active and not expired
      */
     public boolean isActive() {
@@ -97,16 +104,7 @@ public class UserSubscription extends BaseEntity {
         return plan.getCvLimit() == null || currentCvCount < plan.getCvLimit();
     }
 
-    /**
-     * Check if user can make more API calls within their limit
-     */
-    public boolean canUseApi() {
-        if (!isActive()) {
-            return false;
-        }
-        resetUsageIfNewMonth();
-        return plan.getApiLimit() == null || currentApiCount < plan.getApiLimit();
-    }
+
 
     /**
      * Check if user has enough token balance for a request.
@@ -139,16 +137,7 @@ public class UserSubscription extends BaseEntity {
         currentCvCount++;
     }
 
-    /**
-     * Increment API usage counter
-     */
-    public void incrementApiCount() {
-        resetUsageIfNewMonth();
-        if (currentApiCount == null) {
-            currentApiCount = 0;
-        }
-        currentApiCount++;
-    }
+
 
     /**
      * Charge tokens against the monthly allowance OR extra tokens.
@@ -180,7 +169,6 @@ public class UserSubscription extends BaseEntity {
         LocalDateTime now = LocalDateTime.now();
         if (usageResetDate == null || now.isAfter(usageResetDate)) {
             currentCvCount = 0;
-            currentApiCount = 0;
             currentTokenUsage = 0;
             // Set reset date to first day of next month
             usageResetDate = now.plusMonths(1).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);

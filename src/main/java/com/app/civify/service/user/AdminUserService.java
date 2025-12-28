@@ -41,13 +41,12 @@ public interface AdminUserService {
      */
     UserResponseDTO getUserByIdWithStats(Long userId);
     /**
-     * Update user limits (CV and API)
+     * Update user limits (CV)
      * 
      * @param userId User ID
      * @param cvLimit Custom CV limit (null to use plan limit)
-     * @param apiLimit Custom API limit (null to use plan limit)
      * @return Updated user DTO
      */
-    UserResponseDTO updateUserLimits(Long userId, Integer cvLimit, Integer apiLimit);
+    UserResponseDTO updateUserLimits(Long userId, Integer cvLimit);
 }
 

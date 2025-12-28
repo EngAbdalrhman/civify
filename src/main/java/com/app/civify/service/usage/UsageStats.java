@@ -21,11 +21,6 @@ public class UsageStats {
     private String planName;
     private LocalDateTime subscriptionEndDate;
     
-    // API usage
-    private Integer apiUsageCount;
-    private Integer apiLimit; // null = unlimited
-    private Integer apiRemaining;
-    
     // UI CV generation usage
     private Integer uiCvCount;
     private Integer uiCvLimit; // null = unlimited
@@ -40,10 +35,6 @@ public class UsageStats {
     private LocalDateTime usageResetDate;
     
     // Helper methods
-    public boolean isApiLimitReached() {
-        return apiLimit != null && apiUsageCount >= apiLimit;
-    }
-    
     public boolean isUiCvLimitReached() {
         return uiCvLimit != null && uiCvCount >= uiCvLimit;
     }

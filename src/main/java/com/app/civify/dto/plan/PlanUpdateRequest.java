@@ -22,9 +22,7 @@ public class PlanUpdateRequest {
     private String description;
     private String details;
     
-    // Legacy fields (optional, for backward compatibility)
     private Integer cvLimit;
-    private Integer apiLimit;
     private Boolean watermark;
     private Boolean dashboard;
     private BigDecimal monthlyPrice;

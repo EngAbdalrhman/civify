@@ -20,7 +20,6 @@ public interface SubscriptionPlanMapper {
     @Mapping(target = "monthlyPrice", source = "monthlyPrice")
     @Mapping(target = "annualPrice", source = "annualPrice")
     @Mapping(target = "cvLimit", source = "cvLimit")
-    @Mapping(target = "apiLimit", source = "apiLimit")
     @Mapping(target = "watermark", source = "watermark")
     @Mapping(target = "active", source = "active")
     @Mapping(target = "allowAnnualBilling", source = "allowAnnualBilling")

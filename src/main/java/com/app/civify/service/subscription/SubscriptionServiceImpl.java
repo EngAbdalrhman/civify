@@ -144,7 +144,6 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
         subscription.setEndDate(calculateEndDate(plan, isAnnual));
         subscription.setStatus(SubscriptionStatus.PENDING);
         subscription.setCurrentCvCount(0);
-        subscription.setCurrentApiCount(0);
 
         // Set usage reset date to first day of next month
         LocalDateTime nextMonth = LocalDateTime.now().plusMonths(1).withDayOfMonth(1)
@@ -274,17 +273,8 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
                 }
                 yield sub.canUseCv();
             }
-            case "API" -> {
-                // Check custom limit first
-                if (user.getApiRateLimit() != null) {
-                    sub.resetUsageIfNewMonth(); // Ensure usage is reset before checking
-                    yield sub.getCurrentApiCount() < user.getApiRateLimit();
-                }
-                yield sub.canUseApi();
-            }
             case "WATERMARK" ->
                 !Boolean.TRUE.equals(plan.getWatermark()); // false = no watermark
-            // case "DASHBOARD" -> // Handled by Permissions now
             default ->
                 false;
         };
@@ -317,12 +307,6 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
                     throw new BadRequestException("CV generation limit reached for current subscription");
                 }
                 sub.incrementCvCount();
-            }
-            case "API" -> {
-                if (!canUserUseFeature(userId, "API")) {
-                    throw new BadRequestException("API call limit reached for current subscription");
-                }
-                sub.incrementApiCount();
             }
             default ->
                 throw new BadRequestException("Unknown feature: " + feature);
@@ -384,43 +368,23 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
 
     @Override
     @Transactional
-    public void cancelSubscription(Long subscriptionId) {
-        //handle groupId of user
-        log.info("Cancelling subscription {}", subscriptionId);
+    public void cancelActiveSubscription(Long userId) {
+        log.info("Cancelling active subscription for user {}", userId);
 
-        UserSubscription subscription = subscriptionRepository.findById(subscriptionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Subscription not found"));
+        // Find active non-free subscription
+        UserSubscription subscription = subscriptionRepository
+                .findByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE)
+                .stream()
+                .filter(sub -> !FREE_PLAN_NAME.equalsIgnoreCase(sub.getPlan().getName()))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("No active non-free subscription found for user"));
 
-        subscription.setStatus(SubscriptionStatus.CANCELLED);
+        // Mark subscription to not auto-renew (graceful cancellation)
+        subscription.setAutoRenew(false);
         subscriptionRepository.save(subscription);
 
-        // Reactivate free plan if it exists
-        reactivateFreePlan(subscription.getUser().getId());
-
-        log.info("Subscription cancelled successfully");
-    }
-
-    @Override
-    @Transactional
-    public void renewSubscription(Long subscriptionId, boolean isAnnual) {
-        log.info("Renewing subscription {}", subscriptionId);
-
-        UserSubscription subscription = subscriptionRepository.findById(subscriptionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Subscription not found"));
-
-        // Extend end date from current end date (not from now)
-        LocalDateTime newEndDate = subscription.getEndDate().isAfter(LocalDateTime.now())
-                ? subscription.getEndDate()
-                : LocalDateTime.now();
-
-        newEndDate = isAnnual ? newEndDate.plusYears(1) : newEndDate.plusMonths(1);
-
-        subscription.setEndDate(newEndDate);
-        subscription.setStatus(SubscriptionStatus.ACTIVE);
-
-        subscriptionRepository.save(subscription);
-
-        log.info("Subscription renewed successfully until {}", newEndDate);
+        log.info("Subscription {} marked for cancellation (autoRenew=false). Will expire on {}", 
+                subscription.getId(), subscription.getEndDate());
     }
 
     @Override
@@ -453,7 +417,6 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
         freeSubscription.setEndDate(LocalDateTime.now().plusYears(100)); // Effectively permanent
         freeSubscription.setStatus(SubscriptionStatus.ACTIVE);
         freeSubscription.setCurrentCvCount(0);
-        freeSubscription.setCurrentApiCount(0);
 
         // Set usage reset date
         LocalDateTime nextMonth = LocalDateTime.now().plusMonths(1).withDayOfMonth(1)
@@ -588,9 +551,7 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
             existingPlan.setCvLimit(updatedPlan.getCvLimit());
         }
 
-        if (updatedPlan.getApiLimit() != null) {
-            existingPlan.setApiLimit(updatedPlan.getApiLimit());
-        }
+
 
         if (updatedPlan.getWatermark() != null) {
             existingPlan.setWatermark(updatedPlan.getWatermark());
@@ -701,15 +662,7 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
             }
         }
 
-        if (existingPlan.getApiLimit() != null && updatedPlan.getApiLimit() != null) {
-            if (updatedPlan.getApiLimit() < existingPlan.getApiLimit()) {
-                log.warn("Attempting to reduce API limit from {} to {} for plan with active subscriptions",
-                        existingPlan.getApiLimit(), updatedPlan.getApiLimit());
-                throw new BadRequestException(
-                        "Cannot reduce API limit for a plan with active subscriptions. Current: "
-                        + existingPlan.getApiLimit() + ", Requested: " + updatedPlan.getApiLimit());
-            }
-        }
+
 
         // Prevent removing features that were previously enabled
         if (Boolean.FALSE.equals(existingPlan.getWatermark()) && Boolean.TRUE.equals(updatedPlan.getWatermark())) {

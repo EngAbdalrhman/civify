@@ -4,6 +4,7 @@ import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.dto.subscription.PriceCalculationResponse;
 import com.app.civify.entity.plans.SubscriptionPlan;
 import com.app.civify.entity.plans.UserSubscription;
+import com.app.civify.exception.ResourceNotFoundException;
 
 import java.util.List;
 import java.util.Optional;
@@ -37,17 +38,23 @@ public interface SubscriptionService {
 
     // Usage tracking
     boolean canUserUseFeature(Long userId, String feature); // CV, API, WATERMARK, DASHBOARD
+
     boolean canUserUseTokens(Long userId, int tokensNeeded);
 
     void incrementUsage(Long userId, String feature);
+
     void chargeTokens(Long userId, int tokensUsed);
 
     // Subscription lifecycle
     void activateSubscription(String paymentTransactionId);
 
-    void cancelSubscription(Long subscriptionId);
-
-    void renewSubscription(Long subscriptionId, boolean isAnnual);
+    /**
+     * Cancel user's active non-free subscription by setting autoRenew = false.
+     * Subscription stays active until endDate, then user is downgraded to free plan.
+     * @param userId The user ID
+     * @throws ResourceNotFoundException if no active non-free subscription exists
+     */
+    void cancelActiveSubscription(Long userId);
 
     /**
      * Reactivate free plan for user (when paid subscription expires or is cancelled)
@@ -98,6 +105,7 @@ public interface SubscriptionService {
      * Only allowed if no active subscriptions exist
      */
     void deletePlan(Long planId);
+
     /**
      * Filter plans with pagination and sorting (Admin only)
      */

@@ -73,7 +73,6 @@ public class AdminPlanUseCaseImpl extends CommonService implements AdminPlanUseC
         plan.setDescription(request.getDescription());
         plan.setDetails(request.getDetails());
         plan.setCvLimit(request.getCvLimit());
-        plan.setApiLimit(request.getApiLimit());
         plan.setWatermark(request.getWatermark());
         plan.setMonthlyPrice(request.getMonthlyPrice());
         plan.setAnnualPrice(request.getAnnualPrice());
@@ -109,7 +108,6 @@ public class AdminPlanUseCaseImpl extends CommonService implements AdminPlanUseC
         if (request.getDescription() != null) updatedPlan.setDescription(request.getDescription());
         if (request.getDetails() != null) updatedPlan.setDetails(request.getDetails());
         if (request.getCvLimit() != null) updatedPlan.setCvLimit(request.getCvLimit());
-        if (request.getApiLimit() != null) updatedPlan.setApiLimit(request.getApiLimit());
         if (request.getWatermark() != null) updatedPlan.setWatermark(request.getWatermark());
         if (request.getMonthlyPrice() != null) updatedPlan.setMonthlyPrice(request.getMonthlyPrice());
         if (request.getAnnualPrice() != null) updatedPlan.setAnnualPrice(request.getAnnualPrice());
@@ -167,7 +165,6 @@ public class AdminPlanUseCaseImpl extends CommonService implements AdminPlanUseC
         map.put("monthlyPrice", plan.getMonthlyPrice());
         map.put("annualPrice", plan.getAnnualPrice());
         map.put("cvLimit", plan.getCvLimit());
-        map.put("apiLimit", plan.getApiLimit());
         map.put("active", plan.getActive());
         return map;
     }
