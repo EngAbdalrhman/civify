@@ -1,5 +1,6 @@
 package com.app.civify.service.user;
 
+import com.app.civify.dto.user.ProfileUpdateRequest;
 import com.app.civify.entity.User;
 import com.app.civify.mapper.UserMapper;
 import com.app.civify.repository.UserRepository;
@@ -9,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -40,6 +42,29 @@ public class UserServiceImpl implements UserService {
         }
         String username = auth.getName();
         return userMapper.toDto(userRepository.findByUsername(username).orElse(new User()));
+    }
+
+    @Override
+    @Transactional
+    public UserDto updateMyUser(ProfileUpdateRequest request) {
+        User user = getCurrentUser();
+        if (user == null) {
+            throw new IllegalStateException("User not authenticated");
+        }
+
+        if (request.getFirstName() != null) {
+            user.setFirstName(request.getFirstName());
+        }
+        if (request.getLastName() != null) {
+            user.setLastName(request.getLastName());
+        }
+        if (request.getPhoneNumber() != null) {
+            user.setPhoneNumber(request.getPhoneNumber());
+        }
+
+        User savedUser = userRepository.save(user);
+        log.info("User profile updated for: {}", user.getUsername());
+        return userMapper.toDto(savedUser);
     }
 
     @Override

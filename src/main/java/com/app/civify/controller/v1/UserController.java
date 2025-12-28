@@ -1,6 +1,7 @@
 package com.app.civify.controller.v1;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
+import com.app.civify.dto.user.ProfileUpdateRequest;
 import com.app.civify.entity.User;
 import com.app.civify.service.user.UserService;
 
@@ -10,7 +11,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -44,6 +44,22 @@ public class UserController {
     @GetMapping("/me")
     public ResponseEntity<UserDto> me() {
         return ResponseEntity.ok(userService.getMyUser());
+    }
+
+    @Operation(
+            summary = "Update current user profile",
+            description = "Updates the profile information of the currently authenticated user.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Profile updated successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserDto.class))),
+        @ApiResponse(responseCode = "401", description = "Unauthorized",
+                content = @Content(mediaType = "application/json"))
+    })
+    @PutMapping("/me")
+    public ResponseEntity<UserDto> updateMe(@RequestBody ProfileUpdateRequest request) {
+        return ResponseEntity.ok(userService.updateMyUser(request));
     }
 
     @Operation(

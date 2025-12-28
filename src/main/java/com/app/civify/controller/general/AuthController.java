@@ -226,4 +226,21 @@ public class AuthController {
                 null
         ));
     }
+
+    /**
+     * Change password for authenticated user
+     * Requires current password verification before updating
+     */
+    @PostMapping("/change-password")
+    public ResponseEntity<CommonResponse> changePassword(
+            @RequestBody com.app.civify.dto.auth.ChangePasswordRequest request) {
+        
+        log.info("Processing password change request");
+        authService.changePassword(request);
+        
+        return ResponseEntity.ok(CommonResponse.success(
+                "Password changed successfully!",
+                null
+        ));
+    }
 }

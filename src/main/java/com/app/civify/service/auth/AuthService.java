@@ -2,6 +2,7 @@ package com.app.civify.service.auth;
 
 import com.app.civify.dto.auth.AuthRequest;
 import com.app.civify.dto.auth.AuthResponse;
+import com.app.civify.dto.auth.ChangePasswordRequest;
 
 public interface AuthService {
 
@@ -18,4 +19,6 @@ public interface AuthService {
     void disable2fa(String username);
 
     AuthResponse verifyOtp(String username, String code);
+
+    void changePassword(ChangePasswordRequest request);
 }

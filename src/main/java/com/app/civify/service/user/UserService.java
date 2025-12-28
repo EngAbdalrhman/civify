@@ -4,6 +4,7 @@ import com.app.civify.entity.User;
 
 import java.util.List;
 
+import com.app.civify.dto.user.ProfileUpdateRequest;
 import com.app.civify.dto.user.UserDto;
 
 public interface UserService {
@@ -13,6 +14,8 @@ public interface UserService {
     User findById(Long id);
 
     UserDto getMyUser();
+
+    UserDto updateMyUser(ProfileUpdateRequest request);
 
     User getCurrentUser();
 

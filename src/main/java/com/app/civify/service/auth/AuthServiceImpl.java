@@ -2,6 +2,7 @@ package com.app.civify.service.auth;
 
 import com.app.civify.dto.auth.AuthRequest;
 import com.app.civify.dto.auth.AuthResponse;
+import com.app.civify.dto.auth.ChangePasswordRequest;
 import com.app.civify.entity.security.Group;
 import com.app.civify.entity.User;
 import com.app.civify.exception.BadRequestException;
@@ -13,6 +14,7 @@ import com.app.civify.service.subscription.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -274,5 +276,35 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
 
         log.info("2FA disabled for user: {}", username);
+    }
+
+    /**
+     * Change password for authenticated user
+     * Verifies old password before updating to new password
+     */
+    @Override
+    @Transactional
+    public void changePassword(ChangePasswordRequest request) {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            throw new BadRequestException("User not authenticated");
+        }
+        
+        String username = auth.getName();
+        log.info("Password change request for user: {}", username);
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new BadRequestException("User not found"));
+
+        // Verify current password
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new BadRequestException("Current password is incorrect");
+        }
+
+        // Update password
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        log.info("Password changed successfully for user: {}", username);
     }
 }
