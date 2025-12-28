@@ -1,6 +1,7 @@
 package com.app.civify.usecase.user;
 
 import com.app.civify.dto.plan.SimplePlanDTO;
+import com.app.civify.dto.subscription.PriceCalculationResponse;
 import com.app.civify.dto.subscription.PromoValidationResponse;
 import com.app.civify.dto.subscription.SubscriptionResponse;
 import com.app.civify.exception.ResourceNotFoundException;
@@ -14,6 +15,12 @@ public interface SubscriptionUseCase {
     SimplePlanDTO getPlanById(Long planId);
 
     PromoValidationResponse validatePromoCode(String code, BigDecimal amount);
+
+    /**
+     * Calculate subscription price with promo validation.
+     * Used for checkout page - validates promo applicability and user usage.
+     */
+    PriceCalculationResponse calculatePrice(Long userId, Long planId, boolean isAnnual, String promoCode);
 
     SubscriptionResponse getActiveSubscription(Long userId);
 
@@ -30,4 +37,3 @@ public interface SubscriptionUseCase {
 
     boolean canUseFeature(Long userId, String feature);
 }
-

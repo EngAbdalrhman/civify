@@ -83,6 +83,14 @@ public class UserSubscription extends BaseEntity {
     private Boolean autoRenew = true;
 
     /**
+     * Current billing cycle count (starts at 1).
+     * Incremented on each successful renewal by Quartz scheduler.
+     */
+    @Column(name = "current_cycle_count", nullable = false)
+    @ColumnDefault("1")
+    private Integer currentCycleCount = 1;
+
+    /**
      * Check if subscription is currently active and not expired
      */
     public boolean isActive() {

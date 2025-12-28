@@ -2,6 +2,7 @@ package com.app.civify.service.subscription;
 
 import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.dto.subscription.PriceCalculationResponse;
+import com.app.civify.entity.User;
 import com.app.civify.entity.plans.SubscriptionPlan;
 import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.exception.ResourceNotFoundException;
@@ -25,6 +26,11 @@ public interface SubscriptionService {
     // Subscription management
     UserSubscription createSubscription(Long userId, Long planId, String promoCode, boolean isAnnual);
 
+    /**
+     * Create subscription using User entity directly (avoids extra DB fetch).
+     */
+    UserSubscription createSubscription(User user, Long planId, String promoCode, boolean isAnnual);
+
     Optional<UserSubscription> getActiveSubscription(Long userId);
 
     List<UserSubscription> getUserSubscriptions(Long userId);
@@ -32,7 +38,7 @@ public interface SubscriptionService {
     long countActiveSubscriptions();
 
     // Payment and checkout
-    PriceCalculationResponse calculateTotalPrice(Long planId, boolean isAnnual, String promoCode);
+    PriceCalculationResponse calculateTotalPrice(Long userId, Long planId, boolean isAnnual, String promoCode);
 
     PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway);
 

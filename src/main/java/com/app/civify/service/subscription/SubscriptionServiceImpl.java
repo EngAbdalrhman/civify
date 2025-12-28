@@ -4,20 +4,23 @@ import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.dto.subscription.PriceCalculationResponse;
 import com.app.civify.entity.User;
+import com.app.civify.entity.enums.PromoApplicabilityType;
 import com.app.civify.entity.enums.SubscriptionStatus;
 import com.app.civify.entity.plans.PromoCode;
 import com.app.civify.entity.plans.SubscriptionPlan;
+import com.app.civify.entity.plans.UserPromoUsage;
 import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.exception.BadRequestException;
 import com.app.civify.exception.ResourceNotFoundException;
-import com.app.civify.repository.plans.PaymentRepository;
+import com.app.civify.repository.UserRepository;
 import com.app.civify.repository.plans.PromoCodeRepository;
 import com.app.civify.repository.plans.SubscriptionPlanRepository;
-import com.app.civify.repository.UserRepository;
+import com.app.civify.repository.plans.UserPromoUsageRepository;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
 import com.app.civify.service.payment.PaymentService;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
+import com.app.civify.util.persistence.CommonService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -39,13 +42,13 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class SubscriptionServiceImpl extends com.app.civify.util.persistence.CommonService implements SubscriptionService {
+public class SubscriptionServiceImpl extends CommonService implements SubscriptionService {
 
     private final SubscriptionPlanRepository planRepository;
     private final UserSubscriptionRepository subscriptionRepository;
     private final PromoCodeRepository promoCodeRepository;
+    private final UserPromoUsageRepository userPromoUsageRepository;
     private final UserRepository userRepository;
-    private final PaymentRepository paymentRepository;
     private final PaymentService paymentService;
 
     private static final String FREE_PLAN_NAME = "free";
@@ -88,21 +91,21 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
     @Transactional
     public UserSubscription createSubscription(Long userId, Long planId, String promoCode, boolean isAnnual) {
         log.info("Creating subscription for user {} with plan {}", userId, planId);
-//use bloom filter
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return createSubscription(user, planId, promoCode, isAnnual);
+    }
+
+    @Override
+    @Transactional
+    public UserSubscription createSubscription(User user, Long planId, String promoCode, boolean isAnnual) {
+        Long userId = user.getId();
+        log.info("Creating subscription for user {} with plan {}", userId, planId);
 
         SubscriptionPlan plan = planRepository.findById(planId)
                 .orElseThrow(() -> new ResourceNotFoundException("Plan not found"));
 
         // ==================== BILLING RESTRICTIONS ====================
-        // Check if plan has passed purchase deadline\
-        // TODO add isActive column to avoide time server issues
-        if (plan.getPurchaseDeadline() != null && 
-            java.time.LocalDate.now().isAfter(plan.getPurchaseDeadline())) {
-            throw new BadRequestException("This plan is no longer available for purchase");
-        }
-
         // Check if annual billing is allowed for this plan
         if (isAnnual && Boolean.FALSE.equals(plan.getAllowAnnualBilling())) {
             throw new BadRequestException("Annual billing is not available for this plan. Please select monthly billing.");
@@ -125,7 +128,13 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
         if (pendingSubscription.isPresent()) {
             throw new BadRequestException("User already has a pending subscription. Please complete or cancel it first.");
         }
-        //TODO we need to handle active suscription
+
+        // Block same-plan subscription (user already has active subscription for THIS plan)
+        Optional<UserSubscription> activeSamePlan = subscriptionRepository
+                .findByUserIdAndPlanIdAndStatus(userId, planId, SubscriptionStatus.ACTIVE);
+        if (activeSamePlan.isPresent()) {
+            throw new BadRequestException("You already have an active subscription for this plan");
+        }
 
         // For free plan, check if user already has it
         if (FREE_PLAN_NAME.equalsIgnoreCase(plan.getName())) {
@@ -136,40 +145,86 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
             }
         }
 
+        // Check if this is an upgrade (user has different active plan)
+        Optional<UserSubscription> currentActiveSub = getActiveSubscription(userId);
+        LocalDateTime subscriptionStartDate = LocalDateTime.now();
+        
+        if (currentActiveSub.isPresent() && !currentActiveSub.get().getPlan().getId().equals(planId)) {
+            // Queue upgrade: new subscription starts when current one ends
+            subscriptionStartDate = currentActiveSub.get().getEndDate();
+            // Disable auto-renew on current subscription
+            UserSubscription current = currentActiveSub.get();
+            current.setAutoRenew(false);
+            subscriptionRepository.save(current);
+            log.info("Queued upgrade for user {}. New plan starts after current expires on {}", userId, subscriptionStartDate);
+        }
+
         // Create new subscription with PENDING status (will be activated after payment)
         UserSubscription subscription = new UserSubscription();
         subscription.setUser(user);
         subscription.setPlan(plan);
-        subscription.setStartDate(LocalDateTime.now());
-        subscription.setEndDate(calculateEndDate(plan, isAnnual));
+        subscription.setStartDate(subscriptionStartDate);
+        subscription.setEndDate(calculateEndDate(plan, isAnnual, subscriptionStartDate));
         subscription.setStatus(SubscriptionStatus.PENDING);
         subscription.setCurrentCvCount(0);
+        subscription.setCurrentCycleCount(1);
 
-        // Set usage reset date to first day of next month
-        LocalDateTime nextMonth = LocalDateTime.now().plusMonths(1).withDayOfMonth(1)
+        // Set usage reset date to first day of next month from start date
+        LocalDateTime nextMonth = subscriptionStartDate.plusMonths(1).withDayOfMonth(1)
                 .withHour(0).withMinute(0).withSecond(0).withNano(0);
         subscription.setUsageResetDate(nextMonth);
-// TODO need to move it to calculation function
-        // Apply promo code if provided
+
+        // Validate and apply promo code if provided
         if (promoCode != null && !promoCode.isEmpty()) {
-            PromoCode promo = promoCodeRepository.findByCodeAndActiveTrue(promoCode)
-                    .orElseThrow(() -> new BadRequestException("Invalid or expired promo code"));
-
-            if (!promo.isValid()) {
-                throw new BadRequestException("Promo code is not valid");
-            }
-
+            PromoCode promo = validateAndApplyPromoCode(userId, planId, promoCode);
             subscription.setPromoCode(promo);
-
-            // Increment promo code usage
-            promo.setUsedCount(promo.getUsedCount() + 1);
-            promoCodeRepository.save(promo);
         }
 
         UserSubscription saved = subscriptionRepository.save(subscription);
         log.info("Subscription created with ID {} for user {}", saved.getId(), userId);
 
         return saved;
+    }
+
+    /**
+     * Validate promo code and record usage. Returns the promo if valid.
+     */
+    private PromoCode validateAndApplyPromoCode(Long userId, Long planId, String promoCode) {
+        PromoCode promo = promoCodeRepository.findByCodeAndActiveTrue(promoCode)
+                .orElseThrow(() -> new BadRequestException("Invalid or expired promo code"));
+
+        if (!promo.isValid()) {
+            throw new BadRequestException("Promo code is no longer valid");
+        }
+
+        // Check if promo is applicable to plans (not token-only)
+        if (promo.getApplicabilityType() == PromoApplicabilityType.TOKEN) {
+            throw new BadRequestException("This promo code is only valid for token purchases");
+        }
+
+        // Check if promo applies to this specific plan
+        if (!promo.isApplicableToPlan(planId)) {
+            throw new BadRequestException("This promo code is not valid for the selected plan");
+        }
+
+        // Check if user has already used this promo
+        if (userPromoUsageRepository.existsByUserIdAndPromoCodeId(userId, promo.getId())) {
+            throw new BadRequestException("You have already used this promo code");
+        }
+
+        // Record promo usage for this user
+        UserPromoUsage usage = UserPromoUsage.builder()
+                .user(userRepository.getReferenceById(userId))
+                .promoCode(promo)
+                .usedAt(LocalDateTime.now())
+                .build();
+        userPromoUsageRepository.save(usage);
+
+        // Increment global promo usage count
+        promo.setUsedCount(promo.getUsedCount() + 1);
+        promoCodeRepository.save(promo);
+
+        return promo;
     }
 
     @Override
@@ -191,24 +246,40 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
     }
 
     @Override
-    public PriceCalculationResponse calculateTotalPrice(Long planId, boolean isAnnual, String promoCode) {
+    public PriceCalculationResponse calculateTotalPrice(Long userId, Long planId, boolean isAnnual, String promoCode) {
         SubscriptionPlan plan = planRepository.findById(planId)
                 .orElseThrow(() -> new ResourceNotFoundException("Plan not found"));
 
         BigDecimal basePrice = isAnnual ? plan.getAnnualPrice() : plan.getMonthlyPrice();
         BigDecimal discount = BigDecimal.ZERO;
         String appliedPromoCode = null;
+        String promoError = null;
 
         // Apply promo code discount if provided
         if (promoCode != null && !promoCode.isEmpty()) {
-            Optional<PromoCode> promo = promoCodeRepository.findByCodeAndActiveTrue(promoCode);
-            if (promo.isPresent() && promo.get().isValid()) {
-                discount = promo.get().calculateDiscount(basePrice);
-                appliedPromoCode = promoCode;
+            Optional<PromoCode> promoOpt = promoCodeRepository.findByCodeAndActiveTrue(promoCode);
+            if (promoOpt.isPresent()) {
+                PromoCode promo = promoOpt.get();
+                if (!promo.isValid()) {
+                    promoError = "Promo code is no longer valid";
+                } else if (promo.getApplicabilityType() == PromoApplicabilityType.TOKEN) {
+                    promoError = "This promo code is only valid for token purchases";
+                } else if (!promo.isApplicableToPlan(planId)) {
+                    promoError = "This promo code is not valid for the selected plan";
+                } else if (userId != null && userPromoUsageRepository.existsByUserIdAndPromoCodeId(userId, promo.getId())) {
+                    promoError = "You have already used this promo code";
+                } else {
+                    discount = promo.calculateDiscount(basePrice);
+                    appliedPromoCode = promoCode;
+                }
+            } else {
+                promoError = "Invalid promo code";
             }
         }
 
-        BigDecimal totalPrice = basePrice.subtract(discount);
+        BigDecimal totalPrice = basePrice
+                .subtract(discount)
+                .max(BigDecimal.ZERO);
 
         return PriceCalculationResponse.builder()
                 .planId(planId)
@@ -218,6 +289,8 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
                 .totalPrice(totalPrice)
                 .promoCode(appliedPromoCode)
                 .isAnnual(isAnnual)
+                .billingCycle(isAnnual ? "ANNUAL" : "MONTHLY")
+                .currency("EGP")
                 .build();
     }
 
@@ -230,7 +303,7 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
         UserSubscription subscription = createSubscription(userId, planId, promoCode, isAnnual);
 
         // Calculate total price
-        PriceCalculationResponse priceCalc = calculateTotalPrice(planId, isAnnual, promoCode);
+        PriceCalculationResponse priceCalc = calculateTotalPrice(userId, planId, isAnnual, promoCode);
 
         // Create payment transaction
         PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), gateway);
@@ -472,13 +545,20 @@ public class SubscriptionServiceImpl extends com.app.civify.util.persistence.Com
      * expire (100 years)
      */
     private LocalDateTime calculateEndDate(SubscriptionPlan plan, boolean isAnnual) {
+        return calculateEndDate(plan, isAnnual, LocalDateTime.now());
+    }
+
+    /**
+     * Calculate end date from a specific start date.
+     */
+    private LocalDateTime calculateEndDate(SubscriptionPlan plan, boolean isAnnual, LocalDateTime startDate) {
         if (FREE_PLAN_NAME.equalsIgnoreCase(plan.getName())) {
-            return LocalDateTime.now().plusYears(100); // Effectively permanent
+            return startDate.plusYears(100); // Effectively permanent
         }
 
         return isAnnual
-                ? LocalDateTime.now().plusYears(1)
-                : LocalDateTime.now().plusMonths(1);
+                ? startDate.plusYears(1)
+                : startDate.plusMonths(1);
     }
 
     // ==================== ADMIN PLAN MANAGEMENT ====================

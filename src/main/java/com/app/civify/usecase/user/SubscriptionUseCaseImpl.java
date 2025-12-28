@@ -1,6 +1,7 @@
 package com.app.civify.usecase.user;
 
 import com.app.civify.dto.plan.SimplePlanDTO;
+import com.app.civify.dto.subscription.PriceCalculationResponse;
 import com.app.civify.dto.subscription.PromoValidationResponse;
 import com.app.civify.dto.subscription.SubscriptionResponse;
 import com.app.civify.entity.plans.PromoCode;
@@ -93,6 +94,11 @@ public class SubscriptionUseCaseImpl extends CommonService implements Subscripti
     @Override
     public boolean canUseFeature(Long userId, String feature) {
         return subscriptionService.canUserUseFeature(userId, feature);
+    }
+
+    @Override
+    public PriceCalculationResponse calculatePrice(Long userId, Long planId, boolean isAnnual, String promoCode) {
+        return subscriptionService.calculateTotalPrice(userId, planId, isAnnual, promoCode);
     }
 
     private SubscriptionResponse mapToResponse(UserSubscription sub) {

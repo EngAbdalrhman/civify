@@ -8,7 +8,6 @@ import lombok.EqualsAndHashCode;
 import org.hibernate.annotations.ColumnDefault;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -70,11 +69,11 @@ public class SubscriptionPlan extends BaseEntity {
     private Boolean renewalAllowed = true;
 
     /**
-     * Deadline after which this plan cannot be purchased (e.g., for Beta plans).
-     * Null means no deadline.
+     * Maximum billing cycles allowed for this plan (e.g., 1-2 for beta plans).
+     * Null means unlimited cycles.
      */
     @Column
-    private LocalDate purchaseDeadline;
+    private Integer maxBillingCycles;
 
     // ==================== NEW RELATIONSHIPS ====================
     /**

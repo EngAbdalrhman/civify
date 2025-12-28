@@ -19,4 +19,6 @@ public class PriceCalculationResponse {
     private BigDecimal totalPrice;
     private String promoCode;
     private boolean isAnnual;
+    private String billingCycle;  // "MONTHLY" or "ANNUAL"
+    private String currency;      // "EGP"
 }

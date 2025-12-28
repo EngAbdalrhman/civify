@@ -2,6 +2,7 @@ package com.app.civify.controller.v1.plans;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.plan.SimplePlanDTO;
+import com.app.civify.dto.subscription.PriceCalculationResponse;
 import com.app.civify.dto.subscription.PromoValidationResponse;
 import com.app.civify.dto.subscription.SubscriptionResponse;
 import com.app.civify.security.UserPrincipal;
@@ -83,6 +84,28 @@ public class SubscriptionController {
         PromoValidationResponse response = subscriptionUseCase.validatePromoCode(code, amount);
         
         return ResponseEntity.ok(CommonResponse.success(response.getMessage(), response));
+    }
+
+    @Operation(
+            summary = "Calculate subscription price",
+            description = "Calculates the total price for a subscription including discounts and promo codes. Use this for checkout page.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Price calculated successfully",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Plan not found")
+    })
+    @GetMapping("/calculate-price")
+    @CivifyAuthorization(permission = "CV.CREATE")
+    public ResponseEntity<CommonResponse<PriceCalculationResponse>> calculatePrice(
+            @RequestParam Long planId,
+            @RequestParam(defaultValue = "false") boolean isAnnual,
+            @RequestParam(required = false) String promoCode,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        Long userId = userPrincipal.getId();
+        PriceCalculationResponse response = subscriptionUseCase.calculatePrice(userId, planId, isAnnual, promoCode);
+        return ResponseEntity.ok(CommonResponse.success(response));
     }
 
     @Operation(
