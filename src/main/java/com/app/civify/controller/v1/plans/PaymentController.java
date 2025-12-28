@@ -1,14 +1,15 @@
 package com.app.civify.controller.v1.plans;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
-import com.app.civify.repository.UserRepository;
 import com.app.civify.dto.payment.PaymentInitiationResponse;
+import com.app.civify.dto.payment.PaymentVerificationResponse;
+import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.payment.PaymentService;
-import com.app.civify.service.subscription.SubscriptionService;
+import com.app.civify.usecase.user.PaymentUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -27,9 +28,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 @Tag(name = "Payments", description = "Payment processing and verification endpoints")
 public class PaymentController {
 
+    private final PaymentUseCase paymentUseCase;
     private final PaymentService paymentService;
-    private final SubscriptionService subscriptionService;
-    private final UserRepository userRepository;
 
     @Operation(
             summary = "Initiate payment",
@@ -45,16 +45,16 @@ public class PaymentController {
                 content = @Content(mediaType = "application/json"))
     })
     @PostMapping("/initiate")
-   public ResponseEntity<PaymentInitiationResponse> initiatePayment(
+    public ResponseEntity<PaymentInitiationResponse> initiatePayment(
             @RequestParam Long planId,
             @RequestParam(required = false) String promoCode,
             @RequestParam(defaultValue = "false") boolean isAnnual,
             @RequestParam(required = false) String gateway,
-            Authentication authentication) {
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
         try {
-            Long userId = getUserIdFromAuthentication(authentication);
-            PaymentInitiationResponse response = subscriptionService.initiatePayment(userId, planId, isAnnual, promoCode, gateway);
+            Long userId = userPrincipal.getId();
+            PaymentInitiationResponse response = paymentUseCase.initiatePayment(userId, planId, isAnnual, promoCode, gateway);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -81,14 +81,12 @@ public class PaymentController {
             log.info("Received payment webhook for gateway {}", gateway);
             log.debug("Payload: {}", payload);
 
-            // Extract order ID (gateway specific logic handled in service)
-            // We pass null for orderId here as it will be extracted by the gateway implementation
             paymentService.handlePaymentCallback(gateway, null, payload, headers);
 
             return ResponseEntity.ok("Webhook processed successfully");
         } catch (Exception e) {
             log.error("Error processing payment webhook: {}", e.getMessage());
-            return ResponseEntity.ok("Webhook received"); // Return 200 to avoid retries
+            return ResponseEntity.ok("Webhook received");
         }
     }
 
@@ -99,7 +97,7 @@ public class PaymentController {
     @GetMapping("/config")
     public ResponseEntity<Map<String, Object>> getPaymentConfig() {
         return ResponseEntity.ok(Map.of(
-                "enabledGateways", paymentService.getEnabledGateways()
+                "enabledGateways", paymentUseCase.getEnabledGateways()
         ));
     }
 
@@ -118,38 +116,16 @@ public class PaymentController {
     })
     @GetMapping("/verify/{paymentId}")
     @com.app.civify.security.annotation.CivifyAuthorization(permission = "CV.CREATE")
-    public ResponseEntity<Map<String, Object>> verifyPayment(@PathVariable String paymentId) {
-
-        //TODO move logic from controller
+    public ResponseEntity<PaymentVerificationResponse> verifyPayment(@PathVariable String paymentId) {
         try {
-            boolean isVerified = paymentService.verifyPayment(paymentId);
-
-            if (isVerified) {
-                subscriptionService.activateSubscription(paymentId);
-            }
-
-            return ResponseEntity.ok(Map.of(
-                    "verified", isVerified,
-                    "message", isVerified ? "Payment verified successfully" : "Payment verification failed"
-            ));
+            PaymentVerificationResponse response = paymentUseCase.verifyAndActivatePayment(paymentId);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error verifying payment: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", e.getMessage()
-            ));
+            return ResponseEntity.badRequest().body(PaymentVerificationResponse.builder()
+                    .verified(false)
+                    .message(e.getMessage())
+                    .build());
         }
-    }
-    // TODO use bloom filter
-
-    private Long getUserIdFromAuthentication(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new RuntimeException("User not authenticated");
-        }
-
-        String username = authentication.getName();
-        var user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        return user.getId();
     }
 }
