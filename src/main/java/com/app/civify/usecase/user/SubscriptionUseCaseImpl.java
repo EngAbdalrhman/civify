@@ -74,9 +74,32 @@ public class SubscriptionUseCaseImpl extends CommonService implements Subscripti
 
     @Override
     public SubscriptionResponse getActiveSubscription(Long userId) {
-        UserSubscription sub = subscriptionService.getActiveSubscription(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("No active subscription found"));
-        return mapToResponse(sub);
+        Optional<UserSubscription> subOpt = subscriptionService.getActiveSubscription(userId);
+        
+        if (subOpt.isPresent()) {
+            return mapToResponse(subOpt.get());
+        }
+        
+        // No active subscription - return "Free Plan" fallback
+        // Try to get Free plan from database, otherwise return minimal free tier response
+        Optional<SubscriptionPlan> freePlanOpt = subscriptionService.getPlanByName("Free");
+        
+        return SubscriptionResponse.builder()
+                .id(null)
+                .userId(userId)
+                .planId(freePlanOpt.map(SubscriptionPlan::getId).orElse(null))
+                .planName("Free")
+                .planDescription("Basic free tier with limited features")
+                .cvLimit(freePlanOpt.map(SubscriptionPlan::getCvLimit).orElse(1))
+                .currentCvCount(0)
+                .startDate(null)
+                .endDate(null)
+                .status(com.app.civify.entity.enums.SubscriptionStatus.ACTIVE)
+                .paymentTransactionId(null)
+                .usageResetDate(null)
+                .currentTokenUsage(0)
+                .autoRenew(false)
+                .build();
     }
 
     @Override

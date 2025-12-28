@@ -3,7 +3,6 @@ package com.app.civify.controller.v1.plans;
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.plan.SimplePlanDTO;
 import com.app.civify.dto.subscription.PriceCalculationResponse;
-import com.app.civify.dto.subscription.PromoValidationResponse;
 import com.app.civify.dto.subscription.SubscriptionResponse;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.security.annotation.CivifyAuthorization;
@@ -22,7 +21,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -66,25 +64,6 @@ public class SubscriptionController {
         return ResponseEntity.ok(CommonResponse.success(plan));
     }
 
-    @Operation(
-            summary = "Validate promo code",
-            description = "Validates a promo code for checkout and returns discount information."
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Promo code validated",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid promo code")
-    })
-    @PostMapping("/validate-promo")
-    public ResponseEntity<CommonResponse<PromoValidationResponse>> validatePromoCode(@RequestBody Map<String, Object> request) {
-        String code = (String) request.get("code");
-        Number amountNum = (Number) request.get("amount");
-        BigDecimal amount = amountNum != null ? BigDecimal.valueOf(amountNum.doubleValue()) : BigDecimal.ZERO;
-        
-        PromoValidationResponse response = subscriptionUseCase.validatePromoCode(code, amount);
-        
-        return ResponseEntity.ok(CommonResponse.success(response.getMessage(), response));
-    }
 
     @Operation(
             summary = "Calculate subscription price",
