@@ -6,7 +6,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 
@@ -19,6 +21,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@Getter
+@Setter
 public class AuditLogRequest {
 
     // Simple filters
@@ -33,72 +37,15 @@ public class AuditLogRequest {
     private FilterGroup filterGroup;
 
     // Pagination
+    @Builder.Default
     private Integer page = 0;
+    @Builder.Default
     private Integer size = 20;
 
     // Sorting
+    @Builder.Default
     private String sortBy = "performedAt";
+    @Builder.Default
     private String sortDirection = "DESC";
 
-    // Manual getters (Lombok compatibility)
-    public String getEntityType() {
-        return entityType;
-    }
-
-    public String getEntityId() {
-        return entityId;
-    }
-
-    public AuditAction getAction() {
-        return action;
-    }
-
-    public String getPerformedBy() {
-        return performedBy;
-    }
-
-    public LocalDateTime getStartDate() {
-        return startDate;
-    }
-
-    public LocalDateTime getEndDate() {
-        return endDate;
-    }
-
-    public FilterGroup getFilterGroup() {
-        return filterGroup;
-    }
-
-    public Integer getPage() {
-        return page;
-    }
-
-    public Integer getSize() {
-        return size;
-    }
-
-    public String getSortBy() {
-        return sortBy;
-    }
-
-    public String getSortDirection() {
-        return sortDirection;
-    }
-
-    // Manual setters
-    public void setPage(Integer page) {
-        this.page = page;
-    }
-
-    public void setSize(Integer size) {
-        this.size = size;
-    }
-
-    public void setSortBy(String sortBy) {
-        this.sortBy = sortBy;
-    }
-
-    public void setSortDirection(String sortDirection) {
-        this.sortDirection = sortDirection;
-    }
 }

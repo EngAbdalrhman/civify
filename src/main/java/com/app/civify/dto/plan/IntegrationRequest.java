@@ -25,6 +25,7 @@ public class IntegrationRequest {
     
     private String description;
     
+    @Builder.Default
     @NotNull(message = "Enabled status is required")
     private Boolean enabled = true;
     

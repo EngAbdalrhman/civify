@@ -20,6 +20,7 @@ public class FeatureLimitRequest {
     
     private Integer limitValue; // null = unlimited
     
+    @Builder.Default
     @NotNull(message = "Enabled status is required")
     private Boolean enabled = true;
     

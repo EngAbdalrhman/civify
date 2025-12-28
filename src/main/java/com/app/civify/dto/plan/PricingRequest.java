@@ -29,12 +29,15 @@ public class PricingRequest {
     private BigDecimal originalPrice;
     private BigDecimal discountPercentage;
     
+    @Builder.Default
     private String currency = "USD";
     
+    @Builder.Default
     @NotNull(message = "Active status is required")
     private Boolean active = true;
     
     private Integer displayOrder;
+    @Builder.Default
     private Boolean recommended = false;
 }
 

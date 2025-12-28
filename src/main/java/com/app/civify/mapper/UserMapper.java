@@ -11,6 +11,7 @@ public interface UserMapper extends CommonMapper<User, UserDto> {
     @Override
     @org.mapstruct.Mapping(target = "cvCount", ignore = true)
     @org.mapstruct.Mapping(target = "apiUsageCount", ignore = true)
+    @org.mapstruct.Mapping(target = "permissions", ignore = true)
     UserDto toDto(User entity);
 
     @Override

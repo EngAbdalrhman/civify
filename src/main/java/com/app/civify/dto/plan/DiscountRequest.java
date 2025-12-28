@@ -38,10 +38,12 @@ public class DiscountRequest {
     private LocalDateTime startDate;
     private LocalDateTime endDate;
     
+    @Builder.Default
     @NotNull(message = "Active status is required")
     private Boolean active = true;
     
     private Integer maxUses;
+    @Builder.Default
     private Integer priority = 0;
 }
 

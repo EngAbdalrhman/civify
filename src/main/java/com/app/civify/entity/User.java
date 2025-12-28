@@ -81,9 +81,11 @@ public class User extends BaseEntity implements Serializable {
     @Column(name = "profile_picture_url")
     private String profilePictureUrl;
 
+    @Builder.Default
     @Column(name = "is_email_verified", nullable = false)
     private Boolean isEmailVerified = false;
 
+    @Builder.Default
     @Column(name = "two_factor_enabled", nullable = false)
     private Boolean twoFactorEnabled = false;
 

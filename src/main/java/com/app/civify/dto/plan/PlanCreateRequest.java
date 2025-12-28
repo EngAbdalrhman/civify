@@ -34,6 +34,7 @@ public class PlanCreateRequest {
     private BigDecimal monthlyPrice;
     private BigDecimal annualPrice;
     
+    @Builder.Default
     @NotNull(message = "Active status is required")
     private Boolean active = true;
     

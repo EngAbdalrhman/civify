@@ -15,6 +15,7 @@ import lombok.NoArgsConstructor;
 public class SortCriteria {
 
     private String fieldName;
+    @Builder.Default
     private SortDirection direction = SortDirection.ASC;
 
     public SortCriteria(String fieldName) {
