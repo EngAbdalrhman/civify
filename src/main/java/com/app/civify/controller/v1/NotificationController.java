@@ -14,7 +14,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.io.IOException;
 import java.util.List;
@@ -48,6 +52,21 @@ public class NotificationController {
 
     private final PostgresNotificationListener listener;
     private final NotificationRepository notificationRepository;
+
+    /**
+     * Get recent notifications (user specific + broadcast)
+     */
+    @GetMapping
+    public ResponseEntity<Page<Notification>> getRecentNotifications(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Notification> notifications = notificationRepository.findRecentNotificationsForUser(userPrincipal.getId(), pageable);
+        
+        return ResponseEntity.ok(notifications);
+    }
 
     /**
      * SSE stream endpoint for real-time notifications.
@@ -147,13 +166,8 @@ public class NotificationController {
     @GetMapping("/unread-count")
     public ResponseEntity<Map<String, Long>> getUnreadCount(@AuthenticationPrincipal UserPrincipal userPrincipal) {
         // Safely extract user from principal
-        User user = userPrincipal != null ? userPrincipal.getUser() : null;
-        if (user == null) {
-            log.warn("Unread count requested without valid user principal");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
         
-        Long count = notificationRepository.countUndeliveredForUser(user.getId());
+        Long count = notificationRepository.countUndeliveredForUser(userPrincipal.getId());
         return ResponseEntity.ok(Map.of("count", count));
     }
 }

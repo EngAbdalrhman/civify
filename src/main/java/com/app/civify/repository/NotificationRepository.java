@@ -1,6 +1,8 @@
 package com.app.civify.repository;
 
 import com.app.civify.entity.Notification;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,15 +15,20 @@ import java.util.Optional;
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
+    @Query(value = "SELECT * FROM notifications WHERE (user_id = :userId OR user_id IS NULL) ORDER BY created_at DESC",
+           nativeQuery = true)
+    Page<Notification> findRecentNotificationsForUser(@Param("userId") Long userId, Pageable pageable);
+
     /**
      * Find undelivered notifications for a specific user
      */
-    List<Notification> findByUserIdAndDeliveredFalseOrderByCreatedAtAsc(Long userId);
+    @Query("SELECT n FROM Notification n WHERE n.user.id = :userId AND n.delivered = false ORDER BY n.createdAt ASC")
+    List<Notification> findByUserIdAndDeliveredFalseOrderByCreatedAtAsc(@Param("userId") Long userId);
 
     /**
      * Find undelivered broadcast notifications (user_id IS NULL)
      */
-    @Query("SELECT n FROM Notification n WHERE n.user IS NULL AND n.delivered = false ORDER BY n.createdAt ASC")
+    @Query("SELECT n FROM Notification n WHERE n.user IS NULL AND n.delivered = false")
     List<Notification> findUndeliveredBroadcasts();
 
     /**
