@@ -1,5 +1,6 @@
 package com.app.civify.service.payment;
 
+import com.app.civify.dto.plan.PromoCodeDto;
 import com.app.civify.entity.plans.PromoCode;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
@@ -8,7 +9,7 @@ import java.util.Optional;
 
 public interface PromoCodeService {
 
-    PagedResponse<PromoCode> filterPromoCodes(InputDataModel inputData);
+    PagedResponse<PromoCodeDto> filterPromoCodes(InputDataModel inputData);
 
     PromoCode createPromoCode(PromoCode promoCode);
 

@@ -1,5 +1,6 @@
 package com.app.civify.service.payment;
 
+import com.app.civify.dto.plan.PromoCodeDto;
 import com.app.civify.entity.plans.PromoCode;
 import com.app.civify.exception.BadRequestException;
 import com.app.civify.exception.ResourceNotFoundException;
@@ -22,24 +23,24 @@ import java.util.Optional;
 public class PromoCodeServiceImpl extends CommonService implements PromoCodeService {
 
     private final PromoCodeRepository promoCodeRepository;
+    private final com.app.civify.mapper.PromoCodeMapper promoCodeMapper;
 
     @Override
-    public PagedResponse<PromoCode> filterPromoCodes(InputDataModel inputData) {
+    public PagedResponse<PromoCodeDto> filterPromoCodes(InputDataModel inputData) {
         log.debug("Filtering promo codes with criteria: {}", inputData);
         Page<PromoCode> page = filterEntities(promoCodeRepository, inputData);
 
-        PagedResponse<PromoCode> response = new PagedResponse<>();
-        response.setContent(page.getContent());
-        response.setPage(page.getNumber());
-        response.setSize(page.getSize());
-        response.setTotalElements(page.getTotalElements());
-        response.setTotalPages(page.getTotalPages());
-        response.setFirst(page.isFirst());
-        response.setLast(page.isLast());
-        response.setHasNext(page.hasNext());
-        response.setHasPrevious(page.hasPrevious());
-
-        return response;
+        return new PagedResponse<>(
+                page.getContent().stream().map(promoCodeMapper::toDto).collect(java.util.stream.Collectors.toList()),
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.isFirst(),
+                page.isLast(),
+                page.hasNext(),
+                page.hasPrevious()
+        );
     }
 
     @Override

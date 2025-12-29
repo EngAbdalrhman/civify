@@ -1,7 +1,7 @@
 package com.app.civify.controller.v1.plans;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
-import com.app.civify.entity.plans.PromoCode;
+import com.app.civify.dto.plan.PromoCodeDto;
 import com.app.civify.security.annotation.CivifyAuthorization;
 import com.app.civify.usecase.admin.AdminPromoCodeUseCase;
 import com.app.civify.util.filter.InputDataModel;
@@ -40,7 +40,7 @@ public class AdminPromoCodeController {
     })
     @CivifyAuthorization(permission = "PROMO.VIEW")
     @PostMapping("/filter")
-    public ResponseEntity<CommonResponse<PagedResponse<PromoCode>>> filterPromoCodes(@RequestBody InputDataModel inputData) {
+    public ResponseEntity<CommonResponse<PagedResponse<PromoCodeDto>>> filterPromoCodes(@RequestBody InputDataModel inputData) {
         return ResponseEntity.ok(CommonResponse.success(promoCodeUseCase.filterPromoCodes(inputData)));
     }
 
@@ -51,14 +51,14 @@ public class AdminPromoCodeController {
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Promo code created successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PromoCode.class))),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PromoCodeDto.class))),
             @ApiResponse(responseCode = "400", description = "Invalid input",
                     content = @Content(mediaType = "application/json"))
     })
     @CivifyAuthorization(permission = "PROMO.MODIFY")
     @PostMapping
-    public ResponseEntity<CommonResponse<PromoCode>> createPromoCode(@RequestBody PromoCode promoCode) {
-        return ResponseEntity.ok(CommonResponse.success(promoCodeUseCase.createPromoCode(promoCode)));
+    public ResponseEntity<CommonResponse<PromoCodeDto>> createPromoCode(@RequestBody com.app.civify.dto.plan.CreatePromoCodeRequest request) {
+        return ResponseEntity.ok(CommonResponse.success(promoCodeUseCase.createPromoCode(request)));
     }
 
     @Operation(
@@ -68,14 +68,14 @@ public class AdminPromoCodeController {
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Promo code updated successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PromoCode.class))),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PromoCodeDto.class))),
             @ApiResponse(responseCode = "404", description = "Promo code not found",
                     content = @Content(mediaType = "application/json"))
     })
     @CivifyAuthorization(permission = "PROMO.MODIFY")
     @PutMapping("/{id}")
-    public ResponseEntity<CommonResponse<PromoCode>> updatePromoCode(@PathVariable Long id, @RequestBody PromoCode promoCode) {
-        return ResponseEntity.ok(CommonResponse.success(promoCodeUseCase.updatePromoCode(id, promoCode)));
+    public ResponseEntity<CommonResponse<PromoCodeDto>> updatePromoCode(@PathVariable Long id, @RequestBody com.app.civify.dto.plan.UpdatePromoCodeRequest request) {
+        return ResponseEntity.ok(CommonResponse.success(promoCodeUseCase.updatePromoCode(id, request)));
     }
 
     @Operation(
@@ -85,13 +85,13 @@ public class AdminPromoCodeController {
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Promo code deactivated successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PromoCode.class))),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PromoCodeDto.class))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Promo code not found",
                     content = @Content(mediaType = "application/json"))
     })
     @CivifyAuthorization(permission = "PROMO.MODIFY")
     @PostMapping("/{id}/deactivate")
-    public ResponseEntity<CommonResponse<PromoCode>> deactivatePromoCode(@PathVariable Long id) {
+    public ResponseEntity<CommonResponse<PromoCodeDto>> deactivatePromoCode(@PathVariable Long id) {
         return ResponseEntity.ok(CommonResponse.success(promoCodeUseCase.deactivatePromoCode(id)));
     }
 

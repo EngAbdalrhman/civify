@@ -1,5 +1,8 @@
 package com.app.civify.usecase.admin;
 
+import com.app.civify.dto.plan.CreatePromoCodeRequest;
+import com.app.civify.dto.plan.PromoCodeDto;
+import com.app.civify.dto.plan.UpdatePromoCodeRequest;
 import com.app.civify.entity.enums.AuditAction;
 import com.app.civify.entity.plans.PromoCode;
 import com.app.civify.service.audit.AuditService;
@@ -14,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -22,38 +26,65 @@ public class AdminPromoCodeUseCaseImpl extends CommonService implements AdminPro
 
     private final PromoCodeService promoCodeService;
     private final AuditService auditService;
+    private final com.app.civify.mapper.PromoCodeMapper promoCodeMapper;
 
     @Override
-    public PagedResponse<PromoCode> filterPromoCodes(InputDataModel inputData) {
+    public PagedResponse<PromoCodeDto> filterPromoCodes(InputDataModel inputData) {
         log.debug("Filtering promo codes with criteria: {}", inputData);
         return promoCodeService.filterPromoCodes(inputData);
     }
 
     @Override
     @Transactional
-    public PromoCode createPromoCode(PromoCode promoCode) {
-        PromoCode created = promoCodeService.createPromoCode(promoCode);
+    public PromoCodeDto createPromoCode(CreatePromoCodeRequest request) {
+        PromoCode entity = new PromoCode();
+        entity.setCode(request.getCode());
+        entity.setDescription(request.getDescription());
+        entity.setDiscountType(request.getDiscountType());
+        entity.setDiscountValue(request.getDiscountValue());
+        entity.setMinimumPurchase(request.getMinimumPurchase());
+        entity.setUsageLimit(request.getUsageLimit());
+        entity.setExpiresAt(request.getExpiresAt());
+        entity.setApplicabilityType(request.getApplicabilityType());
+        entity.setMaxDiscountAmount(request.getMaxDiscountAmount());
+        entity.setActive(request.isActive());
+
+        PromoCode created = promoCodeService.createPromoCode(entity);
         logAudit(created.getId(), AuditAction.CREATE, null, promoToMap(created),
                 "Created promo code: " + created.getCode());
-        return created;
+        return promoCodeMapper.toDto(created);
     }
 
     @Override
     @Transactional
-    public PromoCode updatePromoCode(Long id, PromoCode promoCode) {
-        PromoCode updated = promoCodeService.updatePromoCode(id, promoCode);
+    public PromoCodeDto updatePromoCode(Long id, UpdatePromoCodeRequest request) {
+        // We fetch first to have the object for updating, but promoCodeService.updatePromoCode takes an entity
+        // We will create a dummy entity with fields to update, or better, we let service handle it.
+        // Wait, promoCodeService.updatePromoCode(id, entity) likely copies non-null properties.
+        // Let's create an entity with just the updated fields.
+        PromoCode updateEntity = new PromoCode();
+        updateEntity.setDescription(request.getDescription());
+        updateEntity.setDiscountValue(request.getDiscountValue());
+        updateEntity.setMinimumPurchase(request.getMinimumPurchase());
+        updateEntity.setUsageLimit(request.getUsageLimit());
+        updateEntity.setExpiresAt(request.getExpiresAt());
+        updateEntity.setActive(request.getActive());
+        updateEntity.setApplicabilityType(request.getApplicabilityType());
+        updateEntity.setMaxDiscountAmount(request.getMaxDiscountAmount());
+        
+        PromoCode updated = promoCodeService.updatePromoCode(id, updateEntity);
         logAudit(id, AuditAction.UPDATE, null, promoToMap(updated),
                 "Updated promo code: " + updated.getCode());
-        return updated;
+        return promoCodeMapper.toDto(updated);
     }
 
     @Override
     @Transactional
-    public PromoCode deactivatePromoCode(Long id) {
+    public PromoCodeDto deactivatePromoCode(Long id) {
         PromoCode deactivated = promoCodeService.deactivatePromoCode(id);
         logAudit(id, AuditAction.UPDATE, null, null,
                 "Deactivated promo code: " + deactivated.getCode());
-        return deactivated;
+        return promoCodeMapper.toDto(deactivated);
     }
 
     @Override
@@ -81,4 +112,6 @@ public class AdminPromoCodeUseCaseImpl extends CommonService implements AdminPro
         map.put("active", promo.getActive());
         return map;
     }
+
+
 }
