@@ -140,6 +140,7 @@ public class SubscriptionUseCaseImpl extends CommonService implements Subscripti
                 .paymentTransactionId(sub.getPaymentTransactionId())
                 .usageResetDate(sub.getUsageResetDate())
                 .currentTokenUsage(sub.getCurrentTokenUsage())
+                .tokenLimit(sub.getPlan() != null ? sub.getPlan().getTokenLimit() : null)
                 .autoRenew(sub.getAutoRenew())
                 .build();
     }

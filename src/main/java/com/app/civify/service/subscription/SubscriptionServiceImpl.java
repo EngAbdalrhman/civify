@@ -341,7 +341,6 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             case "CV" -> {
                 // Check custom limit first
                 if (user.getCvLimit() != null) {
-                    sub.resetUsageIfNewMonth(); // Ensure usage is reset before checking
                     yield sub.getCurrentCvCount() < user.getCvLimit();
                 }
                 yield sub.canUseCv();
@@ -354,13 +353,28 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     }
 
     @Override
+    @Transactional(readOnly = true)
     public boolean canUserUseTokens(Long userId, int tokensNeeded) {
-        Optional<UserSubscription> subscription = getActiveSubscription(userId);
-        if (subscription.isEmpty()) {
+        // Efficiently fetch token info for active subscription
+        var tokenInfoOpt = subscriptionRepository.findTokenInfoByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE);
+        
+        if (tokenInfoOpt.isEmpty()) {
             return false;
         }
-        UserSubscription sub = subscription.get();
-        return sub.canUseTokens(Math.max(tokensNeeded, 0));
+        
+        var info = tokenInfoOpt.get();
+        // Check local monthly limit
+        int currentUsage = info.getCurrentTokenUsage() != null ? info.getCurrentTokenUsage() : 0;
+        int limit = info.getTokenLimit() != null ? info.getTokenLimit() : Integer.MAX_VALUE;
+        int monthlyRemaining = Math.max(0, limit - currentUsage);
+
+        if (monthlyRemaining >= tokensNeeded) {
+            return true;
+        }
+
+        // Fetch wallet tokens efficiently
+        int walletTokens = userRepository.findExtraTokensByUserId(userId).orElse(0); 
+        return ((long) monthlyRemaining + walletTokens) >= tokensNeeded;
     }
 
     @Override
@@ -391,16 +405,40 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     @Override
     @Transactional
     public void chargeTokens(Long userId, int tokensUsed) {
-        Optional<UserSubscription> subscription = getActiveSubscription(userId);
-        if (subscription.isEmpty()) {
+        // Optimized charge logic using projections and direct updates
+        var tokenInfoOpt = subscriptionRepository.findTokenInfoByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE);
+        
+        if (tokenInfoOpt.isEmpty()) {
             throw new BadRequestException("No active subscription found");
         }
-        UserSubscription sub = subscription.get();
-        if (!sub.canUseTokens(tokensUsed)) {
-            throw new BadRequestException("Token allowance exceeded for current subscription");
+        
+        var info = tokenInfoOpt.get();
+        int currentUsage = info.getCurrentTokenUsage() != null ? info.getCurrentTokenUsage() : 0;
+        int limit = info.getTokenLimit() != null ? info.getTokenLimit() : Integer.MAX_VALUE;
+        int monthlyRemaining = Math.max(0, limit - currentUsage);
+        
+        int deductFromMonthly = Math.min(tokensUsed, monthlyRemaining);
+        int remainingToCharge = tokensUsed - deductFromMonthly;
+        
+        // 1. Deduct from monthly allowance (subscription usage)
+        if (deductFromMonthly > 0) {
+            subscriptionRepository.updateTokenUsage(info.getId(), currentUsage + deductFromMonthly);
         }
-        sub.incrementTokenUsage(tokensUsed);
-        subscriptionRepository.save(sub);
+        
+        // 2. Deduct remaining from user's wallet (extra tokens)
+        if (remainingToCharge > 0) {
+            int walletTokens = userRepository.findExtraTokensByUserId(userId).orElse(0);
+            
+            if (walletTokens < remainingToCharge) {
+                // Should not happen if checked via canUserUseTokens beforehand, but safe guard
+                throw new BadRequestException("Insufficient token balance (Wallet balance: " + walletTokens + ")");
+            }
+            
+            userRepository.updateExtraTokens(userId, walletTokens - remainingToCharge);
+        }
+        
+        // Log implementation note: We are not blocking here, relying on optimistic flow 
+        // assuming canUserUseTokens was called.
     }
 
     @Override

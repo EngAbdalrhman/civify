@@ -4,11 +4,15 @@ package com.app.civify.entity;
 import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.entity.security.Group;
 import com.app.civify.entity.utils.BaseEntity;
+import com.app.civify.util.audit.UserAuditListener;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.ColumnDefault;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -20,9 +24,10 @@ import java.util.List;
 @Table(name = "users")
 @Builder
 @EqualsAndHashCode(callSuper = true)
-@EntityListeners(com.app.civify.util.audit.UserAuditListener.class)
+@EntityListeners(UserAuditListener.class)
 public class User extends BaseEntity implements Serializable {
 
+    @Serial
     private static final long serialVersionUID = 1L;
 
     @Id
@@ -96,9 +101,15 @@ public class User extends BaseEntity implements Serializable {
     @JoinColumn(name = "group_id")
     private Group group;
 
+    // Token wallet - purchased tokens that never expire
+    @Builder.Default
+    @ColumnDefault("0")
+    @Column(name = "extra_tokens", nullable = false)
+    private Integer extraTokens = 0;
+
     // Relationships
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JsonIgnore
     private List<UserSubscription> subscriptions;
 
     // Helper methods for security

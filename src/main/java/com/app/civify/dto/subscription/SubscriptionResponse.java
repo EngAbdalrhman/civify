@@ -26,5 +26,6 @@ public class SubscriptionResponse {
     private String paymentTransactionId;
     private LocalDateTime usageResetDate;
     private Integer currentTokenUsage;
+    private Integer tokenLimit;
     private Boolean autoRenew;
 }

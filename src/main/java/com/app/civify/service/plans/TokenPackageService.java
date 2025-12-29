@@ -1,10 +1,14 @@
 package com.app.civify.service.plans;
 
 import com.app.civify.dto.payment.PaymentCreationResult;
+import com.app.civify.dto.token.TokenBalanceResponse;
+import com.app.civify.entity.User;
 import com.app.civify.entity.plans.TokenPackage;
-import com.app.civify.entity.plans.UserSubscription;
+
 import com.app.civify.entity.enums.AuditAction;
 import com.app.civify.entity.enums.SubscriptionStatus;
+import com.app.civify.exception.ResourceNotFoundException;
+import com.app.civify.repository.UserRepository;
 import com.app.civify.repository.plans.TokenPackageRepository;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
 import com.app.civify.service.audit.AuditService;
@@ -14,7 +18,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +29,8 @@ public class TokenPackageService {
 
     private final TokenPackageRepository tokenPackageRepository;
     private final PaymentService paymentService;
-    private final UserSubscriptionRepository userSubscriptionRepository;
+    private final UserRepository userRepository;
+    private final UserSubscriptionRepository subscriptionRepository;
     private final AuditService auditService;
 
     public List<TokenPackage> getAllActivePackages() {
@@ -35,6 +39,51 @@ public class TokenPackageService {
 
     public List<TokenPackage> getAllPackages() {
         return tokenPackageRepository.findAll();
+    }
+
+    /**
+     * Get user's token balance including wallet and subscription info.
+     * Use efficient projection queries.
+     */
+    @Transactional(readOnly = true)
+    public TokenBalanceResponse getUserTokenBalance(Long userId) {
+        // 1. Fetch wallet tokens efficiently
+        // Returns 0 if user not found or tokens null, effectively handling "no wallet" case
+        int walletTokens = userRepository.findExtraTokensByUserId(userId).orElse(0); 
+        
+        // 2. Fetch active subscription info efficiently
+        var tokenInfoOpt = subscriptionRepository.findTokenInfoByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE);
+        
+        Integer monthlyLimit = null;
+        Integer monthlyUsed = 0;
+        Integer monthlyRemaining = 0;
+        
+        if (tokenInfoOpt.isPresent()) {
+            var info = tokenInfoOpt.get();
+            monthlyLimit = info.getTokenLimit();
+            monthlyUsed = info.getCurrentTokenUsage() != null ? info.getCurrentTokenUsage() : 0;
+            
+            if (monthlyLimit != null) {
+                monthlyRemaining = Math.max(0, monthlyLimit - monthlyUsed);
+            } else {
+                // Unlimited monthly tokens
+                monthlyRemaining = Integer.MAX_VALUE;
+            }
+        }
+        
+        // Calculate total available
+        long totalCalc = (long) monthlyRemaining + walletTokens;
+        int totalAvailable = (monthlyLimit == null && tokenInfoOpt.isPresent()) 
+                ? Integer.MAX_VALUE 
+                : (totalCalc > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) totalCalc);
+        
+        return TokenBalanceResponse.builder()
+                .walletTokens(walletTokens)
+                .monthlyLimit(monthlyLimit)
+                .monthlyUsed(monthlyUsed)
+                .monthlyRemaining(monthlyRemaining)
+                .totalAvailable(totalAvailable)
+                .build();
     }
 
     public TokenPackage getPackageById(Long id) {
@@ -132,34 +181,21 @@ public class TokenPackageService {
 
     /**
      * Called by Payment Callback/Handler when payment is COMPLETED.
+     * Adds tokens to user's wallet (extraTokens on User entity).
      */
     @Transactional
     public void fulfillTokenPurchase(Long userId, Integer tokens) {
         log.info("Fulfilling token purchase for user {}: +{} tokens", userId, tokens);
         
-        // Find active subscription to add tokens to
-        // If no active subscription, maybe find the user's latest or create a "Free" one?
-        // Assuming user must have a subscription (even Free) to have an App Account.
-        UserSubscription subscription = userSubscriptionRepository.findByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE)
-                .stream().findFirst()
-                .orElse(null);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
 
-        if (subscription == null) {
-            // Fallback: try to find any subscription or handle error
-            // ideally we reactivate Free or similar. 
-            // For now, let's find the most recent one.
-            log.warn("No ACTIVE subscription found for user {} for token top-up. Checking others.", userId);
-            subscription = userSubscriptionRepository.findByUserId(userId).stream()
-                    .max((a, b) -> a.getEndDate().compareTo(b.getEndDate()))
-                    .orElseThrow(() -> new RuntimeException("User has no subscription record"));
-        }
-
-        // Add tokens
-        Integer currentExtra = subscription.getExtraTokens();
+        // Add tokens to user's wallet
+        Integer currentExtra = user.getExtraTokens();
         if (currentExtra == null) currentExtra = 0;
-        subscription.setExtraTokens(currentExtra + tokens);
+        user.setExtraTokens(currentExtra + tokens);
         
-        userSubscriptionRepository.save(subscription);
-        log.info("Tokens added. New balance: {}", subscription.getExtraTokens());
+        userRepository.save(user);
+        log.info("Tokens added to user {} wallet. New balance: {}", userId, user.getExtraTokens());
     }
 }

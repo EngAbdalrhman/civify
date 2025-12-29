@@ -2,6 +2,7 @@ package com.app.civify.controller.v1.plans;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.payment.PaymentCreationResult;
+import com.app.civify.dto.token.TokenBalanceResponse;
 import com.app.civify.entity.plans.TokenPackage;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.security.annotation.CivifyAuthorization;
@@ -34,6 +35,18 @@ public class TokenPackageController {
     @GetMapping("/packages")
     public ResponseEntity<List<TokenPackage>> getPackages() {
         return ResponseEntity.ok(tokenPackageService.getAllActivePackages());
+    }
+
+    @Operation(
+            summary = "Get user's token balance",
+            description = "Retrieve the current user's token wallet balance (purchased tokens)",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @GetMapping("/balance")
+    public ResponseEntity<TokenBalanceResponse> getBalance(
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        Long userId = userPrincipal.getId();
+        return ResponseEntity.ok(tokenPackageService.getUserTokenBalance(userId));
     }
 
     @Operation(

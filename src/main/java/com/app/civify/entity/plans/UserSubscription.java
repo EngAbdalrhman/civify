@@ -56,14 +56,7 @@ public class UserSubscription extends BaseEntity {
     @Column(nullable = false)
     private Integer currentTokenUsage = 0;
 
-    /**
-     * Extra tokens purchased via Top-up packages. 
-     * Valid until consumed, do not expire monthly.
-     * Consumed AFTER monthly limit is reached.
-     */
-    @Column(nullable = false)
-    @ColumnDefault("0")
-    private Integer extraTokens = 0;
+
 
     @Column(name = "usage_reset_date")
     private LocalDateTime usageResetDate;
@@ -108,28 +101,50 @@ public class UserSubscription extends BaseEntity {
         if (!isActive()) {
             return false;
         }
-        resetUsageIfNewMonth();
         return plan.getCvLimit() == null || currentCvCount < plan.getCvLimit();
     }
 
 
 
     /**
-     * Check if user has enough token balance for a request.
+     * Check if user has enough token balance from subscription plan only.
+     * Note: This does NOT include wallet tokens (User.extraTokens).
+     * For complete check including wallet, use canUseTokensWithWallet().
      */
     public boolean canUseTokens(int tokensNeeded) {
         if (!isActive()) {
             return false;
         }
-        resetUsageIfNewMonth();
         if (plan.getTokenLimit() == null) {
             return true; // unlimited tokens
         }
         if (currentTokenUsage == null) currentTokenUsage = 0;
-        if (extraTokens == null) extraTokens = 0;
         
-        long monthlyRemaining = Math.max(0, (long) plan.getTokenLimit() - currentTokenUsage);
-        long totalAvailable = monthlyRemaining + extraTokens;
+        int monthlyRemaining = Math.max(0, plan.getTokenLimit() - currentTokenUsage);
+        return monthlyRemaining >= tokensNeeded;
+    }
+
+    /**
+     * Check if user has enough tokens including User's wallet (purchased tokens).
+     * Tokens are deducted: first from subscription plan allowance, then from wallet.
+     * 
+     * @param tokensNeeded tokens required for the operation
+     * @param userWalletTokens tokens from User.extraTokens (purchased tokens that never expire)
+     * @return true if total available tokens (subscription + wallet) is sufficient
+     */
+    public boolean canUseTokensWithWallet(int tokensNeeded, int userWalletTokens) {
+        if (!isActive()) {
+            return false;
+        }
+        if (plan.getTokenLimit() == null) {
+            return true; // unlimited tokens in subscription plan
+        }
+        if (currentTokenUsage == null) currentTokenUsage = 0;
+        
+        // Calculate remaining subscription tokens
+        int monthlyRemaining = Math.max(0, plan.getTokenLimit() - currentTokenUsage);
+        // Total = subscription remaining + wallet tokens
+        int totalAvailable = monthlyRemaining + userWalletTokens;
         
         return totalAvailable >= tokensNeeded;
     }
@@ -138,7 +153,6 @@ public class UserSubscription extends BaseEntity {
      * Increment CV usage counter
      */
     public void incrementCvCount() {
-        resetUsageIfNewMonth();
         if (currentCvCount == null) {
             currentCvCount = 0;
         }
@@ -148,39 +162,37 @@ public class UserSubscription extends BaseEntity {
 
 
     /**
-     * Charge tokens against the monthly allowance OR extra tokens.
+     * Get remaining tokens from subscription plan allowance.
+     * Does NOT include wallet tokens (User.extraTokens).
+     * 
+     * @return remaining tokens in current billing period
      */
-    public void incrementTokenUsage(int tokensUsed) {
-        resetUsageIfNewMonth();
-        if (currentTokenUsage == null) currentTokenUsage = 0;
-        if (extraTokens == null) extraTokens = 0;
-        
-        int limit = plan.getTokenLimit() != null ? plan.getTokenLimit() : Integer.MAX_VALUE;
-        int monthlyRemaining = Math.max(0, limit - currentTokenUsage);
-        
-        int deductFromMonthly = Math.min(tokensUsed, monthlyRemaining);
-        int deductFromExtra = tokensUsed - deductFromMonthly;
-        
-        // Always increment usage counter for tracking
-        currentTokenUsage += tokensUsed;
-        
-        // Deduct overflow from extra tokens
-        if (deductFromExtra > 0) {
-            extraTokens = Math.max(0, extraTokens - deductFromExtra);
+    public int getRemainingSubscriptionTokens() {
+        if (plan.getTokenLimit() == null) {
+            return Integer.MAX_VALUE; // unlimited
         }
+        if (currentTokenUsage == null) currentTokenUsage = 0;
+        return Math.max(0, plan.getTokenLimit() - currentTokenUsage);
     }
 
     /**
-     * Reset usage counters if it's a new month
+     * Reset usage counters for a new billing period.
+     * Called by Quartz scheduler during subscription renewal.
+     * Sets usageResetDate to first day of next month.
      */
-    public void resetUsageIfNewMonth() {
+    public void resetUsageCounters() {
         LocalDateTime now = LocalDateTime.now();
-        if (usageResetDate == null || now.isAfter(usageResetDate)) {
-            currentCvCount = 0;
-            currentTokenUsage = 0;
-            // Set reset date to first day of next month
-            usageResetDate = now.plusMonths(1).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
-        }
+        currentCvCount = 0;
+        currentTokenUsage = 0;
+        usageResetDate = now.plusMonths(1).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+    }
+
+    /**
+     * Check if usage should be reset (past the reset date).
+     * Used by Quartz scheduler to determine when to reset.
+     */
+    public boolean shouldResetUsage() {
+        return usageResetDate == null || LocalDateTime.now().isAfter(usageResetDate);
     }
 
     // Expose user details for Admin API
