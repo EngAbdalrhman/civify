@@ -119,7 +119,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         }
         // =============================================================
 
-        // Don't allow creating another subscription if user already has a pending one
+        //TODO Don't allow creating another subscription if user already has a pending one
         Optional<UserSubscription> pendingSubscription = subscriptionRepository
                 .findByUserIdAndStatus(userId, SubscriptionStatus.PENDING)
                 .stream()
