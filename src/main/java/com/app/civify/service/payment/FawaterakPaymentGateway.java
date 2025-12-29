@@ -364,7 +364,8 @@ public class FawaterakPaymentGateway implements PaymentGateway {
             String queryParam = String.format("InvoiceId=%s&InvoiceKey=%s&PaymentMethod=%s",
                     invoiceId, invoiceKey, paymentMethod);
 
-            log.debug("Fawaterak signature verification - queryParam: {}", queryParam);
+            log.info("Debugging Signature: invoiceId={}, invoiceKey={}, paymentMethod={}", invoiceId, invoiceKey, paymentMethod);
+            log.info("Debugging Signature: queryParam={}", queryParam);
 
             // HMAC SHA256 with provider key
             Mac mac = Mac.getInstance("HmacSHA256");
