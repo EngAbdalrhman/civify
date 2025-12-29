@@ -348,40 +348,57 @@ public class FawaterakPaymentGateway implements PaymentGateway {
 
     private boolean verifySignature(JsonNode root) {
         try {
-            // Extract hashKey from parse data
             if (!root.has("hashKey")) {
                 log.error("❌ Fawaterak hashKey missing in body");
                 return false;
             }
             String signature = root.get("hashKey").asText();
-
-            // Build query param string per Fawaterak documentation
-            // Format: InvoiceId={invoice_id}&InvoiceKey={invoice_key}&PaymentMethod={payment_method}
+            
             String invoiceId = root.path("invoice_id").asText("");
             String invoiceKey = root.path("invoice_key").asText("");
             String paymentMethod = root.path("payment_method").asText("");
 
-            String queryParam = String.format("InvoiceId=%s&InvoiceKey=%s&PaymentMethod=%s",
+            // Normalize keys
+            String cleanProviderKey = (providerKey != null) ? providerKey.trim() : "";
+            String cleanApiKey = (apiKey != null) ? apiKey.trim() : "";
+
+            // Format 1: Standard (InvoiceId + InvoiceKey + PaymentMethod)
+            String queryParam1 = String.format("InvoiceId=%s&InvoiceKey=%s&PaymentMethod=%s",
                     invoiceId, invoiceKey, paymentMethod);
+            
+            // Format 2: Legacy (InvoiceId + InvoiceKey)
+            String queryParam2 = String.format("InvoiceId=%s&InvoiceKey=%s",
+                    invoiceId, invoiceKey);
 
-            log.info("Debugging Signature: invoiceId={}, invoiceKey={}, paymentMethod={}", invoiceId, invoiceKey, paymentMethod);
-            log.info("Debugging Signature: queryParam={}", queryParam);
+            // Try all combinations
+            if (checkHash(signature, queryParam1, cleanProviderKey, "ProviderKey-Standard")) return true;
+            if (checkHash(signature, queryParam1, cleanApiKey, "ApiKey-Standard")) return true;
+            if (checkHash(signature, queryParam2, cleanProviderKey, "ProviderKey-Legacy")) return true;
+            if (checkHash(signature, queryParam2, cleanApiKey, "ApiKey-Legacy")) return true;
 
-            // HMAC SHA256 with provider key
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(providerKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] digest = mac.doFinal(queryParam.getBytes(StandardCharsets.UTF_8));
-            String expected = bytesToHex(digest);
-
-            if (!signature.equalsIgnoreCase(expected)) {
-                log.warn("Fawaterak signature mismatch. Received: {}, Expected: {}", signature, expected);
-                return false;
-            }
-            return true;
+            log.error("❌ Signature verification failed after trying all combinations.");
+            log.info("Debugging: Received={}, KeyLength P={}, A={}", signature, cleanProviderKey.length(), cleanApiKey.length());
+            return false;
         } catch (Exception e) {
             log.error("Fawaterak signature verification failed: {}", e.getMessage());
             return false;
         }
+    }
+
+    private boolean checkHash(String expected, String data, String key, String method) {
+        if (key == null || key.isEmpty()) return false;
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] digest = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            String calculated = bytesToHex(digest);
+            
+            if (expected.equalsIgnoreCase(calculated)) {
+                log.info("✅ Signature verify SUCCESS using method: {}", method);
+                return true;
+            }
+        } catch (Exception ignored) {}
+        return false;
     }
 
     private JsonNode parsePayload(String rawPayload) {
