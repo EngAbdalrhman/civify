@@ -1,7 +1,13 @@
 package com.app.civify.service.payment;
 
+import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
+import com.app.civify.entity.plans.PaymentTransaction;
+import com.app.civify.repository.plans.PaymentRepository;
 import com.app.civify.service.plans.TokenPackageService;
+import com.app.civify.service.subscription.SubscriptionService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,12 +26,16 @@ import java.util.Map;
 public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentGatewayManager gatewayManager;
-    private final com.app.civify.repository.plans.PaymentRepository paymentRepository;
-    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    private final PaymentRepository paymentRepository;
+    private final ObjectMapper objectMapper;
 
     @Lazy
     @Autowired
     private TokenPackageService tokenPackageService;
+
+    @Lazy
+    @Autowired
+    private SubscriptionService subscriptionService;
 
     @Override
     public PaymentCreationResult createPayment(Long userId, double amount, String gateway) {
@@ -50,13 +60,14 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     public void handlePaymentCallback(String gateway, String orderId, String rawPayload, Map<String, String> headers) {
         log.info("Handling payment callback for gateway {} order {}", gateway, orderId);
-        com.app.civify.dto.payment.PaymentCallbackResult result = gatewayManager.handleCallback(gateway, rawPayload, headers);
+        PaymentCallbackResult result = gatewayManager.handleCallback(gateway, rawPayload, headers);
         
         if (result.isSuccess()) {
             try {
                 // Fetch transaction to check metadata
-                com.app.civify.entity.plans.PaymentTransaction transaction = paymentRepository.findByOrderId(orderId)
-                        .orElseThrow(() -> new RuntimeException("Transaction not found for order: " + orderId));
+                String effectiveOrderId = result.getOrderId() != null ? result.getOrderId() : orderId;
+                PaymentTransaction transaction = paymentRepository.findByOrderId(effectiveOrderId)
+                        .orElseThrow(() -> new RuntimeException("Transaction not found for order: " + effectiveOrderId));
                 
                 if (transaction.getMetadata() != null) {
                     Map<String, Object> meta = objectMapper.readValue(transaction.getMetadata(), Map.class);
@@ -65,8 +76,14 @@ public class PaymentServiceImpl implements PaymentService {
                         // Using orderId as the payment reference to look up the TokenPurchase
                         log.info("Processing TOKEN_TOPUP for order: {}", orderId);
                         tokenPackageService.fulfillTokenPurchase(orderId);
+                        return;
                     }
                 }
+
+                // Default: Try to activate subscription
+                // Subscription is linked via paymentKey (transactionId)
+                log.info("Processing SUBSCRIPTION activation for paymentKey: {}", transaction.getPaymentKey());
+                subscriptionService.activateSubscription(transaction.getPaymentKey());
             } catch (Exception e) {
                 log.error("Failed to process payment fulfillment: {}", e.getMessage(), e);
             }

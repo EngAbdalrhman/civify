@@ -376,8 +376,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
             if (checkHash(signature, queryParam2, cleanProviderKey, "ProviderKey-Legacy")) return true;
             if (checkHash(signature, queryParam2, cleanApiKey, "ApiKey-Legacy")) return true;
 
-            log.error("❌ Signature verification failed after trying all combinations.");
-            log.info("Debugging: Received={}, KeyLength P={}, A={}", signature, cleanProviderKey.length(), cleanApiKey.length());
+            log.error("❌ Signature verification failed.");
             return false;
         } catch (Exception e) {
             log.error("Fawaterak signature verification failed: {}", e.getMessage());
