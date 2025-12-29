@@ -71,7 +71,7 @@ public class TokenPackageController {
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @GetMapping("/packages/all")
-    @CivifyAuthorization(permission = "MANAGE.PLAN")
+    @CivifyAuthorization(permission = "PLAN.VIEW")
     public ResponseEntity<List<TokenPackage>> getAllPackages() {
         return ResponseEntity.ok(tokenPackageService.getAllPackages());
     }
@@ -82,7 +82,7 @@ public class TokenPackageController {
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @GetMapping("/packages/{id}")
-    @CivifyAuthorization(permission = "MANAGE.PLAN")
+    @CivifyAuthorization(permission = "PLAN.VIEW")
     public ResponseEntity<TokenPackage> getPackageById(
             @Parameter(description = "ID of the package") @PathVariable Long id) {
         return ResponseEntity.ok(tokenPackageService.getPackageById(id));
@@ -94,7 +94,7 @@ public class TokenPackageController {
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @PostMapping("/packages")
-    @CivifyAuthorization(permission = "CREATE.PLAN")
+    @CivifyAuthorization(permission = "PLAN.MODIFY")
     public ResponseEntity<TokenPackage> createPackage(@RequestBody TokenPackage tokenPackage) {
         return ResponseEntity.ok(tokenPackageService.createPackage(tokenPackage));
     }
@@ -105,7 +105,7 @@ public class TokenPackageController {
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @PutMapping("/packages/{id}")
-    @CivifyAuthorization(permission = "MANAGE.PLAN")
+    @CivifyAuthorization(permission = "PLAN.MODIFY")
     public ResponseEntity<TokenPackage> updatePackage(
             @Parameter(description = "ID of the package to update") @PathVariable Long id,
             @RequestBody TokenPackage tokenPackage) {
@@ -118,7 +118,7 @@ public class TokenPackageController {
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @DeleteMapping("/packages/{id}")
-    @CivifyAuthorization(permission = "MANAGE.PLAN")
+    @CivifyAuthorization(permission = "PLAN.MODIFY")
     public ResponseEntity<Void> deactivatePackage(
             @Parameter(description = "ID of the package to deactivate") @PathVariable Long id) {
         tokenPackageService.deactivatePackage(id);
