@@ -58,9 +58,10 @@ public class TokenPackageController {
     public ResponseEntity<PaymentCreationResult> purchasePackage(
             @Parameter(description = "ID of the package to purchase")
             @PathVariable Long packageId,
+            @RequestParam(required = false) String promoCode,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
         Long userId = userPrincipal.getId();
-        return ResponseEntity.ok(tokenPackageService.purchasePackage(userId, packageId));
+        return ResponseEntity.ok(tokenPackageService.purchasePackage(userId, packageId, promoCode));
     }
 
     // ============ ADMIN ENDPOINTS ============

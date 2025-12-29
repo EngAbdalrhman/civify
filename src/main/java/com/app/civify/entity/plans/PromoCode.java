@@ -6,6 +6,7 @@ import com.app.civify.entity.enums.PromoApplicabilityType;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -47,6 +48,7 @@ public class PromoCode extends BaseEntity {
      * What this promo can be applied to: PLAN, TOKEN, or ALL
      */
     @Enumerated(EnumType.STRING)
+    @ColumnDefault("ALL")
     @Column(nullable = false)
     private PromoApplicabilityType applicabilityType = PromoApplicabilityType.ALL;
 

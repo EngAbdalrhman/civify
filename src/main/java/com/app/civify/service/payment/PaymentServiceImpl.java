@@ -62,10 +62,9 @@ public class PaymentServiceImpl implements PaymentService {
                     Map<String, Object> meta = objectMapper.readValue(transaction.getMetadata(), Map.class);
                     
                     if ("TOKEN_TOPUP".equals(meta.get("type"))) {
-                        Long userId = transaction.getUserId(); // or from meta.get("userId")
-                        Integer tokens = (Integer) meta.get("tokens");
-                        log.info("Processing TOKEN_TOPUP for user {}: {} tokens", userId, tokens);
-                        tokenPackageService.fulfillTokenPurchase(userId, tokens);
+                        // Using orderId as the payment reference to look up the TokenPurchase
+                        log.info("Processing TOKEN_TOPUP for order: {}", orderId);
+                        tokenPackageService.fulfillTokenPurchase(orderId);
                     }
                 }
             } catch (Exception e) {

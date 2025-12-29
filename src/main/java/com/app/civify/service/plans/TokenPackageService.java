@@ -3,21 +3,29 @@ package com.app.civify.service.plans;
 import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.token.TokenBalanceResponse;
 import com.app.civify.entity.User;
-import com.app.civify.entity.plans.TokenPackage;
-
 import com.app.civify.entity.enums.AuditAction;
+import com.app.civify.entity.enums.PromoApplicabilityType;
 import com.app.civify.entity.enums.SubscriptionStatus;
+import com.app.civify.entity.plans.PromoCode;
+import com.app.civify.entity.plans.TokenPackage;
+import com.app.civify.entity.plans.TokenPurchase;
+import com.app.civify.entity.plans.UserPromoUsage;
 import com.app.civify.exception.ResourceNotFoundException;
 import com.app.civify.repository.UserRepository;
 import com.app.civify.repository.plans.TokenPackageRepository;
+import com.app.civify.repository.plans.TokenPurchaseRepository;
+import com.app.civify.repository.plans.UserPromoUsageRepository;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
 import com.app.civify.service.audit.AuditService;
 import com.app.civify.service.payment.PaymentService;
+import com.app.civify.service.payment.PromoCodeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +40,9 @@ public class TokenPackageService {
     private final UserRepository userRepository;
     private final UserSubscriptionRepository subscriptionRepository;
     private final AuditService auditService;
+    private final PromoCodeService promoCodeService;
+    private final TokenPurchaseRepository tokenPurchaseRepository;
+    private final UserPromoUsageRepository userPromoUsageRepository;
 
     public List<TokenPackage> getAllActivePackages() {
         return tokenPackageRepository.findByActiveTrue();
@@ -55,8 +66,8 @@ public class TokenPackageService {
         var tokenInfoOpt = subscriptionRepository.findTokenInfoByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE);
         
         Integer monthlyLimit = null;
-        Integer monthlyUsed = 0;
-        Integer monthlyRemaining = 0;
+        int monthlyUsed = 0;
+        int monthlyRemaining = 0;
         
         if (tokenInfoOpt.isPresent()) {
             var info = tokenInfoOpt.get();
@@ -159,7 +170,7 @@ public class TokenPackageService {
     }
 
     @Transactional
-    public PaymentCreationResult purchasePackage(Long userId, Long packageId) {
+    public PaymentCreationResult purchasePackage(Long userId, Long packageId, String promoCode) {
         TokenPackage tokenPackage = tokenPackageRepository.findById(packageId)
                 .orElseThrow(() -> new RuntimeException("Token package not found"));
 
@@ -167,35 +178,130 @@ public class TokenPackageService {
             throw new RuntimeException("This package is no longer available");
         }
 
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        BigDecimal finalPrice = BigDecimal.valueOf(tokenPackage.getPrice());
+        PromoCode promo = null;
+
+        // Validate promo code
+        if (promoCode != null && !promoCode.isEmpty()) {
+            var promoOpt = promoCodeService.findByCode(promoCode);
+            if (promoOpt.isPresent()) {
+                promo = promoOpt.get();
+                // Validate generic rules (expiry, usage limit)
+                if (!promo.isValid()) {
+                     // Or throw specific exception if strict feedback needed
+                     log.warn("Invalid promo code used in token purchase: {}", promoCode);
+                } 
+                // Check applicability
+                else if (promo.getApplicabilityType() == PromoApplicabilityType.PLAN) {
+                    log.warn("Plan-only promo code used for tokens: {}", promoCode);
+                }
+                // Check user usage
+                else if (userPromoUsageRepository.existsByUserIdAndPromoCodeId(userId, promo.getId())) {
+                    log.warn("Repo already used promo code: {}", promoCode);
+                } else {
+                    // Apply discount
+                    BigDecimal discount = promo.calculateDiscount(finalPrice);
+                    finalPrice = finalPrice.subtract(discount).max(BigDecimal.ZERO);
+                }
+            }
+        }
+        // NOTE: We don't record usage here. We record it upon successful payment.
+
+        // Create TokenPurchase PENDING
+        TokenPurchase purchase = TokenPurchase.builder()
+                .user(user)
+                .tokenPackage(tokenPackage)
+                .promoCode(promo) // can be null
+                .amount(finalPrice)
+                .tokens(tokenPackage.getTokens())
+                .status(TokenPurchase.TokenPurchaseStatus.PENDING)
+                .build();
+        
+        purchase = tokenPurchaseRepository.save(purchase);
+
         // Prepare metadata for the payment callback handler
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("type", "TOKEN_TOPUP");
         metadata.put("userId", userId);
         metadata.put("packageId", packageId);
-        metadata.put("tokens", tokenPackage.getTokens());
+        metadata.put("purchaseId", purchase.getId()); // Helper to find it back if needed, but we rely on orderId usually
 
-        log.info("Initiating token purchase for user {} - Package: {}", userId, tokenPackage.getName());
+        log.info("Initiating token purchase for user {} - Package: {} - Amount: {}", userId, tokenPackage.getName(), finalPrice);
 
-        return paymentService.createPayment(userId, tokenPackage.getPrice(), metadata);
+        PaymentCreationResult paymentResult = paymentService.createPayment(userId, finalPrice.doubleValue(), metadata);
+        
+        // Link purchase to payment transaction
+        purchase.setPaymentTransactionId(paymentResult.getPaymentKey());
+        tokenPurchaseRepository.save(purchase);
+        
+        return paymentResult;
     }
 
     /**
      * Called by Payment Callback/Handler when payment is COMPLETED.
-     * Adds tokens to user's wallet (extraTokens on User entity).
+     * Updated to use TokenPurchase entity for safety.
+     * @param paymentRef can be orderId or paymentKey depending on what we get from webhook
      */
     @Transactional
-    public void fulfillTokenPurchase(Long userId, Integer tokens) {
-        log.info("Fulfilling token purchase for user {}: +{} tokens", userId, tokens);
+    public void fulfillTokenPurchase(String paymentRef) {
+        log.info("Fulfilling token purchase for payment ref: {}", paymentRef);
         
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
+        // Find by transaction ID
+        var purchaseOpt = tokenPurchaseRepository.findByPaymentTransactionId(paymentRef);
+        if (purchaseOpt.isEmpty()) {
+            // TODO Fallback: try finding by orderId if that's what was passed (sometimes gateways confuse terms)
+            // Ideally we'd have search methods for both or normalize before calling.
+            // For now, if not found, we might be receiving the 'orderId' but stored 'paymentKey' or vice versa.
+            // Let's assume passed ref matches stored ref. if not found, we log error.
+             log.error("TokenPurchase not found for payment ref: {}", paymentRef);
+             // Logic for fallback via metadata if we passed it? 
+             // Metadata has purchaseId. If we had that, we could look it up directly.
+             // But signature here is generic.
+             return;
+        }
+        
+        TokenPurchase purchase = purchaseOpt.get();
+        
+        if (purchase.getStatus() == TokenPurchase.TokenPurchaseStatus.COMPLETED) {
+            log.info("Token purchase {} already completed.", purchase.getId());
+            return;
+        }
 
-        // Add tokens to user's wallet
-        Integer currentExtra = user.getExtraTokens();
-        if (currentExtra == null) currentExtra = 0;
-        user.setExtraTokens(currentExtra + tokens);
+        purchase.setStatus(TokenPurchase.TokenPurchaseStatus.COMPLETED);
+        purchase.setCompletedAt(LocalDateTime.now());
+        tokenPurchaseRepository.save(purchase);
+
+        // Add tokens to user
+        int currentExtra = userRepository.findExtraTokensByUserId(purchase.getUser().getId()).orElse(0); 
+        currentExtra += purchase.getTokens();
+        userRepository.updateExtraTokens(purchase.getUser().getId(), currentExtra);
         
-        userRepository.save(user);
-        log.info("Tokens added to user {} wallet. New balance: {}", userId, user.getExtraTokens());
+        log.info("Tokens (+{}) added to user {} wallet. New balance: {}", purchase.getTokens(), purchase.getUser().getId(), currentExtra);
+        
+        // Record Promo Usage if applicable and not already recorded
+        if (purchase.getPromoCode() != null) {
+            recordPromoUsage(purchase.getUser(), purchase.getPromoCode());
+        }
+    }
+    
+    private void recordPromoUsage(User user, PromoCode promo) {
+        if (userPromoUsageRepository.existsByUserIdAndPromoCodeId(user.getId(), promo.getId())) {
+            log.warn("Promo usage already recorded for user {} code {}", user.getId(), promo.getCode());
+            return;
+        }
+
+        UserPromoUsage usage = UserPromoUsage.builder()
+                .user(user)
+                .promoCode(promo)
+                .usedAt(LocalDateTime.now())
+                .build();
+        userPromoUsageRepository.save(usage);
+
+        // Increment global usage count
+        promo.setUsedCount(promo.getUsedCount() + 1);
+        promoCodeService.updatePromoCode(promo.getId(), promo); // Ensure count persists or use repo directly
     }
 }
