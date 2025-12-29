@@ -150,13 +150,18 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         LocalDateTime subscriptionStartDate = LocalDateTime.now();
         
         if (currentActiveSub.isPresent() && !currentActiveSub.get().getPlan().getId().equals(planId)) {
-            // Queue upgrade: new subscription starts when current one ends
-            subscriptionStartDate = currentActiveSub.get().getEndDate();
-            // Disable auto-renew on current subscription
-            UserSubscription current = currentActiveSub.get();
-            current.setAutoRenew(false);
-            subscriptionRepository.save(current);
-            log.info("Queued upgrade for user {}. New plan starts after current expires on {}", userId, subscriptionStartDate);
+            // Check if current plan is NOT free (Free plans never expire, so we shouldn't queue after them)
+            boolean isFreePlan = FREE_PLAN_NAME.equalsIgnoreCase(currentActiveSub.get().getPlan().getName());
+            
+            if (!isFreePlan) {
+                // Queue upgrade: new subscription starts when current one ends
+                subscriptionStartDate = currentActiveSub.get().getEndDate();
+                // Disable auto-renew on current subscription
+                UserSubscription current = currentActiveSub.get();
+                current.setAutoRenew(false);
+                subscriptionRepository.save(current);
+                log.info("Queued upgrade for user {}. New plan starts after current expires on {}", userId, subscriptionStartDate);
+            }
         }
 
         // Create new subscription with PENDING status (will be activated after payment)
@@ -304,6 +309,27 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         // Calculate total price
         PriceCalculationResponse priceCalc = calculateTotalPrice(userId, planId, isAnnual, promoCode);
+
+        // Check if price is zero (Free plan or 100% discount)
+        if (priceCalc.getTotalPrice().compareTo(BigDecimal.ZERO) <= 0) {
+            log.info("Total price is 0. Bypassing payment gateway for user {}", userId);
+            String transactionId = "FREE-" + java.util.UUID.randomUUID().toString();
+            
+            subscription.setPaymentTransactionId(transactionId);
+            subscriptionRepository.save(subscription);
+            
+            activateSubscription(transactionId);
+            
+            return PaymentInitiationResponse.builder()
+                    .paymentKey(transactionId)
+                    .paymentUrl("/app/dashboard") // Redirect to dashboard
+                    .orderId(transactionId)
+                    .subscriptionId(subscription.getId())
+                    .amount(BigDecimal.ZERO)
+                    .currency("EGP")
+                    .message("Subscription activated successfully")
+                    .build();
+        }
 
         // Create payment transaction
         PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), gateway);
