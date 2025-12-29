@@ -2,12 +2,12 @@ package com.app.civify.service.payment;
 
 import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
-import com.app.civify.entity.plans.PaymentTransaction;
 import com.app.civify.entity.enums.PaymentStatus;
+import com.app.civify.entity.plans.PaymentTransaction;
 import com.app.civify.repository.plans.PaymentRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,12 +17,14 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 
 @Component
 @RequiredArgsConstructor
@@ -90,18 +92,18 @@ public class FawaterakPaymentGateway implements PaymentGateway {
             log.info("Fawaterak response: {}", response);
 
             JsonNode root = objectMapper.readTree(response);
-            
+
             // Check success
             if (root.has("status") && "success".equalsIgnoreCase(root.get("status").asText())) {
                 JsonNode data = root.get("data");
                 Long invoiceId = data.get("invoice_id").asLong();
                 String paymentKey = data.get("invoice_key").asText();
-                
+
                 String paymentUrl = "";
                 if (data.has("payment_data") && data.get("payment_data").has("redirectTo")) {
                     paymentUrl = data.get("payment_data").get("redirectTo").asText();
                 } else if (data.has("payment_url")) {
-                     paymentUrl = data.get("payment_url").asText();
+                    paymentUrl = data.get("payment_url").asText();
                 } else {
                     log.warn("Could not find payment URL in Fawaterak response");
                 }
@@ -115,7 +117,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                 transaction.setStatus(PaymentStatus.PENDING);
                 transaction.setGateway(getGatewayName());
                 transaction.setCurrency("EGP");
-                
+
                 if (metadata == null) metadata = new HashMap<>();
                 metadata.put("paymentUrl", paymentUrl);
                 transaction.setMetadata(objectMapper.writeValueAsString(metadata));
@@ -123,7 +125,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                 paymentRepository.save(transaction);
 
                 log.info("Fawaterak payment created successfully. Invoice ID: {}", invoiceId);
-                
+
                 return PaymentCreationResult.builder()
                         .paymentKey(paymentKey)
                         .paymentUrl(paymentUrl)
@@ -144,18 +146,18 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     public boolean verifyPayment(String paymentKey) {
         try {
             log.info("Verifying Fawaterak payment with key: {}", paymentKey);
-            
+
             PaymentTransaction transaction = paymentRepository.findByPaymentKey(paymentKey)
                     .orElseThrow(() -> new RuntimeException("Transaction not found"));
 
             Long invoiceId = Long.parseLong(transaction.getOrderId());
             String response = fawaterakClient.getInvoiceStatus("Bearer " + apiKey, invoiceId);
-            
+
             JsonNode root = objectMapper.readTree(response);
             if (root.has("status") && "success".equalsIgnoreCase(root.get("status").asText())) {
                 JsonNode data = root.get("data");
                 String invoiceStatus = data.get("payment_status").asText(); // paid, pending, expired
-                
+
                 if ("paid".equalsIgnoreCase(invoiceStatus)) {
                     transaction.setStatus(PaymentStatus.COMPLETED);
                     transaction.setCompletedAt(LocalDateTime.now());
@@ -166,7 +168,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                     paymentRepository.save(transaction);
                 }
             }
-            
+
             return false;
 
         } catch (Exception e) {
@@ -179,13 +181,18 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     @Transactional
     public PaymentCallbackResult handleCallback(String rawPayload, Map<String, String> headers) {
         log.info("Processing Fawaterak webhook callback");
-        
+
         PaymentCallbackResult result = new PaymentCallbackResult();
         result.setGatewayName(getGatewayName());
-        
+
         try {
+            // Step 0: Parse payload (JSON or Form Data)
+            JsonNode callbackData = parsePayload(rawPayload);
+            log.info("Fawaterak webhook received - Invoice data parsed");
+            log.debug("Payload: {}", callbackData.toPrettyString());
+
             // Step 1: Verify HMAC signature
-            if (!verifySignature(rawPayload, headers)) {
+            if (!verifySignature(callbackData)) {
                 log.error("🔒 Fawaterak HMAC verification FAILED - Potential security threat");
                 result.setSuccess(false);
                 result.setMessage("WEBHOOK_SIGNATURE_INVALID");
@@ -193,11 +200,6 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                 return result;
             }
             log.debug("✅ HMAC signature verified");
-
-            // Step 2: Parse webhook payload
-            JsonNode callbackData = objectMapper.readTree(rawPayload);
-            log.info("Fawaterak webhook received - Invoice data parsed");
-            log.debug("Payload: {}", callbackData.toPrettyString());
 
             // Step 3: Extract and validate invoice ID
             if (!callbackData.has("invoice_id")) {
@@ -207,16 +209,16 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                 result.setErrorCode("INVALID_WEBHOOK_PAYLOAD");
                 return result;
             }
-            
+
             String invoiceId = callbackData.get("invoice_id").asText();
-            String status = callbackData.has("invoice_status") 
-                ? callbackData.get("invoice_status").asText() 
-                : callbackData.has("payment_status")
+            String status = callbackData.has("invoice_status")
+                    ? callbackData.get("invoice_status").asText()
+                    : callbackData.has("payment_status")
                     ? callbackData.get("payment_status").asText()
                     : "unknown";
-            
+
             log.info("Processing invoice {} with status: {}", invoiceId, status);
-            
+
             // Step 4: Find transaction with PESSIMISTIC LOCK (prevents race conditions)
             PaymentTransaction transaction = paymentRepository.findByOrderIdWithLock(invoiceId)
                     .orElseThrow(() -> {
@@ -225,10 +227,10 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                     });
 
             log.info("Transaction {} locked for processing", transaction.getPaymentKey());
-            
+
             result.setTransactionId(transaction.getPaymentKey());
             result.setOrderId(invoiceId);
-            
+
             // Step 5: CRITICAL - Idempotency check
             if (transaction.getStatus() == PaymentStatus.COMPLETED) {
                 log.info("⚠️ Idempotent webhook detected - Invoice {} already COMPLETED", invoiceId);
@@ -237,20 +239,20 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                 result.setAlreadyProcessed(true);
                 return result;
             }
-            
+
             // Step 6: Validate state transition
             if (!isValidStateTransition(transaction.getStatus(), status)) {
-                log.error("❌ Invalid state transition for invoice {}: {} -> {}", 
-                    invoiceId, transaction.getStatus(), status);
+                log.error("❌ Invalid state transition for invoice {}: {} -> {}",
+                        invoiceId, transaction.getStatus(), status);
                 result.setSuccess(false);
                 result.setMessage("INVALID_STATE_TRANSITION");
                 result.setErrorCode("INVALID_STATE_TRANSITION");
                 return result;
             }
-            
+
             // Step 7: Process payment based on status
             PaymentStatus previousStatus = transaction.getStatus();
-            
+
             switch (status.toLowerCase()) {
                 case "paid", "completed", "success", "successful" -> {
                     transaction.setStatus(PaymentStatus.COMPLETED);
@@ -291,20 +293,15 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                     return result; // Don't save unknown states
                 }
             }
-            
+
             // Step 8: Save transaction (within locked context)
             paymentRepository.save(transaction);
-            log.info("💾 Transaction state updated: {} -> {} for invoice {}", 
-                previousStatus, transaction.getStatus(), invoiceId);
-            
+            log.info("💾 Transaction state updated: {} -> {} for invoice {}",
+                    previousStatus, transaction.getStatus(), invoiceId);
+
             return result;
 
-        } catch (JsonProcessingException e) {
-            log.error("🔴 JSON parsing error in Fawaterak callback: {}", e.getMessage());
-            result.setSuccess(false);
-            result.setMessage("INVALID_WEBHOOK_FORMAT");
-            result.setErrorCode("INVALID_WEBHOOK_FORMAT");
-            return result;
+
         } catch (Exception e) {
             log.error("🔴 Unexpected error handling Fawaterak callback", e);
             result.setSuccess(false);
@@ -313,13 +310,13 @@ public class FawaterakPaymentGateway implements PaymentGateway {
             return result;
         }
     }
-    
+
     /**
      * Validates if the status transition is allowed.
      * Prevents invalid state changes (e.g., COMPLETED -> FAILED).
-     * 
+     *
      * @param currentStatus Current transaction status
-     * @param newStatus New status from webhook
+     * @param newStatus     New status from webhook
      * @return true if transition is valid
      */
     private boolean isValidStateTransition(PaymentStatus currentStatus, String newStatus) {
@@ -329,30 +326,29 @@ public class FawaterakPaymentGateway implements PaymentGateway {
         }
 
         // Terminal states cannot transition
-        if (currentStatus == PaymentStatus.COMPLETED || 
-            currentStatus == PaymentStatus.REFUNDED) {
+        if (currentStatus == PaymentStatus.COMPLETED ||
+                currentStatus == PaymentStatus.REFUNDED) {
             log.warn("Attempted transition from terminal state: {}", currentStatus);
             return false;
         }
-        
+
         // PENDING can transition to any state
         if (currentStatus == PaymentStatus.PENDING) {
             return true;
         }
-        
+
         // FAILED can only retry to PENDING or stay FAILED
         if (currentStatus == PaymentStatus.FAILED) {
-            return "pending".equalsIgnoreCase(newStatus) || 
-                   "failed".equalsIgnoreCase(newStatus);
+            return "pending".equalsIgnoreCase(newStatus) ||
+                    "failed".equalsIgnoreCase(newStatus);
         }
-        
+
         return true;
     }
 
-    private boolean verifySignature(String payload, Map<String, String> headers) {
+    private boolean verifySignature(JsonNode root) {
         try {
-            // Extract hashKey from JSON body
-            JsonNode root = objectMapper.readTree(payload);
+            // Extract hashKey from parse data
             if (!root.has("hashKey")) {
                 log.error("❌ Fawaterak hashKey missing in body");
                 return false;
@@ -364,18 +360,18 @@ public class FawaterakPaymentGateway implements PaymentGateway {
             String invoiceId = root.path("invoice_id").asText("");
             String invoiceKey = root.path("invoice_key").asText("");
             String paymentMethod = root.path("payment_method").asText("");
-            
+
             String queryParam = String.format("InvoiceId=%s&InvoiceKey=%s&PaymentMethod=%s",
-                invoiceId, invoiceKey, paymentMethod);
-            
+                    invoiceId, invoiceKey, paymentMethod);
+
             log.debug("Fawaterak signature verification - queryParam: {}", queryParam);
-            
+
             // HMAC SHA256 with provider key
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(providerKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] digest = mac.doFinal(queryParam.getBytes(StandardCharsets.UTF_8));
             String expected = bytesToHex(digest);
-            
+
             if (!signature.equalsIgnoreCase(expected)) {
                 log.warn("Fawaterak signature mismatch. Received: {}, Expected: {}", signature, expected);
                 return false;
@@ -385,6 +381,46 @@ public class FawaterakPaymentGateway implements PaymentGateway {
             log.error("Fawaterak signature verification failed: {}", e.getMessage());
             return false;
         }
+    }
+
+    private JsonNode parsePayload(String rawPayload) {
+        try {
+            // First try valid JSON
+            if (rawPayload != null && rawPayload.trim().startsWith("{")) {
+                return objectMapper.readTree(rawPayload);
+            }
+        } catch (Exception ignored) {
+            // Ignore JSON parse error, try form data
+        }
+
+        // Fallback to form-data parsing
+        ObjectNode node = objectMapper.createObjectNode();
+
+        if (rawPayload == null || rawPayload.isEmpty()) {
+            return node;
+        }
+
+        String[] pairs = rawPayload.split("&");
+        for (String pair : pairs) {
+            int idx = pair.indexOf("=");
+            if (idx > 0) {
+                try {
+                    String key = URLDecoder.decode(pair.substring(0, idx), StandardCharsets.UTF_8);
+                    String value = URLDecoder.decode(pair.substring(idx + 1), StandardCharsets.UTF_8);
+                    node.put(key, value);
+                } catch (Exception e) {
+                    log.warn("Failed to decode form data pair: {}", pair);
+                }
+            } else if (idx < 0 && !pair.isEmpty()) {
+                // key only
+                try {
+                    String key = URLDecoder.decode(pair, StandardCharsets.UTF_8);
+                    node.put(key, "");
+                } catch (Exception e) {
+                }
+            }
+        }
+        return node;
     }
 
     private String bytesToHex(byte[] bytes) {
@@ -402,7 +438,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
         // But typically we return the paymentKey and frontend redirects.
         // However, Fawaterak returns a full URL.
         // Let's try to retrieve it from transaction metadata.
-        
+
         return paymentRepository.findByPaymentKey(paymentKey)
                 .map(t -> {
                     try {
@@ -424,7 +460,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
         customer.put("last_name", "User");
         customer.put("email", "customer@example.com");
         customer.put("phone", "01000000000"); // Required format
-        
+
         if (metadata != null) {
             if (metadata.containsKey("firstName")) customer.put("first_name", (String) metadata.get("firstName"));
             if (metadata.containsKey("lastName")) customer.put("last_name", (String) metadata.get("lastName"));
