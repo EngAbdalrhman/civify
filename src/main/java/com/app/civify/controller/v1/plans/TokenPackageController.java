@@ -64,6 +64,21 @@ public class TokenPackageController {
         return ResponseEntity.ok(tokenPackageService.purchasePackage(userId, packageId, promoCode));
     }
 
+    @Operation(
+            summary = "Preview token purchase",
+            description = "Preview purchase details including promo code discount without initiating transaction.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @GetMapping("/purchase/{packageId}/preview")
+    public ResponseEntity<com.app.civify.dto.payment.PurchasePreviewResponse> previewPurchase(
+            @Parameter(description = "ID of the package")
+            @PathVariable Long packageId,
+            @RequestParam(required = false) String promoCode,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        Long userId = userPrincipal.getId();
+        return ResponseEntity.ok(tokenPackageService.previewTokenPurchase(userId, packageId, promoCode));
+    }
+
     // ============ ADMIN ENDPOINTS ============
 
     @Operation(

@@ -304,4 +304,51 @@ public class TokenPackageService {
         promo.setUsedCount(promo.getUsedCount() + 1);
         promoCodeService.updatePromoCode(promo.getId(), promo); // Ensure count persists or use repo directly
     }
+    @Transactional(readOnly = true)
+    public com.app.civify.dto.payment.PurchasePreviewResponse previewTokenPurchase(Long userId, Long packageId, String promoCode) {
+        TokenPackage tokenPackage = tokenPackageRepository.findById(packageId)
+                .orElseThrow(() -> new RuntimeException("Token package not found"));
+
+        if (!tokenPackage.getActive()) {
+            throw new RuntimeException("This package is no longer available");
+        }
+
+        BigDecimal originalPrice = BigDecimal.valueOf(tokenPackage.getPrice());
+        BigDecimal finalPrice = originalPrice;
+        BigDecimal discountAmount = BigDecimal.ZERO;
+        String message = null;
+        boolean promoApplied = false;
+
+        if (promoCode != null && !promoCode.isEmpty()) {
+            var promoOpt = promoCodeService.findByCode(promoCode);
+            if (promoOpt.isPresent()) {
+                PromoCode promo = promoOpt.get();
+                if (!promo.isValid()) {
+                    message = "Promo code is invalid or expired";
+                } else if (promo.getApplicabilityType() == PromoApplicabilityType.PLAN) {
+                    message = "Promo code is not applicable for token packages";
+                } else if (userPromoUsageRepository.existsByUserIdAndPromoCodeId(userId, promo.getId())) {
+                    message = "You have already used this promo code";
+                } else {
+                    BigDecimal discount = promo.calculateDiscount(originalPrice);
+                    discountAmount = discount;
+                    finalPrice = originalPrice.subtract(discount).max(BigDecimal.ZERO);
+                    promoApplied = true;
+                    message = "Promo code applied successfully";
+                }
+            } else {
+                message = "Promo code not found";
+            }
+        }
+
+        return com.app.civify.dto.payment.PurchasePreviewResponse.builder()
+                .originalPrice(originalPrice)
+                .discountAmount(discountAmount)
+                .finalPrice(finalPrice)
+                .currency(tokenPackage.getCurrency())
+                .promoCode(promoCode)
+                .promoApplied(promoApplied)
+                .message(message)
+                .build();
+    }
 }

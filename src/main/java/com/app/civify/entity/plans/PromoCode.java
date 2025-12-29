@@ -61,7 +61,7 @@ public class PromoCode extends BaseEntity {
     /**
      * Specific plans this promo applies to. Empty/null means all plans.
      */
-    @ManyToMany(fetch = FetchType.LAZY)
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
         name = "promo_code_applicable_plans",
         joinColumns = @JoinColumn(name = "promo_code_id"),
