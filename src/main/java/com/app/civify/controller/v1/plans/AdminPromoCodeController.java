@@ -2,12 +2,16 @@ package com.app.civify.controller.v1.plans;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.plan.PromoCodeDto;
+import com.app.civify.dto.plan.UpdatePromoCodeRequest;
 import com.app.civify.security.annotation.CivifyAuthorization;
 import com.app.civify.usecase.admin.AdminPromoCodeUseCase;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
+import com.app.civify.util.security.EntityType;
+import com.app.civify.util.security.IdEncodingUtil;
 import com.app.civify.util.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -24,10 +28,10 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Admin Promo Codes", description = "Admin endpoints for managing promo codes")
-// @PreAuthorize("hasRole('ADMIN')")
 public class AdminPromoCodeController {
 
     private final AdminPromoCodeUseCase promoCodeUseCase;
+    private final IdEncodingUtil idEncodingUtil;
 
     @Operation(
             summary = "Filter promo codes",
@@ -74,8 +78,11 @@ public class AdminPromoCodeController {
     })
     @CivifyAuthorization(permission = "PROMO.MODIFY")
     @PutMapping("/{id}")
-    public ResponseEntity<CommonResponse<PromoCodeDto>> updatePromoCode(@PathVariable Long id, @RequestBody com.app.civify.dto.plan.UpdatePromoCodeRequest request) {
-        return ResponseEntity.ok(CommonResponse.success(promoCodeUseCase.updatePromoCode(id, request)));
+    public ResponseEntity<CommonResponse<PromoCodeDto>> updatePromoCode(
+            @Parameter(description = "Encoded promo code ID") @PathVariable String id,
+            @RequestBody UpdatePromoCodeRequest request) {
+        Long decodedId = idEncodingUtil.decode(id, EntityType.PROMO_CODE);
+        return ResponseEntity.ok(CommonResponse.success(promoCodeUseCase.updatePromoCode(decodedId, request)));
     }
 
     @Operation(
@@ -91,8 +98,10 @@ public class AdminPromoCodeController {
     })
     @CivifyAuthorization(permission = "PROMO.MODIFY")
     @PostMapping("/{id}/deactivate")
-    public ResponseEntity<CommonResponse<PromoCodeDto>> deactivatePromoCode(@PathVariable Long id) {
-        return ResponseEntity.ok(CommonResponse.success(promoCodeUseCase.deactivatePromoCode(id)));
+    public ResponseEntity<CommonResponse<PromoCodeDto>> deactivatePromoCode(
+            @Parameter(description = "Encoded promo code ID") @PathVariable String id) {
+        Long decodedId = idEncodingUtil.decode(id, EntityType.PROMO_CODE);
+        return ResponseEntity.ok(CommonResponse.success(promoCodeUseCase.deactivatePromoCode(decodedId)));
     }
 
     @Operation(
@@ -108,8 +117,10 @@ public class AdminPromoCodeController {
     })
     @CivifyAuthorization(permission = "PROMO.MODIFY")
     @DeleteMapping("/{id}")
-    public ResponseEntity<CommonResponse<Void>> deletePromoCode(@PathVariable Long id) {
-        promoCodeUseCase.deletePromoCode(id);
+    public ResponseEntity<CommonResponse<Void>> deletePromoCode(
+            @Parameter(description = "Encoded promo code ID") @PathVariable String id) {
+        Long decodedId = idEncodingUtil.decode(id, EntityType.PROMO_CODE);
+        promoCodeUseCase.deletePromoCode(decodedId);
         return ResponseEntity.ok(CommonResponse.success("Promo code deleted successfully", null));
     }
 }

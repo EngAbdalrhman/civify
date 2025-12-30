@@ -5,11 +5,12 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
-
 /**
  * Response DTO for user permissions endpoint
- * Contains plain permissions and a JWT-signed token for verification
+ * Contains ONLY the JWT-signed permission token for security
+ * Frontend must decode the token to get permissions - prevents tampering
+ * 
+ * Token payload contains: permissions, groupName, username, expiry
  * 
  * @author Abdalrhman Mostafa
  * @since 1.0.0
@@ -21,20 +22,9 @@ import java.util.List;
 public class PermissionsResponse {
     
     /**
-     * Plain list of permission names for frontend use
-     * Example: ["CV.CREATE", "CV.EXPORT.PDF", "STATS.VIEW"]
-     */
-    private List<String> permissions;
-    
-    /**
-     * JWT-signed permission token for secure verification
-     * Frontend can decode this to verify permissions haven't been tampered with
-     * Contains: permissions list, groupName, username, expiry (24 hours)
+     * JWT-signed permission token
+     * Contains: permissions list, groupName, username, issued-at, expiry (24 hours)
+     * Frontend decodes this to extract permissions - no plain text permissions
      */
     private String permissionToken;
-    
-    /**
-     * User's group name for reference
-     */
-    private String groupName;
 }
