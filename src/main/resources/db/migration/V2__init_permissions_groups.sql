@@ -107,6 +107,10 @@ INSERT INTO permissions (name, description, category)
 SELECT 'NOTIF.SEND', 'Send Push Notifications', 'ADMIN'
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'NOTIF.SEND');
 
+INSERT INTO permissions (name, description, category)
+SELECT 'NEWSLETTER.BROADCAST', 'Broadcast Emails to Subscribers', 'ADMIN'
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'NEWSLETTER.BROADCAST');
+
 
 -- User Subscription Permissions
 INSERT INTO permissions (name, description, category)
@@ -211,6 +215,16 @@ AND NOT EXISTS (
 INSERT INTO group_permissions (group_id, permission_id)
 SELECT g.id, p.id FROM groups g, permissions p
 WHERE g.name = 'Super Admin'
+AND NOT EXISTS (
+    SELECT 1 FROM group_permissions gp WHERE gp.group_id = g.id AND gp.permission_id = p.id
+);
+
+-- Note: The specific insert for NEWSLETTER.BROADCAST is redundant because Super Admin gets ALL permissions via the logic above if executed cleanly, 
+-- but given the script structure is additive, the above block handles new permissions automatically if they exist in permissions table.
+-- To be safe and explicit for existing deployments:
+INSERT INTO group_permissions (group_id, permission_id)
+SELECT g.id, p.id FROM groups g, permissions p
+WHERE g.name = 'Super Admin' AND p.name = 'NEWSLETTER.BROADCAST'
 AND NOT EXISTS (
     SELECT 1 FROM group_permissions gp WHERE gp.group_id = g.id AND gp.permission_id = p.id
 );

@@ -11,4 +11,5 @@ import java.util.UUID;
 public interface NewsletterRepository extends JpaRepository<NewsletterSubscriber, UUID> {
     Optional<NewsletterSubscriber> findByEmail(String email);
     boolean existsByEmail(String email);
+    java.util.List<NewsletterSubscriber> findAllByActiveTrue();
 }
