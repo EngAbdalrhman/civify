@@ -4,7 +4,10 @@ import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.job.JobApplicationRequest;
 import com.app.civify.dto.job.JobApplicationResponse;
 import com.app.civify.service.job.JobApplicationService;
+import com.app.civify.util.security.EntityType;
+import com.app.civify.util.security.IdEncodingUtil;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +26,7 @@ import java.util.List;
 public class JobApplicationController {
 
     private final JobApplicationService jobApplicationService;
+    private final IdEncodingUtil idEncodingUtil;
 
     @Operation(summary = "Get all job applications", security = @SecurityRequirement(name = "bearer-jwt"))
     @GetMapping
@@ -32,8 +36,10 @@ public class JobApplicationController {
 
     @Operation(summary = "Get job application by ID", security = @SecurityRequirement(name = "bearer-jwt"))
     @GetMapping("/{id}")
-    public ResponseEntity<JobApplicationResponse> getApplication(@PathVariable Long id) {
-        return ResponseEntity.ok(jobApplicationService.getApplication(id));
+    public ResponseEntity<JobApplicationResponse> getApplication(
+            @Parameter(description = "Encoded job application ID") @PathVariable String id) {
+        Long decodedId = idEncodingUtil.decode(id, EntityType.JOB_APPLICATION);
+        return ResponseEntity.ok(jobApplicationService.getApplication(decodedId));
     }
 
     @Operation(summary = "Create job application", security = @SecurityRequirement(name = "bearer-jwt"))
@@ -45,15 +51,19 @@ public class JobApplicationController {
     @Operation(summary = "Update job application", security = @SecurityRequirement(name = "bearer-jwt"))
     @PatchMapping("/{id}")
     public ResponseEntity<JobApplicationResponse> updateApplication(
-            @PathVariable Long id,
+            @Parameter(description = "Encoded job application ID") @PathVariable String id,
             @RequestBody JobApplicationRequest request) {
-        return ResponseEntity.ok(jobApplicationService.updateApplication(id, request));
+        Long decodedId = idEncodingUtil.decode(id, EntityType.JOB_APPLICATION);
+        return ResponseEntity.ok(jobApplicationService.updateApplication(decodedId, request));
     }
 
     @Operation(summary = "Delete job application", security = @SecurityRequirement(name = "bearer-jwt"))
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteApplication(@PathVariable Long id) {
-        jobApplicationService.deleteApplication(id);
+    public ResponseEntity<Void> deleteApplication(
+            @Parameter(description = "Encoded job application ID") @PathVariable String id) {
+        Long decodedId = idEncodingUtil.decode(id, EntityType.JOB_APPLICATION);
+        jobApplicationService.deleteApplication(decodedId);
         return ResponseEntity.noContent().build();
     }
 }
+

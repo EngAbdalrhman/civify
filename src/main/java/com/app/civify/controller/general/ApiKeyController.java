@@ -4,6 +4,9 @@ import com.app.civify.entity.security.ApiKey;
 import com.app.civify.entity.User;
 import com.app.civify.service.ApiKeyService;
 import com.app.civify.service.user.UserService;
+import com.app.civify.util.security.EntityType;
+import com.app.civify.util.security.IdEncodingUtil;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -20,6 +23,7 @@ public class ApiKeyController {
 
     private final ApiKeyService apiKeyService;
     private final UserService userService;
+    private final IdEncodingUtil idEncodingUtil;
 
     @PostMapping
     public ResponseEntity<?> createApiKey(@AuthenticationPrincipal UserDetails userDetails) {
@@ -35,9 +39,13 @@ public class ApiKeyController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> revokeApiKey(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<?> revokeApiKey(
+            @Parameter(description = "Encoded API key ID") @PathVariable String id,
+            @AuthenticationPrincipal UserDetails userDetails) {
         User user = userService.getCurrentUser();
-        apiKeyService.revokeApiKey(id, user);
+        Long decodedId = idEncodingUtil.decode(id, EntityType.API_KEY);
+        apiKeyService.revokeApiKey(decodedId, user);
         return ResponseEntity.ok().build();
     }
 }
+
