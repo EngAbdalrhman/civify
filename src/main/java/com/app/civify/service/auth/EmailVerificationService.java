@@ -1,5 +1,7 @@
 package com.app.civify.service.auth;
 
+import com.app.civify.config.properties.AppProperties;
+import com.app.civify.config.properties.SecurityProperties;
 import com.app.civify.entity.User;
 import com.app.civify.exception.BadRequestException;
 import com.app.civify.repository.UserRepository;
@@ -34,23 +36,15 @@ public class EmailVerificationService {
     private final SubscriptionService subscriptionService;
     private final ResourceLoader resourceLoader;
     private final com.app.civify.service.i18n.MessageService messageService;
-
-    @Value("${email.verification.token-expiration:86400000}") // 24 hours default -> TODO check consts
-    private long tokenExpiration;
-
-    @Value("${app.backend.base-url:http://localhost:8077}")
-    private String backendBaseUrl;
-
-    @Value("${email.verification.enabled:true}")
-    private boolean emailVerificationEnabled;
-
+    private final AppProperties appProperties;
+    private final SecurityProperties securityProperties;
 
     /**
      * Generate and send email verification
      */
     public void sendVerificationEmail(User user) {
         // Skip sending verification email if email verification is disabled
-        if (!emailVerificationEnabled) {
+        if (!securityProperties.getEmailVerificationEnabled()) {
             log.info("Email verification is disabled. Skipping verification email for user: {}", user.getUsername());
             return;
         }
@@ -59,11 +53,11 @@ public class EmailVerificationService {
         String token = UUID.randomUUID().toString();
 
         // Store in cache with 24h expiration
-        long hoursToExpire = tokenExpiration / (60 * 60 * 1000);
+        long hoursToExpire = securityProperties.getEmailVerificationTokenExpiration() / (60 * 60 * 1000);
         cacheService.set(getVerificationKey(token), user.getEmail(), Duration.ofHours(hoursToExpire));
 
         // Build verification link with dynamic backend URL
-        String verificationLink = backendBaseUrl + "/auth/verify-email?token=" + token;
+        String verificationLink = appProperties.getBackend().getBaseUrl() + "/auth/verify-email?token=" + token;
 
         // Load and populate HTML template
         String htmlBody = loadEmailTemplate(user.getUsername(), verificationLink);

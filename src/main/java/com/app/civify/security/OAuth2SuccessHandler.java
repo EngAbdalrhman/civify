@@ -1,5 +1,6 @@
 package com.app.civify.security;
 
+import com.app.civify.config.properties.AppProperties;
 import com.app.civify.entity.User;
 import com.app.civify.repository.security.GroupRepository;
 import com.app.civify.repository.UserRepository;
@@ -38,9 +39,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     private final GroupRepository groupRepository;
     private final SubscriptionService subscriptionService;
     private final TokenService tokenService;
-
-    @Value("${app.frontend.base-url}")
-    private String frontendUrl;
+    private final AppProperties appProperties;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
@@ -108,7 +107,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         response.addCookie(refreshCookie);
 
         // Redirect to frontend with access token only (refresh token is in cookie)
-        String targetUrl = frontendUrl + "/auth/callback" +
+        String targetUrl = appProperties.getFrontend().getBaseUrl() + "/auth/callback" +
                 "?accessToken=" + tokens.getAccessToken();
 
         response.sendRedirect(targetUrl);

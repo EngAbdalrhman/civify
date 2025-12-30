@@ -12,7 +12,7 @@
 
 	<groupId>com.app</groupId>
 	<artifactId>civify</artifactId>
-	<version>0.0.7-SNAPSHOT</version>
+	<version>0.7.7-SNAPSHOT</version>
 	<name>civify</name>
 	<description>civify backend</description>
 

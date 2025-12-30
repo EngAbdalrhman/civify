@@ -1,5 +1,6 @@
 package com.app.civify.util;
 
+import com.app.civify.config.properties.SecurityProperties;
 import com.app.civify.entity.User;
 import java.util.List;
 
@@ -23,10 +24,15 @@ import java.util.function.Function;
 @Component
 public class JwtUtil {
 
-    @Value("${jwt.secret}")
-    private String secret;
-    // @Value("${jwt.access-token-expiration}")
-    private final long accessTokenExpiration = JwtConstants.ACCESS_TOKEN_EXPIRATION_MINUTES * 60 * 1000; // Convert minutes to milliseconds
+    private final SecurityProperties securityProperties;
+
+    private final String secret;
+    private final long accessTokenExpiration = JwtConstants.ACCESS_TOKEN_EXPIRATION_MINUTES * 60 * 1000;
+
+    public JwtUtil(SecurityProperties securityProperties) {
+        this.securityProperties = securityProperties;
+        this.secret = securityProperties.getJwtSecret();
+    }
 
 
     private Key getSigningKey() {
