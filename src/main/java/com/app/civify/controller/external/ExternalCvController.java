@@ -2,7 +2,6 @@ package com.app.civify.controller.external;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.document.CvParseResponse;
-import com.app.civify.entity.User;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.external.ExternalCvService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,7 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -37,10 +36,11 @@ public class ExternalCvController {
     public ResponseEntity<byte[]> maskCv(
             @RequestPart("file") MultipartFile file,
             @RequestParam(value = "language", required = false) String language,
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
             HttpServletRequest httpRequest) {
         
         try {
-            byte[] pdfBytes = externalCvService.maskCv(file, language, getCurrentUser(), httpRequest);
+            byte[] pdfBytes = externalCvService.maskCv(file, language, userPrincipal.getUser(), httpRequest);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"masked_cv.pdf\"")
                     .contentType(MediaType.APPLICATION_PDF)
@@ -60,10 +60,11 @@ public class ExternalCvController {
             @RequestPart("file") MultipartFile file,
             @RequestParam(value = "language", required = false) String language,
             @RequestPart(value = "userTemplate", required = false) String userTemplate,
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
             HttpServletRequest httpRequest) {
         
         try {
-            CvParseResponse response = externalCvService.parseCv(file, language, userTemplate, getCurrentUser(), httpRequest);
+            CvParseResponse response = externalCvService.parseCv(file, language, userTemplate, userPrincipal.getUser(), httpRequest);
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
              return ResponseEntity.badRequest().body(CvParseResponse.builder()
@@ -76,14 +77,6 @@ public class ExternalCvController {
                      .message("Internal Server Error: " + e.getMessage())
                      .build());
         }
-    }
-
-    private User getCurrentUser() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal) {
-            return ((UserPrincipal) authentication.getPrincipal()).getUser();
-        }
-        return null;
     }
 }
 
