@@ -8,10 +8,7 @@ import com.app.civify.security.UserPrincipal;
 import com.app.civify.security.annotation.CivifyAuthorization;
 import com.app.civify.usecase.user.SubscriptionUseCase;
 import com.app.civify.util.CommonResponse;
-import com.app.civify.util.security.EntityType;
-import com.app.civify.util.security.IdEncodingUtil;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -35,7 +32,6 @@ import java.util.Map;
 public class SubscriptionController {
 
     private final SubscriptionUseCase subscriptionUseCase;
-    private final IdEncodingUtil idEncodingUtil;
 
     @Operation(
             summary = "Get all subscription plans",
@@ -63,10 +59,8 @@ public class SubscriptionController {
                     content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/plans/{planId}")
-    public ResponseEntity<CommonResponse<SimplePlanDTO>> getPlanById(
-            @Parameter(description = "Encoded plan ID") @PathVariable String planId) {
-        Long decodedId = idEncodingUtil.decode(planId, EntityType.PLAN);
-        SimplePlanDTO plan = subscriptionUseCase.getPlanById(decodedId);
+    public ResponseEntity<CommonResponse<SimplePlanDTO>> getPlanById(@PathVariable Long planId) {
+        SimplePlanDTO plan = subscriptionUseCase.getPlanById(planId);
         return ResponseEntity.ok(CommonResponse.success(plan));
     }
 
@@ -84,13 +78,12 @@ public class SubscriptionController {
     @GetMapping("/calculate-price")
     @CivifyAuthorization(permission = "CV.CREATE")
     public ResponseEntity<CommonResponse<PriceCalculationResponse>> calculatePrice(
-            @Parameter(description = "Encoded plan ID") @RequestParam String planId,
+            @RequestParam Long planId,
             @RequestParam(defaultValue = "false") boolean isAnnual,
             @RequestParam(required = false) String promoCode,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
         Long userId = userPrincipal.getId();
-        Long decodedPlanId = idEncodingUtil.decode(planId, EntityType.PLAN);
-        PriceCalculationResponse response = subscriptionUseCase.calculatePrice(userId, decodedPlanId, isAnnual, promoCode);
+        PriceCalculationResponse response = subscriptionUseCase.calculatePrice(userId, planId, isAnnual, promoCode);
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 

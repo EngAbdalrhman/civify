@@ -8,10 +8,7 @@ import com.app.civify.entity.plans.SubscriptionPlan;
 import com.app.civify.usecase.admin.AdminPlanUseCase;
 import com.app.civify.util.CommonResponse;
 import com.app.civify.util.filter.PagedResponse;
-import com.app.civify.util.security.EntityType;
-import com.app.civify.util.security.IdEncodingUtil;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -38,7 +35,6 @@ import java.util.List;
 public class AdminPlanController {
 
     private final AdminPlanUseCase adminPlanUseCase;
-    private final IdEncodingUtil idEncodingUtil;
 
     @Operation(
             summary = "Filter plans with advanced criteria",
@@ -111,11 +107,9 @@ public class AdminPlanController {
     })
     @com.app.civify.security.annotation.CivifyAuthorization(permission = "PLAN.VIEW")
     @GetMapping("/{planId}")
-    public ResponseEntity<PlanDetailResponse> getPlanWithStats(
-            @Parameter(description = "Encoded plan ID") @PathVariable String planId) {
-        Long decodedId = idEncodingUtil.decode(planId, EntityType.PLAN);
-        log.info("Admin fetching plan {} with statistics", decodedId);
-        return ResponseEntity.ok(adminPlanUseCase.getPlanWithStats(decodedId));
+    public ResponseEntity<PlanDetailResponse> getPlanWithStats(@PathVariable Long planId) {
+        log.info("Admin fetching plan {} with statistics", planId);
+        return ResponseEntity.ok(adminPlanUseCase.getPlanWithStats(planId));
     }
 
     @Operation(
@@ -178,13 +172,12 @@ public class AdminPlanController {
     @com.app.civify.security.annotation.CivifyAuthorization(permission = "PLAN.MODIFY")
     @PutMapping("/{planId}")
     public ResponseEntity<CommonResponse<PlanDetailResponse>> updatePlan(
-            @Parameter(description = "Encoded plan ID") @PathVariable String planId,
+            @PathVariable Long planId,
             @Valid @RequestBody PlanUpdateRequest request) {
-        Long decodedId = idEncodingUtil.decode(planId, EntityType.PLAN);
-        log.info("Admin updating subscription plan: {}", decodedId);
+        log.info("Admin updating subscription plan: {}", planId);
 
         try {
-            PlanDetailResponse response = adminPlanUseCase.updatePlan(decodedId, request);
+            PlanDetailResponse response = adminPlanUseCase.updatePlan(planId, request);
             return ResponseEntity.ok(CommonResponse.success("Plan updated successfully", response));
         } catch (Exception e) {
             log.error("Error updating plan: {}", e.getMessage());
@@ -213,13 +206,11 @@ public class AdminPlanController {
     })
     @com.app.civify.security.annotation.CivifyAuthorization(permission = "PLAN.MODIFY")
     @PatchMapping("/{planId}/activate")
-    public ResponseEntity<CommonResponse<SubscriptionPlan>> activatePlan(
-            @Parameter(description = "Encoded plan ID") @PathVariable String planId) {
-        Long decodedId = idEncodingUtil.decode(planId, EntityType.PLAN);
-        log.info("Admin activating subscription plan: {}", decodedId);
+    public ResponseEntity<CommonResponse<SubscriptionPlan>> activatePlan(@PathVariable Long planId) {
+        log.info("Admin activating subscription plan: {}", planId);
 
         try {
-            SubscriptionPlan activated = adminPlanUseCase.activatePlan(decodedId);
+            SubscriptionPlan activated = adminPlanUseCase.activatePlan(planId);
             return ResponseEntity.ok(CommonResponse.success("Plan activated successfully", activated));
         } catch (Exception e) {
             log.error("Error activating plan: {}", e.getMessage());
@@ -253,13 +244,11 @@ public class AdminPlanController {
     })
     @com.app.civify.security.annotation.CivifyAuthorization(permission = "PLAN.MODIFY")
     @PatchMapping("/{planId}/deactivate")
-    public ResponseEntity<CommonResponse<SubscriptionPlan>> deactivatePlan(
-            @Parameter(description = "Encoded plan ID") @PathVariable String planId) {
-        Long decodedId = idEncodingUtil.decode(planId, EntityType.PLAN);
-        log.info("Admin deactivating subscription plan: {}", decodedId);
+    public ResponseEntity<CommonResponse<SubscriptionPlan>> deactivatePlan(@PathVariable Long planId) {
+        log.info("Admin deactivating subscription plan: {}", planId);
 
         try {
-            SubscriptionPlan deactivated = adminPlanUseCase.deactivatePlan(decodedId);
+            SubscriptionPlan deactivated = adminPlanUseCase.deactivatePlan(planId);
             return ResponseEntity.ok(CommonResponse.success("Plan deactivated successfully", deactivated));
         } catch (Exception e) {
             log.error("Error deactivating plan: {}", e.getMessage());
@@ -293,13 +282,11 @@ public class AdminPlanController {
     })
     @com.app.civify.security.annotation.CivifyAuthorization(permission = "PLAN.MODIFY")
     @DeleteMapping("/{planId}")
-    public ResponseEntity<CommonResponse<Void>> deletePlan(
-            @Parameter(description = "Encoded plan ID") @PathVariable String planId) {
-        Long decodedId = idEncodingUtil.decode(planId, EntityType.PLAN);
-        log.info("Admin deleting subscription plan: {}", decodedId);
+    public ResponseEntity<CommonResponse<Void>> deletePlan(@PathVariable Long planId) {
+        log.info("Admin deleting subscription plan: {}", planId);
 
         try {
-            adminPlanUseCase.deletePlan(decodedId);
+            adminPlanUseCase.deletePlan(planId);
             return ResponseEntity.ok(CommonResponse.success("Plan deleted successfully", null));
         } catch (Exception e) {
             log.error("Error deleting plan: {}", e.getMessage());

@@ -6,8 +6,6 @@ import com.app.civify.dto.payment.PaymentVerificationResponse;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.payment.PaymentService;
 import com.app.civify.usecase.user.PaymentUseCase;
-import com.app.civify.util.security.EntityType;
-import com.app.civify.util.security.IdEncodingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -17,7 +15,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -33,7 +30,6 @@ public class PaymentController {
 
     private final PaymentUseCase paymentUseCase;
     private final PaymentService paymentService;
-    private final IdEncodingUtil idEncodingUtil;
 
     @Operation(
             summary = "Initiate payment",
@@ -50,7 +46,7 @@ public class PaymentController {
     })
     @PostMapping("/initiate")
     public ResponseEntity<PaymentInitiationResponse> initiatePayment(
-            @Parameter(description = "Encoded plan ID") @RequestParam String planId,
+            @RequestParam Long planId,
             @RequestParam(required = false) String promoCode,
             @RequestParam(defaultValue = "false") boolean isAnnual,
             @RequestParam(required = false) String gateway,
@@ -58,8 +54,7 @@ public class PaymentController {
 
         try {
             Long userId = userPrincipal.getId();
-            Long decodedPlanId = idEncodingUtil.decode(planId, EntityType.PLAN);
-            PaymentInitiationResponse response = paymentUseCase.initiatePayment(userId, decodedPlanId, isAnnual, promoCode, gateway);
+            PaymentInitiationResponse response = paymentUseCase.initiatePayment(userId, planId, isAnnual, promoCode, gateway);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
