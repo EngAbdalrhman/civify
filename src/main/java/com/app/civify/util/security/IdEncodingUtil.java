@@ -68,13 +68,30 @@ public class IdEncodingUtil {
 
     /**
      * Decode an encoded ID string back to Long
+     * Falls back to parsing as plain Long if not encoded (backward compatibility)
      * 
      * @param encodedId  The encoded string ID
      * @param entityType Expected entity type (for validation)
      * @return The original numeric ID
      */
     public Long decode(String encodedId, EntityType entityType) {
-        if (encodedId == null || encodedId.length() < 2) {
+        if (encodedId == null || encodedId.isEmpty()) {
+            throw new BadRequestException("Invalid encoded ID");
+        }
+
+        // FALLBACK: If it's a plain numeric ID, parse it directly (backward compatibility)
+        if (encodedId.matches("^\\d+$")) {
+            try {
+                Long id = Long.parseLong(encodedId);
+                log.debug("Using plain numeric ID: {} for entity type: {}", id, entityType);
+                return id;
+            } catch (NumberFormatException e) {
+                throw new BadRequestException("Invalid ID format");
+            }
+        }
+
+        // Short IDs can't be encoded
+        if (encodedId.length() < 2) {
             throw new BadRequestException("Invalid encoded ID");
         }
 

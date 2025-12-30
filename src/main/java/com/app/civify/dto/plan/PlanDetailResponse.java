@@ -1,6 +1,10 @@
 package com.app.civify.dto.plan;
 
+import com.app.civify.util.security.EncodedIdField;
+import com.app.civify.util.security.EncodedIdSerializer;
+import com.app.civify.util.security.EntityType;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,7 +25,10 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class PlanDetailResponse {
     
+    @JsonSerialize(using = EncodedIdSerializer.class)
+    @EncodedIdField(EntityType.PLAN)
     private Long id;
+    
     private String name;
     private String description;
     private String details;
