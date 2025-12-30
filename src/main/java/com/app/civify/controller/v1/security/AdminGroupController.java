@@ -16,7 +16,10 @@ import com.app.civify.util.CommonResponse;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
 import com.app.civify.util.persistence.CommonService;
+import com.app.civify.util.security.EntityType;
+import com.app.civify.util.security.IdEncodingUtil;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -45,6 +48,7 @@ public class AdminGroupController {
     private final PermissionRepository permissionRepository;
     private final CommonService commonService;
     private final AuditService auditService;
+    private final IdEncodingUtil idEncodingUtil;
 
     @Operation(
             summary = "Filter groups with advanced criteria",
@@ -123,11 +127,13 @@ public class AdminGroupController {
     )
     @CivifyAuthorization(permission = "GROUP.VIEW")
     @GetMapping("/{groupId}")
-    public ResponseEntity<CommonResponse<GroupResponse>> getGroupById(@PathVariable Long groupId) {
-        log.info("Admin fetching group with ID: {}", groupId);
+    public ResponseEntity<CommonResponse<GroupResponse>> getGroupById(
+            @Parameter(description = "Encoded group ID") @PathVariable String groupId) {
+        Long decodedId = idEncodingUtil.decode(groupId, EntityType.GROUP);
+        log.info("Admin fetching group with ID: {}", decodedId);
 
-        Group group = groupRepository.findByIdWithPermissions(groupId)
-                .orElseThrow(() -> new ResourceNotFoundException("Group not found: " + groupId));
+        Group group = groupRepository.findByIdWithPermissions(decodedId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group not found: " + decodedId));
 
         return ResponseEntity.ok(CommonResponse.success("Group retrieved successfully", toResponse(group)));
     }
@@ -179,12 +185,13 @@ public class AdminGroupController {
     @CivifyAuthorization(permission = "GROUP.MODIFY")
     @PutMapping("/{groupId}")
     public ResponseEntity<CommonResponse<GroupResponse>> updateGroup(
-            @PathVariable Long groupId,
+            @Parameter(description = "Encoded group ID") @PathVariable String groupId,
             @Valid @RequestBody GroupCreateRequest request) {
-        log.info("Admin updating group: {}", groupId);
+        Long decodedId = idEncodingUtil.decode(groupId, EntityType.GROUP);
+        log.info("Admin updating group: {}", decodedId);
 
-        Group group = groupRepository.findByIdWithPermissions(groupId)
-                .orElseThrow(() -> new ResourceNotFoundException("Group not found: " + groupId));
+        Group group = groupRepository.findByIdWithPermissions(decodedId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group not found: " + decodedId));
 
         // Prevent modifying system groups
         if (Boolean.TRUE.equals(group.getIsSystemGroup())) {
@@ -222,11 +229,13 @@ public class AdminGroupController {
     )
     @CivifyAuthorization(permission = "GROUP.MODIFY")
     @DeleteMapping("/{groupId}")
-    public ResponseEntity<CommonResponse<Void>> deleteGroup(@PathVariable Long groupId) {
-        log.info("Admin deleting group: {}", groupId);
+    public ResponseEntity<CommonResponse<Void>> deleteGroup(
+            @Parameter(description = "Encoded group ID") @PathVariable String groupId) {
+        Long decodedId = idEncodingUtil.decode(groupId, EntityType.GROUP);
+        log.info("Admin deleting group: {}", decodedId);
 
-        Group group = groupRepository.findById(groupId)
-                .orElseThrow(() -> new ResourceNotFoundException("Group not found: " + groupId));
+        Group group = groupRepository.findById(decodedId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group not found: " + decodedId));
 
         // Prevent deleting system groups
         if (Boolean.TRUE.equals(group.getIsSystemGroup())) {
@@ -242,7 +251,7 @@ public class AdminGroupController {
         groupRepository.delete(group);
         log.info("Deleted group: {}", groupName);
 
-        logAudit(groupId, AuditAction.DELETE, groupToMap(group), null,
+        logAudit(decodedId, AuditAction.DELETE, groupToMap(group), null,
                 "Deleted group: " + groupName);
 
         return ResponseEntity.ok(CommonResponse.success("Group deleted successfully", null));
@@ -255,11 +264,13 @@ public class AdminGroupController {
     )
     @CivifyAuthorization(permission = "GROUP.MODIFY")
     @PatchMapping("/{groupId}/toggle-active")
-    public ResponseEntity<CommonResponse<GroupResponse>> toggleGroupActive(@PathVariable Long groupId) {
-        log.info("Admin toggling active status for group: {}", groupId);
+    public ResponseEntity<CommonResponse<GroupResponse>> toggleGroupActive(
+            @Parameter(description = "Encoded group ID") @PathVariable String groupId) {
+        Long decodedId = idEncodingUtil.decode(groupId, EntityType.GROUP);
+        log.info("Admin toggling active status for group: {}", decodedId);
 
-        Group group = groupRepository.findById(groupId)
-                .orElseThrow(() -> new ResourceNotFoundException("Group not found: " + groupId));
+        Group group = groupRepository.findById(decodedId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group not found: " + decodedId));
 
         // Prevent modifying system groups
         if (Boolean.TRUE.equals(group.getIsSystemGroup())) {

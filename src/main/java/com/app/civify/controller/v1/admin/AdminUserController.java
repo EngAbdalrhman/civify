@@ -7,7 +7,10 @@ import com.app.civify.usecase.admin.AdminUserUseCase;
 import com.app.civify.util.CommonResponse;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
+import com.app.civify.util.security.EntityType;
+import com.app.civify.util.security.IdEncodingUtil;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -34,6 +37,7 @@ import jakarta.validation.Valid;
 public class AdminUserController {
 
     private final AdminUserUseCase adminUserUseCase;
+    private final IdEncodingUtil idEncodingUtil;
 
     @Operation(
             summary = "Filter users with advanced criteria",
@@ -106,13 +110,14 @@ public class AdminUserController {
     @CivifyAuthorization(permission = "USER.VIEW")
     @GetMapping("/{userId}")
     public ResponseEntity<CommonResponse<UserResponseDTO>> getUserById(
-            @PathVariable Long userId,
+            @Parameter(description = "Encoded user ID") @PathVariable String userId,
             @RequestParam(defaultValue = "false") boolean includeStats) {
-        log.info("Admin fetching user with ID: {} (includeStats: {})", userId, includeStats);
+        Long decodedId = idEncodingUtil.decode(userId, EntityType.USER);
+        log.info("Admin fetching user with ID: {} (includeStats: {})", decodedId, includeStats);
 
         UserResponseDTO userDTO = includeStats
-                ? adminUserUseCase.getUserByIdWithStats(userId)
-                : adminUserUseCase.getUserById(userId);
+                ? adminUserUseCase.getUserByIdWithStats(decodedId)
+                : adminUserUseCase.getUserById(decodedId);
 
         return ResponseEntity.ok(CommonResponse.success("User retrieved successfully", userDTO));
     }
@@ -136,11 +141,12 @@ public class AdminUserController {
     @CivifyAuthorization(permission = "USER.MODIFY")
     @PutMapping("/{userId}/limits")
     public ResponseEntity<CommonResponse<UserResponseDTO>> updateUserLimits(
-            @PathVariable Long userId,
+            @Parameter(description = "Encoded user ID") @PathVariable String userId,
             @RequestParam(required = false) Integer cvLimit) {
-        log.info("Admin updating limits for user {}: CV={}", userId, cvLimit);
+        Long decodedId = idEncodingUtil.decode(userId, EntityType.USER);
+        log.info("Admin updating limits for user {}: CV={}", decodedId, cvLimit);
 
-        UserResponseDTO userDTO = adminUserUseCase.updateUserLimits(userId, cvLimit);
+        UserResponseDTO userDTO = adminUserUseCase.updateUserLimits(decodedId, cvLimit);
 
         return ResponseEntity.ok(CommonResponse.success("User limits updated successfully", userDTO));
     }
