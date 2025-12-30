@@ -22,6 +22,7 @@ public class UsageTrackingServiceImpl implements UsageTrackingService {
 
     private final UserSubscriptionRepository subscriptionRepository;
     private final CvRepository cvRepository;
+    private final com.app.civify.service.i18n.MessageService messageService;
 
     @Override
     public boolean canGenerateUiCv(Long userId) {
@@ -53,13 +54,12 @@ public class UsageTrackingServiceImpl implements UsageTrackingService {
     public void incrementUiCvUsage(Long userId) {
         UserSubscription subscription = getActiveSubscription(userId);
         if (subscription == null) {
-            throw new BadRequestException("No active subscription found");
+            throw new BadRequestException("subscription.notfound");
         }
 
         if (!subscription.canUseCv()) {
             throw new BadRequestException(
-                    "UI CV generation limit reached. Current: " + subscription.getCurrentCvCount() +
-                    ", Limit: " + subscription.getPlan().getCvLimit()
+                    messageService.getMessage("subscription.cv.limit.reached") + " (" + subscription.getCurrentCvCount() + "/" + subscription.getPlan().getCvLimit() + ")"
             );
         }
 

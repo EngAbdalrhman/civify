@@ -33,6 +33,7 @@ public class EmailVerificationService {
     private final CacheService cacheService;
     private final SubscriptionService subscriptionService;
     private final ResourceLoader resourceLoader;
+    private final com.app.civify.service.i18n.MessageService messageService;
 
     @Value("${email.verification.token-expiration:86400000}") // 24 hours default -> TODO check consts
     private long tokenExpiration;
@@ -68,7 +69,7 @@ public class EmailVerificationService {
         String htmlBody = loadEmailTemplate(user.getUsername(), verificationLink);
 
         // Send HTML email
-        String subject = "Verify Your Email - Civify";
+        String subject = messageService.getMessage("email.verify.subject");
         emailService.sendHtmlEmail(user.getEmail(), subject, htmlBody);
         log.info("Verification email sent to {} using cache mode: {}", user.getEmail(), cacheService.getCacheMode());
     }
@@ -120,7 +121,7 @@ public class EmailVerificationService {
 
         // Find user by email
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BadRequestException("User not found for email: " + email));
+                .orElseThrow(() -> new BadRequestException("user.email.notfound"));
 
         if (user.getIsEmailVerified()) {
             log.info("Email already verified for user: {}", user.getUsername());
@@ -147,10 +148,10 @@ public class EmailVerificationService {
      */
     public void resendVerificationEmail(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BadRequestException("User not found"));
+                .orElseThrow(() -> new BadRequestException("user.notfound"));
 
         if (user.getIsEmailVerified()) {
-            throw new BadRequestException("Email is already verified");
+            throw new BadRequestException("auth.email.alreadyverified");
         }
 
         sendVerificationEmail(user);

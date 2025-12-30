@@ -43,6 +43,7 @@ public class TokenPackageService {
     private final PromoCodeService promoCodeService;
     private final TokenPurchaseRepository tokenPurchaseRepository;
     private final UserPromoUsageRepository userPromoUsageRepository;
+    private final com.app.civify.service.i18n.MessageService messageService;
 
     public List<TokenPackage> getAllActivePackages() {
         return tokenPackageRepository.findByActiveTrue();
@@ -99,7 +100,7 @@ public class TokenPackageService {
 
     public TokenPackage getPackageById(Long id) {
         return tokenPackageRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Token package not found with id: " + id));
+                .orElseThrow(() -> new RuntimeException("token.package.notfound"));
     }
 
     @Transactional
@@ -172,14 +173,14 @@ public class TokenPackageService {
     @Transactional
     public PaymentCreationResult purchasePackage(Long userId, Long packageId, String promoCode) {
         TokenPackage tokenPackage = tokenPackageRepository.findById(packageId)
-                .orElseThrow(() -> new RuntimeException("Token package not found"));
+                .orElseThrow(() -> new RuntimeException("token.package.notfound"));
 
         if (!tokenPackage.getActive()) {
-            throw new RuntimeException("This package is no longer available");
+            throw new RuntimeException("token.package.unavailable");
         }
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("user.notfound"));
 
         BigDecimal finalPrice = BigDecimal.valueOf(tokenPackage.getPrice());
         PromoCode promo = null;
@@ -307,10 +308,10 @@ public class TokenPackageService {
     @Transactional(readOnly = true)
     public com.app.civify.dto.payment.PurchasePreviewResponse previewTokenPurchase(Long userId, Long packageId, String promoCode) {
         TokenPackage tokenPackage = tokenPackageRepository.findById(packageId)
-                .orElseThrow(() -> new RuntimeException("Token package not found"));
+                .orElseThrow(() -> new RuntimeException("token.package.notfound"));
 
         if (!tokenPackage.getActive()) {
-            throw new RuntimeException("This package is no longer available");
+            throw new RuntimeException("token.package.unavailable");
         }
 
         BigDecimal originalPrice = BigDecimal.valueOf(tokenPackage.getPrice());
@@ -324,20 +325,20 @@ public class TokenPackageService {
             if (promoOpt.isPresent()) {
                 PromoCode promo = promoOpt.get();
                 if (!promo.isValid()) {
-                    message = "Promo code is invalid or expired";
+                    message = messageService.getMessage("promo.invalid");
                 } else if (promo.getApplicabilityType() == PromoApplicabilityType.PLAN) {
-                    message = "Promo code is not applicable for token packages";
+                    message = messageService.getMessage("promo.notforplan"); // Reusing this key or create promo.planonly
                 } else if (userPromoUsageRepository.existsByUserIdAndPromoCodeId(userId, promo.getId())) {
-                    message = "You have already used this promo code";
+                    message = messageService.getMessage("promo.alreadyused");
                 } else {
                     BigDecimal discount = promo.calculateDiscount(originalPrice);
                     discountAmount = discount;
                     finalPrice = originalPrice.subtract(discount).max(BigDecimal.ZERO);
                     promoApplied = true;
-                    message = "Promo code applied successfully";
+                    message = messageService.getMessage("promo.applied");
                 }
             } else {
-                message = "Promo code not found";
+                message = messageService.getMessage("promo.notfound");
             }
         }
 

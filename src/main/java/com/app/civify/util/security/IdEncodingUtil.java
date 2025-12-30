@@ -39,7 +39,7 @@ public class IdEncodingUtil {
      */
     public String encode(Long id, EntityType entityType) {
         if (id == null || id <= 0) {
-            throw new BadRequestException("Invalid ID for encoding");
+            throw new BadRequestException("id.invalid");
         }
 
         try {
@@ -62,7 +62,7 @@ public class IdEncodingUtil {
 
         } catch (Exception e) {
             log.error("Failed to encode ID: {} for type: {}", id, entityType, e);
-            throw new BadRequestException("Failed to encode ID");
+            throw new BadRequestException("id.encoding.failed");
         }
     }
 
@@ -76,7 +76,7 @@ public class IdEncodingUtil {
      */
     public Long decode(String encodedId, EntityType entityType) {
         if (encodedId == null || encodedId.isEmpty()) {
-            throw new BadRequestException("Invalid encoded ID");
+            throw new BadRequestException("id.invalid.encoding");
         }
 
         // FALLBACK: If it's a plain numeric ID, parse it directly (backward compatibility)
@@ -86,13 +86,13 @@ public class IdEncodingUtil {
                 log.debug("Using plain numeric ID: {} for entity type: {}", id, entityType);
                 return id;
             } catch (NumberFormatException e) {
-                throw new BadRequestException("Invalid ID format");
+                throw new BadRequestException("id.invalid.format");
             }
         }
 
         // Short IDs can't be encoded
         if (encodedId.length() < 2) {
-            throw new BadRequestException("Invalid encoded ID");
+            throw new BadRequestException("id.invalid.encoding");
         }
 
         try {
@@ -100,7 +100,7 @@ public class IdEncodingUtil {
             String prefix = encodedId.substring(0, 1);
             if (!prefix.equals(entityType.getPrefix())) {
                 log.warn("Entity type mismatch. Expected: {}, Got prefix: {}", entityType.getPrefix(), prefix);
-                throw new BadRequestException("Invalid ID format");
+                throw new BadRequestException("id.invalid.format");
             }
 
             // Decode from Base62
@@ -108,7 +108,7 @@ public class IdEncodingUtil {
             byte[] decoded = fromBase62(base62Part);
 
             if (decoded.length < Long.BYTES + SIGNATURE_BYTES) {
-                throw new BadRequestException("Invalid encoded ID length");
+                throw new BadRequestException("id.invalid.length");
             }
 
             // Extract ID and signature
@@ -127,7 +127,7 @@ public class IdEncodingUtil {
 
             if (!constantTimeEquals(providedSig, truncatedExpected)) {
                 log.warn("Signature mismatch for encoded ID: {}", encodedId);
-                throw new BadRequestException("Invalid ID");
+                throw new BadRequestException("id.invalid");
             }
 
             return id;
@@ -136,7 +136,7 @@ public class IdEncodingUtil {
             throw e;
         } catch (Exception e) {
             log.error("Failed to decode ID: {}", encodedId, e);
-            throw new BadRequestException("Invalid ID format");
+            throw new BadRequestException("id.invalid.format");
         }
     }
 
@@ -202,7 +202,7 @@ public class IdEncodingUtil {
         for (char c : encoded.toCharArray()) {
             int digit = BASE62_CHARS.indexOf(c);
             if (digit < 0) {
-                throw new BadRequestException("Invalid character in encoded ID");
+                throw new BadRequestException("id.invalid.character");
             }
             value = value.multiply(base).add(java.math.BigInteger.valueOf(digit));
         }

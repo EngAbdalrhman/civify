@@ -67,7 +67,7 @@ public class PaymentServiceImpl implements PaymentService {
                 // Fetch transaction to check metadata
                 String effectiveOrderId = result.getOrderId() != null ? result.getOrderId() : orderId;
                 PaymentTransaction transaction = paymentRepository.findByOrderId(effectiveOrderId)
-                        .orElseThrow(() -> new RuntimeException("Transaction not found for order: " + effectiveOrderId));
+                        .orElseThrow(() -> new com.app.civify.exception.ResourceNotFoundException("payment.transaction.notfound"));
                 
                 if (transaction.getMetadata() != null) {
                     Map<String, Object> meta = objectMapper.readValue(transaction.getMetadata(), Map.class);

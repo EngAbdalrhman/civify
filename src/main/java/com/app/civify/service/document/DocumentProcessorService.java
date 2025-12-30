@@ -26,6 +26,7 @@ public class DocumentProcessorService {
 
     private final List<DocumentProcessor> processors;
     private final LanguageDetector languageDetector;
+    private final com.app.civify.service.i18n.MessageService messageService;
 
     private static final Set<String> SUPPORTED_MIME_TYPES = Set.of(
             "application/pdf",
@@ -40,8 +41,9 @@ public class DocumentProcessorService {
 
     private static final long MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
-    public DocumentProcessorService(List<DocumentProcessor> processors) {
+    public DocumentProcessorService(List<DocumentProcessor> processors, com.app.civify.service.i18n.MessageService messageService) {
         this.processors = processors;
+        this.messageService = messageService;
 
         LanguageDetector detector = null;
         try {
@@ -104,7 +106,7 @@ public class DocumentProcessorService {
         DocumentProcessor processor = findProcessor(documentType);
 
         if (processor == null) {
-            throw new BadRequestException("No processor available for document type: " + documentType);
+            throw new BadRequestException(messageService.getMessage("document.processor.notfound", new Object[]{documentType}));
         }
 
         // Process document
@@ -126,19 +128,20 @@ public class DocumentProcessorService {
      */
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BadRequestException("File is required and cannot be empty");
+            throw new BadRequestException("document.file.required");
         }
 
         if (file.getSize() > MAX_FILE_SIZE) {
-            throw new BadRequestException("File size exceeds maximum allowed size of 20MB");
+            throw new BadRequestException("document.file.sizes");
         }
 
         String contentType = file.getContentType();
         DocumentType type = detectDocumentType(file);
 
         if (type == DocumentType.UNKNOWN) {
-            throw new BadRequestException("Unsupported file type: " + contentType
-                    + ". Supported types: PDF, DOCX, PNG, JPEG, TIFF");
+        if (type == DocumentType.UNKNOWN) {
+            throw new BadRequestException(messageService.getMessage("document.file.type", new Object[]{contentType}));
+        }
         }
     }
 
@@ -259,14 +262,14 @@ public class DocumentProcessorService {
         if (fileData == null || fileData.length == 0) {
             return ProcessedDocument.builder()
                     .success(false)
-                    .errorMessage("File data is required and cannot be empty")
+                    .errorMessage(messageService.getMessage("document.file.required"))
                     .build();
         }
 
         if (fileData.length > MAX_FILE_SIZE) {
             return ProcessedDocument.builder()
                     .success(false)
-                    .errorMessage("File size exceeds maximum allowed size of 20MB")
+                    .errorMessage(messageService.getMessage("document.file.sizes"))
                     .build();
         }
 
@@ -274,7 +277,7 @@ public class DocumentProcessorService {
         if (documentType == DocumentType.UNKNOWN) {
             return ProcessedDocument.builder()
                     .success(false)
-                    .errorMessage("Unsupported file type: " + mimeType)
+                    .errorMessage(messageService.getMessage("document.file.type", new Object[]{mimeType}))
                     .build();
         }
 
@@ -286,7 +289,7 @@ public class DocumentProcessorService {
         if (processor == null) {
             return ProcessedDocument.builder()
                     .success(false)
-                    .errorMessage("No processor available for document type: " + documentType)
+                    .errorMessage(messageService.getMessage("document.processor.notfound", new Object[]{documentType}))
                     .build();
         }
 

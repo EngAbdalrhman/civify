@@ -79,13 +79,13 @@ public class TokenService {
         // 1. Check if token is blacklisted
         if (isRefreshTokenBlacklisted(refreshToken)) {
              log.warn("Refresh token is blacklisted for user: {}", user.getUsername());
-             throw new BadRequestException("Invalid or expired refresh token");
+             throw new BadRequestException("token.refresh.invalid");
         }
 
         // 2. Validate JWT signature and expiration
         if (!jwtUtil.validateToken(refreshToken, user.getUsername())) {
              log.warn("Invalid refresh token signature/expiry for user: {}", user.getUsername());
-             throw new BadRequestException("Invalid or expired refresh token");
+             throw new BadRequestException("token.refresh.invalid");
         }
 
         // 3. Rotate: Blacklist the old token

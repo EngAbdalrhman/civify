@@ -21,6 +21,7 @@ import com.app.civify.service.payment.PaymentService;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
 import com.app.civify.util.persistence.CommonService;
+import com.app.civify.service.i18n.MessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -50,6 +51,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     private final UserPromoUsageRepository userPromoUsageRepository;
     private final UserRepository userRepository;
     private final PaymentService paymentService;
+    private final MessageService messageService;
 
     private static final String FREE_PLAN_NAME = "free";
 
@@ -92,7 +94,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     public UserSubscription createSubscription(Long userId, Long planId, String promoCode, boolean isAnnual) {
         log.info("Creating subscription for user {} with plan {}", userId, planId);
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("user.notfound"));
         return createSubscription(user, planId, promoCode, isAnnual);
     }
 
@@ -103,19 +105,19 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         log.info("Creating subscription for user {} with plan {}", userId, planId);
 
         SubscriptionPlan plan = planRepository.findById(planId)
-                .orElseThrow(() -> new ResourceNotFoundException("Plan not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("subscription.plan.notfound"));
 
         // ==================== BILLING RESTRICTIONS ====================
         // Check if annual billing is allowed for this plan
         if (isAnnual && Boolean.FALSE.equals(plan.getAllowAnnualBilling())) {
-            throw new BadRequestException("Annual billing is not available for this plan. Please select monthly billing.");
+            throw new BadRequestException("subscription.annual.notallowed");
         }
 
         // Check if renewal is allowed (for returning users)
         Optional<UserSubscription> previousSub = subscriptionRepository
                 .findByUserIdAndPlanIdAndStatus(userId, planId, SubscriptionStatus.EXPIRED);
         if (previousSub.isPresent() && Boolean.FALSE.equals(plan.getRenewalAllowed())) {
-            throw new BadRequestException("This plan cannot be renewed. Please choose a different plan.");
+            throw new BadRequestException("subscription.renewal.notallowed");
         }
         // =============================================================
 
@@ -138,7 +140,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                 subscriptionRepository.save(pending);
                 // Allow proceeding to create new one
             } else {
-                throw new BadRequestException("User already has a pending subscription created recently. Please complete it or wait a few minutes.");
+                throw new BadRequestException("subscription.pending.exists");
             }
         }
 
@@ -146,7 +148,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         Optional<UserSubscription> activeSamePlan = subscriptionRepository
                 .findByUserIdAndPlanIdAndStatus(userId, planId, SubscriptionStatus.ACTIVE);
         if (activeSamePlan.isPresent()) {
-            throw new BadRequestException("You already have an active subscription for this plan");
+            throw new BadRequestException("subscription.active.exists");
         }
 
         // For free plan, check if user already has it
@@ -154,7 +156,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             Optional<UserSubscription> existingFree = subscriptionRepository
                     .findByUserIdAndPlanName(userId, FREE_PLAN_NAME);
             if (existingFree.isPresent()) {
-                throw new BadRequestException("User already has a free plan");
+                throw new BadRequestException("subscription.free.exists");
             }
         }
 
@@ -209,25 +211,25 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
      */
     private PromoCode validateAndApplyPromoCode(Long userId, Long planId, String promoCode) {
         PromoCode promo = promoCodeRepository.findByCodeAndActiveTrue(promoCode)
-                .orElseThrow(() -> new BadRequestException("Invalid or expired promo code"));
+                .orElseThrow(() -> new BadRequestException("promo.invalid"));
 
         if (!promo.isValid()) {
-            throw new BadRequestException("Promo code is no longer valid");
+            throw new BadRequestException("promo.nolongervalid");
         }
 
         // Check if promo is applicable to plans (not token-only)
         if (promo.getApplicabilityType() == PromoApplicabilityType.TOKEN) {
-            throw new BadRequestException("This promo code is only valid for token purchases");
+            throw new BadRequestException("promo.tokenonly");
         }
 
         // Check if promo applies to this specific plan
         if (!promo.isApplicableToPlan(planId)) {
-            throw new BadRequestException("This promo code is not valid for the selected plan");
+            throw new BadRequestException("promo.notforplan");
         }
 
         // Check if user has already used this promo
         if (userPromoUsageRepository.existsByUserIdAndPromoCodeId(userId, promo.getId())) {
-            throw new BadRequestException("You have already used this promo code");
+            throw new BadRequestException("promo.alreadyused");
         }
 
         // Record promo usage for this user
@@ -266,12 +268,11 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     @Override
     public PriceCalculationResponse calculateTotalPrice(Long userId, Long planId, boolean isAnnual, String promoCode) {
         SubscriptionPlan plan = planRepository.findById(planId)
-                .orElseThrow(() -> new ResourceNotFoundException("Plan not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("subscription.plan.notfound"));
 
         BigDecimal basePrice = isAnnual ? plan.getAnnualPrice() : plan.getMonthlyPrice();
         BigDecimal discount = BigDecimal.ZERO;
         String appliedPromoCode = null;
-        String promoError = null;
 
         // Apply promo code discount if provided
         if (promoCode != null && !promoCode.isEmpty()) {
@@ -279,19 +280,19 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             if (promoOpt.isPresent()) {
                 PromoCode promo = promoOpt.get();
                 if (!promo.isValid()) {
-                    promoError = "Promo code is no longer valid";
+                    // Invalid
                 } else if (promo.getApplicabilityType() == PromoApplicabilityType.TOKEN) {
-                    promoError = "This promo code is only valid for token purchases";
+                    // Not for plan
                 } else if (!promo.isApplicableToPlan(planId)) {
-                    promoError = "This promo code is not valid for the selected plan";
+                    // Not for this plan
                 } else if (userId != null && userPromoUsageRepository.existsByUserIdAndPromoCodeId(userId, promo.getId())) {
-                    promoError = "You have already used this promo code";
+                    // Already used
                 } else {
                     discount = promo.calculateDiscount(basePrice);
                     appliedPromoCode = promoCode;
                 }
             } else {
-                promoError = "Invalid promo code";
+                // Invalid code
             }
         }
 
@@ -340,7 +341,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                     .subscriptionId(subscription.getId())
                     .amount(BigDecimal.ZERO)
                     .currency("EGP")
-                    .message("Subscription activated successfully")
+                    .message(messageService.getMessage("subscription.created"))
                     .build();
         }
 
@@ -360,7 +361,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                 .subscriptionId(subscription.getId())
                 .amount(priceCalc.getTotalPrice())
                 .currency("EGP") // TODO detect via ip the nationality and currency egp or usd or sar or aed
-                .message("Payment initiated successfully")
+                .message(messageService.getMessage("payment.initiated"))
                 .build();
     }
 
@@ -422,7 +423,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         Optional<UserSubscription> subscription = getActiveSubscription(userId);
 
         if (subscription.isEmpty()) {
-            throw new BadRequestException("No active subscription found");
+            throw new BadRequestException("subscription.notfound");
         }
 
         UserSubscription sub = subscription.get();
@@ -430,12 +431,12 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         switch (feature.toUpperCase()) {
             case "CV" -> {
                 if (!canUserUseFeature(userId, "CV")) {
-                    throw new BadRequestException("CV generation limit reached for current subscription");
+                    throw new BadRequestException("subscription.cv.limit.reached");
                 }
                 sub.incrementCvCount();
             }
             default ->
-                throw new BadRequestException("Unknown feature: " + feature);
+                throw new BadRequestException(messageService.getMessage("error.feature.unknown") + ": " + feature);
         }
 
         subscriptionRepository.save(sub);
@@ -448,7 +449,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         var tokenInfoOpt = subscriptionRepository.findTokenInfoByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE);
         
         if (tokenInfoOpt.isEmpty()) {
-            throw new BadRequestException("No active subscription found");
+            throw new BadRequestException("subscription.notfound");
         }
         
         var info = tokenInfoOpt.get();
@@ -470,7 +471,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             
             if (walletTokens < remainingToCharge) {
                 // Should not happen if checked via canUserUseTokens beforehand, but safe guard
-                throw new BadRequestException("Insufficient token balance (Wallet balance: " + walletTokens + ")");
+                throw new BadRequestException(messageService.getMessage("token.insufficient") + " (Wallet balance: " + walletTokens + ")");
             }
             
             userRepository.updateExtraTokens(userId, walletTokens - remainingToCharge);
@@ -487,7 +488,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         // Find subscription by payment transaction ID
         UserSubscription subscription = subscriptionRepository.findByPaymentTransactionId(paymentTransactionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Subscription not found for payment transaction"));
+                .orElseThrow(() -> new ResourceNotFoundException("subscription.notfound"));
 
         User user = subscription.getUser();
         SubscriptionPlan plan = subscription.getPlan();
@@ -526,8 +527,9 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                 .findByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE)
                 .stream()
                 .filter(sub -> !FREE_PLAN_NAME.equalsIgnoreCase(sub.getPlan().getName()))
+                .filter(sub -> !FREE_PLAN_NAME.equalsIgnoreCase(sub.getPlan().getName()))
                 .findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException("No active non-free subscription found for user"));
+                .orElseThrow(() -> new ResourceNotFoundException("subscription.nonfree.notfound"));
 
         // Mark subscription to not auto-renew (graceful cancellation)
         subscription.setAutoRenew(false);
@@ -556,8 +558,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         // Get the free plan
         SubscriptionPlan freePlan = planRepository.findByName(FREE_PLAN_NAME)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                "Free plan not found. Please create a subscription plan named 'free' in the database."));
+                .orElseThrow(() -> new ResourceNotFoundException("subscription.plan.notfound"));
 
         // Create permanent free subscription (never expires)
         UserSubscription freeSubscription = new UserSubscription();
@@ -617,13 +618,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         }
     }
 
-    /**
-     * Calculate end date based on plan and billing cycle Free plans never
-     * expire (100 years)
-     */
-    private LocalDateTime calculateEndDate(SubscriptionPlan plan, boolean isAnnual) {
-        return calculateEndDate(plan, isAnnual, LocalDateTime.now());
-    }
+
 
     /**
      * Calculate end date from a specific start date.
@@ -646,15 +641,15 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         // Validate plan name is unique
         if (planRepository.findByName(plan.getName()).isPresent()) {
-            throw new BadRequestException("Plan with name '" + plan.getName() + "' already exists");
+            throw new BadRequestException(messageService.getMessage("subscription.plan.name.exists") + ": " + plan.getName());
         }
 
         // Validate pricing
         if (plan.getMonthlyPrice() != null && plan.getMonthlyPrice().compareTo(BigDecimal.ZERO) < 0) {
-            throw new BadRequestException("Monthly price cannot be negative");
+            throw new BadRequestException("validation.price.negative");
         }
         if (plan.getAnnualPrice() != null && plan.getAnnualPrice().compareTo(BigDecimal.ZERO) < 0) {
-            throw new BadRequestException("Annual price cannot be negative");
+            throw new BadRequestException("validation.price.negative");
         }
 
         // Set defaults
@@ -677,7 +672,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         log.info("Updating subscription plan: {}", planId);
 
         SubscriptionPlan existingPlan = planRepository.findById(planId)
-                .orElseThrow(() -> new ResourceNotFoundException("Plan not found with ID: " + planId));
+                .orElseThrow(() -> new ResourceNotFoundException("subscription.plan.notfound"));
 
         // Get count of active subscriptions for this plan
         long activeSubscriptionCount = getActiveSubscriptionCountForPlan(planId);
@@ -691,7 +686,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         if (updatedPlan.getName() != null && !updatedPlan.getName().equals(existingPlan.getName())) {
             // Check if new name is unique
             if (planRepository.findByName(updatedPlan.getName()).isPresent()) {
-                throw new BadRequestException("Plan with name '" + updatedPlan.getName() + "' already exists");
+                throw new BadRequestException(messageService.getMessage("subscription.plan.name.exists") + ": " + updatedPlan.getName());
             }
             existingPlan.setName(updatedPlan.getName());
         }
@@ -718,14 +713,14 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         if (updatedPlan.getMonthlyPrice() != null) {
             if (updatedPlan.getMonthlyPrice().compareTo(BigDecimal.ZERO) < 0) {
-                throw new BadRequestException("Monthly price cannot be negative");
+                throw new BadRequestException("validation.price.negative");
             }
             existingPlan.setMonthlyPrice(updatedPlan.getMonthlyPrice());
         }
 
         if (updatedPlan.getAnnualPrice() != null) {
             if (updatedPlan.getAnnualPrice().compareTo(BigDecimal.ZERO) < 0) {
-                throw new BadRequestException("Annual price cannot be negative");
+                throw new BadRequestException("validation.price.negative");
             }
             existingPlan.setAnnualPrice(updatedPlan.getAnnualPrice());
         }
@@ -741,7 +736,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         log.info("Activating subscription plan: {}", planId);
 
         SubscriptionPlan plan = planRepository.findById(planId)
-                .orElseThrow(() -> new ResourceNotFoundException("Plan not found with ID: " + planId));
+                .orElseThrow(() -> new ResourceNotFoundException("subscription.plan.notfound"));
 
         plan.setActive(true);
         SubscriptionPlan saved = planRepository.save(plan);
@@ -755,11 +750,11 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         log.info("Deactivating subscription plan: {}", planId);
 
         SubscriptionPlan plan = planRepository.findById(planId)
-                .orElseThrow(() -> new ResourceNotFoundException("Plan not found with ID: " + planId));
+                .orElseThrow(() -> new ResourceNotFoundException("subscription.plan.notfound"));
 
         // Prevent deactivating the free plan
         if (FREE_PLAN_NAME.equalsIgnoreCase(plan.getName())) {
-            throw new BadRequestException("Cannot deactivate the free plan");
+            throw new BadRequestException("subscription.plan.cannot.deactivate.free");
         }
 
         plan.setActive(false);
@@ -784,18 +779,17 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         log.info("Deleting subscription plan: {}", planId);
 
         SubscriptionPlan plan = planRepository.findById(planId)
-                .orElseThrow(() -> new ResourceNotFoundException("Plan not found with ID: " + planId));
+                .orElseThrow(() -> new ResourceNotFoundException("subscription.plan.notfound"));
 
         // Prevent deleting the free plan
         if (FREE_PLAN_NAME.equalsIgnoreCase(plan.getName())) {
-            throw new BadRequestException("Cannot delete the free plan");
+            throw new BadRequestException("subscription.plan.cannot.delete.free");
         }
 
         // Check if there are any active subscriptions
         long activeSubscriptionCount = getActiveSubscriptionCountForPlan(planId);
         if (activeSubscriptionCount > 0) {
-            throw new BadRequestException(
-                    "Cannot delete plan with active subscriptions. Please deactivate the plan instead.");
+            throw new BadRequestException("subscription.plan.cannot.delete.active");
         }
 
         // Soft delete
@@ -813,9 +807,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             if (updatedPlan.getCvLimit() < existingPlan.getCvLimit()) {
                 log.warn("Attempting to reduce CV limit from {} to {} for plan with active subscriptions",
                         existingPlan.getCvLimit(), updatedPlan.getCvLimit());
-                throw new BadRequestException(
-                        "Cannot reduce CV limit for a plan with active subscriptions. Current: "
-                        + existingPlan.getCvLimit() + ", Requested: " + updatedPlan.getCvLimit());
+                throw new BadRequestException("subscription.plan.cannot.reduce.cvlimit");
             }
         }
 
@@ -823,8 +815,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         // Prevent removing features that were previously enabled
         if (Boolean.FALSE.equals(existingPlan.getWatermark()) && Boolean.TRUE.equals(updatedPlan.getWatermark())) {
-            throw new BadRequestException(
-                    "Cannot add watermark to a plan that previously had it removed (active subscriptions exist)");
+            throw new BadRequestException("subscription.plan.cannot.add.watermark");
         }
         // Removed Dashboard validation
     }

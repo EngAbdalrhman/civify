@@ -42,11 +42,11 @@ public class OtpService {
 
     public void generateAndSend(String username) {
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("user.notfound"));
 
         // Check rate limiting
         if (isRateLimited(username)) {
-            throw new RuntimeException("Too many OTP requests. Please try again later.");
+            throw new RuntimeException("otp.ratelimit");
         }
 
         String code = String.format("%06d", random.nextInt(1_000_000));
@@ -74,11 +74,11 @@ public class OtpService {
     public String generateOtpOnly(String username) {
         // Verify user exists (will throw if not found)
         userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("user.notfound"));
 
         // Check rate limiting
         if (isRateLimited(username)) {
-            throw new RuntimeException("Too many OTP requests. Please try again later.");
+            throw new RuntimeException("otp.ratelimit");
         }
 
         String code = String.format("%06d", random.nextInt(1_000_000));

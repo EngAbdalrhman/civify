@@ -58,7 +58,7 @@ public class PasswordRecoveryService {
         // Validate that at least one identifier is provided
         if ((email == null || email.trim().isEmpty()) 
             && (username == null || username.trim().isEmpty())) {
-            throw new BadRequestException("Either email or username must be provided");
+            throw new BadRequestException("auth.password.reset.identifier.missing");
         }
 
         // Find user by email or username
@@ -108,26 +108,26 @@ public class PasswordRecoveryService {
         // Validate inputs
         if ((email == null || email.trim().isEmpty()) 
             && (username == null || username.trim().isEmpty())) {
-            throw new BadRequestException("Either email or username must be provided");
+            throw new BadRequestException("auth.password.reset.identifier.missing");
         }
 
         if (otp == null || otp.trim().isEmpty()) {
-            throw new BadRequestException("OTP is required");
+            throw new BadRequestException("auth.password.reset.otp.required");
         }
 
         // Find user
         User user;
         if (email != null && !email.trim().isEmpty()) {
             user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new BadRequestException("Invalid credentials"));
+                    .orElseThrow(() -> new BadRequestException("auth.login.failed"));
         } else {
             user = userRepository.findByUsername(username)
-                    .orElseThrow(() -> new BadRequestException("Invalid credentials"));
+                    .orElseThrow(() -> new BadRequestException("auth.login.failed"));
         }
 
         // Verify OTP using existing OtpService
         if (!otpService.verify(user.getUsername(), otp)) {
-            throw new BadRequestException("Invalid or expired OTP");
+            throw new BadRequestException("auth.otp.invalid");
         }
 
         // Generate temporary password reset token (valid for 5 minutes)
@@ -147,22 +147,22 @@ public class PasswordRecoveryService {
     public void resetPasswordWithToken(String resetToken, String newPassword) {
         // Validate inputs
         if (resetToken == null || resetToken.trim().isEmpty()) {
-            throw new BadRequestException("Reset token is required");
+            throw new BadRequestException("auth.password.reset.token.required");
         }
 
         if (newPassword == null || newPassword.length() < 8) {
-            throw new BadRequestException("Password must be at least 8 characters long");
+            throw new BadRequestException("auth.password.weak.length");
         }
 
         // Verify and extract username from reset token
         String username = verifyPasswordResetToken(resetToken);
         if (username == null) {
-            throw new BadRequestException("Invalid or expired reset token");
+            throw new BadRequestException("auth.password.reset.token.invalid");
         }
 
         // Find user
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new BadRequestException("User not found"));
+                .orElseThrow(() -> new BadRequestException("user.notfound"));
 
         // Validate password strength
         validatePasswordStrength(newPassword);
@@ -350,7 +350,7 @@ public class PasswordRecoveryService {
      */
     private void validatePasswordStrength(String password) {
         if (password.length() < 8) {
-            throw new BadRequestException("Password must be at least 8 characters long");
+            throw new BadRequestException("auth.password.weak.length");
         }
 
         // Check for at least one letter and one number
@@ -358,7 +358,7 @@ public class PasswordRecoveryService {
         boolean hasDigit = password.chars().anyMatch(Character::isDigit);
 
         if (!hasLetter || !hasDigit) {
-            throw new BadRequestException("Password must contain at least one letter and one number");
+            throw new BadRequestException("auth.password.weak.complexity");
         }
 
         // Prevent common weak passwords
@@ -368,7 +368,7 @@ public class PasswordRecoveryService {
         );
 
         if (weakPasswords.contains(password.toLowerCase())) {
-            throw new BadRequestException("Password is too weak. Please choose a stronger password");
+            throw new BadRequestException("auth.password.weak.common");
         }
     }
 }

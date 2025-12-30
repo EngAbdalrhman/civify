@@ -1,5 +1,6 @@
 package com.app.civify.service.filter;
 
+import com.app.civify.service.i18n.MessageService;
 import com.app.civify.util.filter.FilterCriteria;
 import com.app.civify.util.filter.FilterGroup;
 import com.app.civify.util.filter.FilterOperation;
@@ -29,8 +30,13 @@ import java.util.List;
  * List<User> users = userRepository.findAll(spec);
  * </pre>
  */
+import lombok.RequiredArgsConstructor;
+
 @Service
+@RequiredArgsConstructor
 public class GenericFilterService {
+
+    private final MessageService messageService;
 
     /**
      * Build JPA Specification from FilterGroup
@@ -186,7 +192,7 @@ public class GenericFilterService {
                         cb.literal("english"), cb.literal(value.toString()))));
 
             default:
-                throw new IllegalArgumentException("Unsupported filter operation: " + operation);
+                throw new IllegalArgumentException(messageService.getMessage("filter.operation.unsupported", new Object[]{operation}));
         }
     }
 
@@ -227,12 +233,12 @@ public class GenericFilterService {
                     try {
                         return LocalDateTime.parse(str, DateTimeFormatter.ISO_DATE_TIME);
                     } catch (Exception e3) {
-                        throw new IllegalArgumentException("Cannot parse date: " + str);
+                        throw new IllegalArgumentException(messageService.getMessage("filter.date.parse.error", new Object[]{str}));
                     }
                 }
             }
         }
-        throw new IllegalArgumentException("Invalid date value: " + value);
+        throw new IllegalArgumentException(messageService.getMessage("filter.date.invalid", new Object[]{value}));
     }
 
     /**

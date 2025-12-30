@@ -24,6 +24,7 @@ public class PromoCodeServiceImpl extends CommonService implements PromoCodeServ
 
     private final PromoCodeRepository promoCodeRepository;
     private final com.app.civify.mapper.PromoCodeMapper promoCodeMapper;
+    private final com.app.civify.service.i18n.MessageService messageService;
 
     @Override
     public PagedResponse<PromoCodeDto> filterPromoCodes(InputDataModel inputData) {
@@ -50,18 +51,18 @@ public class PromoCodeServiceImpl extends CommonService implements PromoCodeServ
 
         // Validate code uniqueness
         if (promoCodeRepository.findByCodeAndActiveTrue(promoCode.getCode()).isPresent()) {
-            throw new BadRequestException("Active promo code '" + promoCode.getCode() + "' already exists");
+            throw new BadRequestException(messageService.getMessage("promo.exists", new Object[]{promoCode.getCode()}));
         }
 
         // Validate values
         if (promoCode.getDiscountValue() != null && promoCode.getDiscountValue().compareTo(BigDecimal.ZERO) < 0) {
-            throw new BadRequestException("Discount value cannot be negative");
+            throw new BadRequestException("promo.discount.negative");
         }
         if (promoCode.getMinimumPurchase() != null && promoCode.getMinimumPurchase().compareTo(BigDecimal.ZERO) < 0) {
-            throw new BadRequestException("Minimum purchase cannot be negative");
+            throw new BadRequestException("promo.minpurchase.negative");
         }
         if (promoCode.getUsageLimit() != null && promoCode.getUsageLimit() < 0) {
-            throw new BadRequestException("Usage limit cannot be negative");
+            throw new BadRequestException("promo.limit.negative");
         }
 
         // Set defaults
@@ -81,13 +82,13 @@ public class PromoCodeServiceImpl extends CommonService implements PromoCodeServ
         log.info("Updating promo code: {}", id);
 
         PromoCode existingPromo = promoCodeRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Promo code not found with ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(messageService.getMessage("promo.notfound", new Object[]{id})));
 
         // Update allowed fields
         if (updatedPromo.getCode() != null && !updatedPromo.getCode().equals(existingPromo.getCode())) {
             // Check uniqueness if code is changing
             if (promoCodeRepository.findByCodeAndActiveTrue(updatedPromo.getCode()).isPresent()) {
-                throw new BadRequestException("Active promo code '" + updatedPromo.getCode() + "' already exists");
+                throw new BadRequestException(messageService.getMessage("promo.exists", new Object[]{updatedPromo.getCode()}));
             }
             existingPromo.setCode(updatedPromo.getCode());
         }
@@ -100,19 +101,19 @@ public class PromoCodeServiceImpl extends CommonService implements PromoCodeServ
         }
         if (updatedPromo.getDiscountValue() != null) {
             if (updatedPromo.getDiscountValue().compareTo(BigDecimal.ZERO) < 0) {
-                throw new BadRequestException("Discount value cannot be negative");
+                throw new BadRequestException("promo.discount.negative");
             }
             existingPromo.setDiscountValue(updatedPromo.getDiscountValue());
         }
         if (updatedPromo.getMinimumPurchase() != null) {
             if (updatedPromo.getMinimumPurchase().compareTo(BigDecimal.ZERO) < 0) {
-                throw new BadRequestException("Minimum purchase cannot be negative");
+                throw new BadRequestException("promo.minpurchase.negative");
             }
             existingPromo.setMinimumPurchase(updatedPromo.getMinimumPurchase());
         }
         if (updatedPromo.getUsageLimit() != null) {
             if (updatedPromo.getUsageLimit() < 0) {
-                throw new BadRequestException("Usage limit cannot be negative");
+                throw new BadRequestException("promo.limit.negative");
             }
             existingPromo.setUsageLimit(updatedPromo.getUsageLimit());
         }
@@ -131,7 +132,7 @@ public class PromoCodeServiceImpl extends CommonService implements PromoCodeServ
     public PromoCode deactivatePromoCode(Long id) {
         log.info("Deactivating promo code: {}", id);
         PromoCode promoCode = promoCodeRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Promo code not found with ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(messageService.getMessage("promo.notfound", new Object[]{id})));
 
         promoCode.setActive(false);
         return promoCodeRepository.save(promoCode);
@@ -142,7 +143,7 @@ public class PromoCodeServiceImpl extends CommonService implements PromoCodeServ
     public void deletePromoCode(Long id) {
         log.info("Soft deleting promo code: {}", id);
         PromoCode promoCode = promoCodeRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Promo code not found with ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(messageService.getMessage("promo.notfound", new Object[]{id})));
 
         promoCode.setIsDeleted(true);
         promoCode.setActive(false); // Also deactivate it

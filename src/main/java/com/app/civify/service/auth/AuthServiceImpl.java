@@ -37,6 +37,7 @@ public class AuthServiceImpl implements AuthService {
     private final EmailVerificationService emailVerificationService;
     private final SubscriptionService subscriptionService;
     private final BloomFilterService bloomFilterService;
+    private final com.app.civify.service.i18n.MessageService messageService;
 
     @Value("${email.verification.enabled:true}")
     private boolean emailVerificationEnabled;
@@ -51,12 +52,12 @@ public class AuthServiceImpl implements AuthService {
 
         if (bloomFilterService.mightHaveUsername(req.getUsername())) {
             if (userRepository.findByUsername(req.getUsername()).isPresent()) {
-                throw new BadRequestException("Username already exists");
+                throw new BadRequestException("user.username.exists");
             }
         }
         if (bloomFilterService.mightHaveEmail(req.getEmail())) {
             if (userRepository.findByEmail(req.getEmail()).isPresent()) {
-                throw new BadRequestException("Email already exists");
+                throw new BadRequestException("user.email.exists");
             }
         }
 
@@ -87,7 +88,7 @@ public class AuthServiceImpl implements AuthService {
             log.info("User registered successfully: {}. Verification email sent.", req.getUsername());
             
             return AuthResponse.builder()
-                    .message("Registration successful! Please check your email to verify your account.")
+                    .message(messageService.getMessage("auth.register.verification.sent"))
                     .requires2FA(false)
                     .build();
         } else {
@@ -96,7 +97,7 @@ public class AuthServiceImpl implements AuthService {
             log.info("User registered successfully: {}. Auto-verified (dev mode).", req.getUsername());
             
             return AuthResponse.builder()
-                    .message("Registration successful! You can now login.")
+                    .message(messageService.getMessage("auth.register.success"))
                     .requires2FA(false)
                     .build();
         }
@@ -112,12 +113,12 @@ public class AuthServiceImpl implements AuthService {
         // Validate that either username or email is provided, but not both
         if ((req.getUsername() == null || req.getUsername().trim().isEmpty())
                 && (req.getEmail() == null || req.getEmail().trim().isEmpty())) {
-            throw new BadRequestException("Either username or email must be provided");
+            throw new BadRequestException("auth.login.identifier.missing");
         }
 
         if (req.getUsername() != null && !req.getUsername().trim().isEmpty()
                 && req.getEmail() != null && !req.getEmail().trim().isEmpty()) {
-            throw new BadRequestException("Provide either username OR email, not both");
+            throw new BadRequestException("auth.login.identifier.multiple");
         }
 
         // Determine login identifier (username or email)
@@ -130,19 +131,19 @@ public class AuthServiceImpl implements AuthService {
         // Find user by username or email
         User user = req.getUsername() != null && !req.getUsername().trim().isEmpty()
                 ? userRepository.findByUsername(req.getUsername())
-                        .orElseThrow(() -> new BadRequestException("Invalid username or password"))
+                        .orElseThrow(() -> new BadRequestException("auth.login.failed"))
                 : userRepository.findByEmail(req.getEmail())
-                        .orElseThrow(() -> new BadRequestException("Invalid email or password"));
+                        .orElseThrow(() -> new BadRequestException("auth.login.failed"));
 
         // Verify password manually since we need to handle both username and email login
         if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
-            throw new BadRequestException("Invalid username/email or password");
+            throw new BadRequestException("auth.login.failed");
         }
 
         // Check if email is verified (only if verification is enabled)
         if (emailVerificationEnabled && !user.getIsEmailVerified()) {
             log.warn("Login attempt with unverified email: {}", user.getUsername());
-            throw new BadRequestException("Please verify your email before logging in. Check your inbox for verification link.");
+            throw new BadRequestException("auth.login.unverified");
         }
 
         // Update last login time
@@ -156,7 +157,7 @@ public class AuthServiceImpl implements AuthService {
             log.info("2FA OTP sent to user: {}", user.getUsername());
 
             return AuthResponse.builder()
-                    .message("OTP sent to your email. Please verify to complete login.")
+                    .message(messageService.getMessage("auth.otp.sent"))
                     .requires2FA(true)
                     .build();
         }
@@ -182,11 +183,11 @@ public class AuthServiceImpl implements AuthService {
         log.info("Verifying OTP for user: {}", username);
 
         if (!otpService.verify(username, code)) {
-            throw new BadRequestException("Invalid or expired OTP");
+            throw new BadRequestException("auth.otp.invalid");
         }
 
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new BadRequestException("User not found"));
+                .orElseThrow(() -> new BadRequestException("user.notfound"));
 
         // Update last login time
         user.setLastLoginAt(java.time.LocalDateTime.now());
@@ -214,7 +215,7 @@ public class AuthServiceImpl implements AuthService {
 
         String username = tokenService.extractUsername(refreshToken);
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new BadRequestException("User not found"));
+                .orElseThrow(() -> new BadRequestException("user.notfound"));
 
         // Generate new token pair (refresh token rotation)
         TokenService.AuthTokenPair tokens = tokenService.refreshAccessToken(refreshToken, user);
@@ -253,7 +254,7 @@ public class AuthServiceImpl implements AuthService {
         log.info("Enabling 2FA for user: {}", username);
 
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new BadRequestException("User not found"));
+                .orElseThrow(() -> new BadRequestException("user.notfound"));
 
         user.setTwoFactorEnabled(true);
         userRepository.save(user);
@@ -270,7 +271,7 @@ public class AuthServiceImpl implements AuthService {
         log.info("Disabling 2FA for user: {}", username);
 
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new BadRequestException("User not found"));
+                .orElseThrow(() -> new BadRequestException("user.notfound"));
 
         user.setTwoFactorEnabled(false);
         userRepository.save(user);
@@ -287,18 +288,18 @@ public class AuthServiceImpl implements AuthService {
     public void changePassword(ChangePasswordRequest request) {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null) {
-            throw new BadRequestException("User not authenticated");
+            throw new BadRequestException("auth.user.notauthenticated");
         }
         
         String username = auth.getName();
         log.info("Password change request for user: {}", username);
 
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new BadRequestException("User not found"));
+                .orElseThrow(() -> new BadRequestException("user.notfound"));
 
         // Verify current password
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
-            throw new BadRequestException("Current password is incorrect");
+            throw new BadRequestException("auth.password.current.incorrect");
         }
 
         // Update password

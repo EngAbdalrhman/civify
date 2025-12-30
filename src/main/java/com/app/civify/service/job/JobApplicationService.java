@@ -36,7 +36,7 @@ public class JobApplicationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Job application not found"));
 
         if (!application.getUser().getId().equals(currentUser.getId())) {
-            throw new ResourceNotFoundException("Job application not found");
+            throw new ResourceNotFoundException("job.application.notfound");
         }
 
         return mapToResponse(application);
@@ -68,7 +68,7 @@ public class JobApplicationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Job application not found"));
 
         if (!application.getUser().getId().equals(currentUser.getId())) {
-            throw new ResourceNotFoundException("Job application not found");
+            throw new ResourceNotFoundException("job.application.notfound");
         }
 
         if (request.getCvId() != null) application.setCvId(request.getCvId());
@@ -91,7 +91,7 @@ public class JobApplicationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Job application not found"));
 
         if (!application.getUser().getId().equals(currentUser.getId())) {
-            throw new ResourceNotFoundException("Job application not found");
+            throw new ResourceNotFoundException("job.application.notfound");
         }
 
         jobApplicationRepository.delete(application);
