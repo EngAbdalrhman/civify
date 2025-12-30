@@ -42,6 +42,7 @@ public class PasswordRecoveryService {
     private final OtpService otpService;
     private final TokenService tokenService;
     private final PasswordEncoder passwordEncoder;
+    private final PermissionsEncryptionService permissionsEncryptionService;
     private final JwtUtil jwtUtil;
     private final EmailService emailService;
     private final CacheService cacheService;
@@ -238,10 +239,10 @@ public class PasswordRecoveryService {
 
         if (user.getGroup() == null) {
             log.warn("User {} has no group assigned", username);
-            // Return empty permission token for users without groups
-            String emptyToken = jwtUtil.generatePermissionToken(username, List.of(), "NONE");
             return PermissionsResponse.builder()
-                    .permissionToken(emptyToken)
+                    .permissions(List.of())
+                    .permissionToken("")
+                    .groupName("NONE")
                     .build();
         }
 
@@ -256,11 +257,13 @@ public class PasswordRecoveryService {
                 .map(Permission::getName)
                 .collect(Collectors.toList());
 
-        // Generate JWT permission token - frontend decodes this to get permissions
+        // Generate JWT permission token instead of AES encryption
         String permissionToken = jwtUtil.generatePermissionToken(username, permissionNames, group.getName());
 
         return PermissionsResponse.builder()
+                .permissions(permissionNames)
                 .permissionToken(permissionToken)
+                .groupName(group.getName())
                 .build();
     }
 
