@@ -1,7 +1,5 @@
 package com.app.civify.security;
 
-import com.app.civify.config.properties.AppProperties;
-import com.app.civify.config.properties.SecurityProperties;
 import com.app.civify.security.authenticationProvider.JWTAuthenticationProvider;
 import com.app.civify.security.filter.JWTAuthenticationFilter;
 import com.app.civify.security.filter.JWTRefreshFilter;
@@ -42,12 +40,17 @@ public class SecurityConfig {
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
     private final RateLimitFilter rateLimitFilter;
 
-    private final AppProperties appProperties;
-    private final SecurityProperties securityProperties;
+    @Value("${app.frontend.base-url}")
+    private String frontendUrl;
 
     @Value("${payment.fawaterak.base-url}")
     private String paymentGateway;
+    
+    @Value("${refresh.token.secure}")
+    private Boolean secureToken;
 
+    @Value("${email.verification.enabled:true}")
+    private Boolean emailVerificationEnabled;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -79,12 +82,7 @@ public class SecurityConfig {
 
 
         // Authentication filter responsible for login
-        JWTAuthenticationFilter jwtAuthFilter = new JWTAuthenticationFilter(
-            authenticationManager, 
-            jwtUtil, 
-            securityProperties.getRefreshTokenSecure(), 
-            securityProperties.getEmailVerificationEnabled()
-        );
+        JWTAuthenticationFilter jwtAuthFilter = new JWTAuthenticationFilter(authenticationManager, jwtUtil, secureToken, emailVerificationEnabled);
 
         // Validation filter for checking JWT in every request
         JwtValidationFilter jwtValidationFilter = new JwtValidationFilter(authenticationManager);
@@ -138,7 +136,7 @@ public class SecurityConfig {
                             String errorMessage = exception.getMessage() != null 
                                 ? exception.getMessage() 
                                 : "OAuth login failed";
-                            String targetUrl = appProperties.getFrontend().getBaseUrl() + "/auth/callback?error=" + 
+                            String targetUrl = frontendUrl + "/auth/callback?error=" + 
                                 java.net.URLEncoder.encode(errorMessage, java.nio.charset.StandardCharsets.UTF_8);
                             response.sendRedirect(targetUrl);
                         })
@@ -152,11 +150,7 @@ public class SecurityConfig {
     @Bean
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
         org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
-        configuration.setAllowedOrigins(java.util.List.of(
-            appProperties.getFrontend().getBaseUrl(),
-            "http://localhost:3000", 
-            paymentGateway
-        ));
+        configuration.setAllowedOrigins(java.util.List.of(frontendUrl,"http://localhost:3000", paymentGateway));
         configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(java.util.List.of("*"));
         configuration.setExposedHeaders(java.util.List.of("Authorization", "Set-Cookie"));
