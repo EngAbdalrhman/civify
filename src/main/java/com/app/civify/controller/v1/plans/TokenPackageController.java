@@ -81,24 +81,26 @@ public class TokenPackageController {
 
     // ============ ADMIN ENDPOINTS ============
 
+    // ============ ADMIN ENDPOINTS ============
+
     @Operation(
             summary = "List all token packages (Admin)",
-            description = "Retrieve all token packages including inactive ones. Requires MANAGE.PLAN permission.",
+            description = "Retrieve all token packages including inactive ones. Requires TOKEN_PACKAGE.VIEW permission.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @GetMapping("/packages/all")
-    @CivifyAuthorization(permission = "PLAN.VIEW")
+    @CivifyAuthorization(permission = "TOKEN_PACKAGE.VIEW")
     public ResponseEntity<List<TokenPackage>> getAllPackages() {
         return ResponseEntity.ok(tokenPackageService.getAllPackages());
     }
 
     @Operation(
             summary = "Get token package by ID (Admin)",
-            description = "Retrieve a specific token package by ID. Requires MANAGE.PLAN permission.",
+            description = "Retrieve a specific token package by ID. Requires TOKEN_PACKAGE.VIEW permission.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @GetMapping("/packages/{id}")
-    @CivifyAuthorization(permission = "PLAN.VIEW")
+    @CivifyAuthorization(permission = "TOKEN_PACKAGE.VIEW")
     public ResponseEntity<TokenPackage> getPackageById(
             @Parameter(description = "ID of the package") @PathVariable Long id) {
         return ResponseEntity.ok(tokenPackageService.getPackageById(id));
@@ -106,22 +108,22 @@ public class TokenPackageController {
 
     @Operation(
             summary = "Create token package (Admin)",
-            description = "Create a new token package. Requires CREATE.PLAN permission.",
+            description = "Create a new token package. Requires TOKEN_PACKAGE.MODIFY permission.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @PostMapping("/packages")
-    @CivifyAuthorization(permission = "PLAN.MODIFY")
+    @CivifyAuthorization(permission = "TOKEN_PACKAGE.MODIFY")
     public ResponseEntity<TokenPackage> createPackage(@RequestBody TokenPackage tokenPackage) {
         return ResponseEntity.ok(tokenPackageService.createPackage(tokenPackage));
     }
 
     @Operation(
             summary = "Update token package (Admin)",
-            description = "Update an existing token package. Requires MANAGE.PLAN permission.",
+            description = "Update an existing token package. Requires TOKEN_PACKAGE.MODIFY permission.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @PutMapping("/packages/{id}")
-    @CivifyAuthorization(permission = "PLAN.MODIFY")
+    @CivifyAuthorization(permission = "TOKEN_PACKAGE.MODIFY")
     public ResponseEntity<TokenPackage> updatePackage(
             @Parameter(description = "ID of the package to update") @PathVariable Long id,
             @RequestBody TokenPackage tokenPackage) {
@@ -130,11 +132,11 @@ public class TokenPackageController {
 
     @Operation(
             summary = "Deactivate token package (Admin)",
-            description = "Deactivate (soft delete) a token package. Requires MANAGE.PLAN permission.",
+            description = "Deactivate (soft delete) a token package. Requires TOKEN_PACKAGE.MODIFY permission.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @DeleteMapping("/packages/{id}")
-    @CivifyAuthorization(permission = "PLAN.MODIFY")
+    @CivifyAuthorization(permission = "TOKEN_PACKAGE.MODIFY")
     public ResponseEntity<Void> deactivatePackage(
             @Parameter(description = "ID of the package to deactivate") @PathVariable Long id) {
         tokenPackageService.deactivatePackage(id);

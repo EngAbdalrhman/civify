@@ -34,6 +34,11 @@ INSERT INTO permissions (name, description, category)
 SELECT 'API.ACCESS', 'Access Developer API', 'API'
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'API.ACCESS');
 
+-- User Stats Permissions
+INSERT INTO permissions (name, description, category)
+SELECT 'STATS.VIEW', 'View Personal Analytics and Usage Statistics', 'ANALYTICS'
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'STATS.VIEW');
+
 -- Admin
 INSERT INTO permissions (name, description, category)
 SELECT 'ADMIN.DASHBOARD.VIEW', 'View Admin Dashboard', 'ADMIN'
@@ -56,6 +61,15 @@ WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'PLAN.VIEW');
 INSERT INTO permissions (name, description, category)
 SELECT 'PLAN.MODIFY', 'Create/Edit Subscription Plans', 'ADMIN'
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'PLAN.MODIFY');
+
+-- Admin Token Package Permissions
+INSERT INTO permissions (name, description, category)
+SELECT 'TOKEN_PACKAGE.VIEW', 'View Token Packages', 'ADMIN'
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'TOKEN_PACKAGE.VIEW');
+
+INSERT INTO permissions (name, description, category)
+SELECT 'TOKEN_PACKAGE.MODIFY', 'Manage Token Packages', 'ADMIN'
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'TOKEN_PACKAGE.MODIFY');
 
 -- Admin Subscription Permissions
 INSERT INTO permissions (name, description, category)
@@ -93,9 +107,6 @@ INSERT INTO permissions (name, description, category)
 SELECT 'NOTIF.SEND', 'Send Push Notifications', 'ADMIN'
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'NOTIF.SEND');
 
-INSERT INTO permissions (name, description, category)
-SELECT 'NOTIF.RECEIVE', 'Receive Notifications', 'USER'
-WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'NOTIF.RECEIVE');
 
 -- User Subscription Permissions
 INSERT INTO permissions (name, description, category)
@@ -124,10 +135,10 @@ INSERT INTO permissions (name, description, category)
 SELECT 'API.KEY.REVOKE', 'Revoke API Keys', 'API'
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'API.KEY.REVOKE');
 
--- Stats Admin Permission
+-- Admin Platform Stats Permission
 INSERT INTO permissions (name, description, category)
-SELECT 'STATS.VIEW', 'View Platform Statistics Dashboard', 'ADMIN'
-WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'STATS.VIEW');
+SELECT 'ADMIN_STATS.VIEW', 'View Platform-wide Statistics Dashboard (Admin)', 'ADMIN'
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'ADMIN_STATS.VIEW');
 
 -- API Usage Admin Permission
 INSERT INTO permissions (name, description, category)
@@ -191,7 +202,7 @@ AND NOT EXISTS (
 
 INSERT INTO group_permissions (group_id, permission_id)
 SELECT g.id, p.id FROM groups g, permissions p
-WHERE g.name = 'Free User' AND p.name = 'NOTIF.RECEIVE'
+WHERE g.name = 'Free User' AND p.name = 'STATS.VIEW'
 AND NOT EXISTS (
     SELECT 1 FROM group_permissions gp WHERE gp.group_id = g.id AND gp.permission_id = p.id
 );

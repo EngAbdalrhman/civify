@@ -41,7 +41,7 @@ public class ApiUsageLogController {
             description = "Retrieves API usage logs for the authenticated user, auto-filtered by current month",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
-    @CivifyAuthorization(permission = "CV.CREATE")
+    @CivifyAuthorization(permission = "API.ACCESS")
     @PostMapping("/my-logs/filter")
     public ResponseEntity<CommonResponse<PagedResponse<ApiKeyUsageLogDTO>>> getMyLogs(
             @AuthenticationPrincipal UserPrincipal userPrincipal,

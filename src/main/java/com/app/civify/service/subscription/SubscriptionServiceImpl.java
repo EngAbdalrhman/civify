@@ -335,7 +335,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             
             return PaymentInitiationResponse.builder()
                     .paymentKey(transactionId)
-                    .paymentUrl("/app/dashboard") // Redirect to dashboard
+                    .paymentUrl("/app/") // Redirect to dashboard
                     .orderId(transactionId)
                     .subscriptionId(subscription.getId())
                     .amount(BigDecimal.ZERO)
