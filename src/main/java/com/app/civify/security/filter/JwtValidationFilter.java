@@ -24,17 +24,12 @@ public class JwtValidationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
 
         String token = extractJwtFromRequest(request);
-        if (token != null && !token.isEmpty()) {
-            try {
-                JwtAuthenticationToken authenticationToken = new JwtAuthenticationToken(token);
-                Authentication authResult = authenticationManager.authenticate(authenticationToken);
-                if(authResult.isAuthenticated()) {
-                    SecurityContextHolder.getContext().setAuthentication(authResult);
-                }
-            } catch (Exception e) {
-                // Log but don't fail - let security config handle permitAll vs authenticated
-                // This allows public endpoints to work even if an invalid token is present
-                logger.debug("JWT authentication failed, proceeding without authentication: " + e.getMessage());
+        if (token != null) {
+
+            JwtAuthenticationToken authenticationToken = new JwtAuthenticationToken(token);
+            Authentication authResult = authenticationManager.authenticate(authenticationToken);
+            if(authResult.isAuthenticated()) {
+                SecurityContextHolder.getContext().setAuthentication(authResult);
             }
         }
 
