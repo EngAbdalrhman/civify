@@ -50,5 +50,11 @@ public class CvParseRequest {
      */
     @Builder.Default
     private boolean piiOnly = false;
+
+    /**
+     * Optional user-provided template to guide the parsing structure.
+     * Must be a valid JSON or YAML string.
+     */
+    private String userTemplate;
 }
 

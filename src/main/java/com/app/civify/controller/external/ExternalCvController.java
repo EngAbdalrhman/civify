@@ -1,16 +1,10 @@
 package com.app.civify.controller.external;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
-import com.app.civify.dto.document.CvParseRequest;
 import com.app.civify.dto.document.CvParseResponse;
-import com.app.civify.dto.document.MaskRequest;
-import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.entity.User;
 import com.app.civify.security.UserPrincipal;
-import com.app.civify.service.cvlog.CvOperationLogService;
-import com.app.civify.service.document.CvParsingService;
-import com.app.civify.service.document.masking.MaskingService;
-import com.app.civify.service.document.pdf.PdfGenerationService;
+import com.app.civify.service.external.ExternalCvService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,10 +26,7 @@ import org.springframework.web.multipart.MultipartFile;
 @Tag(name = "External CV API", description = "Endpoints for external developers using API Keys")
 public class ExternalCvController {
 
-    private final CvParsingService cvParsingService;
-    private final MaskingService maskingService;
-    private final PdfGenerationService pdfGenerationService;
-    private final CvOperationLogService cvOperationLogService;
+    private final ExternalCvService externalCvService;
 
     @Operation(
             summary = "Mask CV (External)",
@@ -48,106 +39,43 @@ public class ExternalCvController {
             @RequestParam(value = "language", required = false) String language,
             HttpServletRequest httpRequest) {
         
-        long startTime = System.currentTimeMillis();
-        User user = getCurrentUser();
-        ResumeData originalResumeData = null;
-        
         try {
-            // 1. Parse
-            long parseStart = System.currentTimeMillis();
-            var parseRequest = CvParseRequest.builder()
-                    .language(language)
-                    .saveToDatabase(false)
-                    .piiOnly(true) // Optimization: Only extract PII for masking
-                    .build();
-            
-            var parseResponse = cvParsingService.parseCv(file, parseRequest, null);
-            long parseTime = System.currentTimeMillis() - parseStart;
-            
-            if (!parseResponse.isSuccess() || parseResponse.getResumeData() == null) {
-                long processingTime = System.currentTimeMillis() - startTime;
-                cvOperationLogService.logMask(
-                        user, null, "/api/v1/external/cvs/mask", processingTime,
-                        false, "Failed to parse CV",
-                        getClientIp(httpRequest), httpRequest.getHeader("User-Agent"),
-                        file.getOriginalFilename()
-                );
-                return ResponseEntity.badRequest().body(null);
-            }
-            
-            originalResumeData = parseResponse.getResumeData();
-
-            // 2. Mask
-            long maskStart = System.currentTimeMillis();
-            var maskRequest = MaskRequest.builder().build();
-            var maskedData = maskingService.maskResumeData(parseResponse.getResumeData(), maskRequest);
-            long maskTime = System.currentTimeMillis() - maskStart;
-
-            // 3. Generate PDF
-            long pdfStart = System.currentTimeMillis();
-            byte[] pdfBytes = pdfGenerationService.generatePdf(maskedData, "modern");
-            long pdfTime = System.currentTimeMillis() - pdfStart;
-
-            long totalTime = System.currentTimeMillis() - startTime;
-            log.info("External Mask API Timing: Total=" + totalTime + "ms, Parse=" + parseTime + "ms, Mask=" + maskTime + "ms, PDF=" + pdfTime + "ms");
-
-            // Log successful operation
-            cvOperationLogService.logMask(
-                    user, originalResumeData, "/api/v1/external/cvs/mask", totalTime,
-                    true, null,
-                    getClientIp(httpRequest), httpRequest.getHeader("User-Agent"),
-                    file.getOriginalFilename()
-            );
-
+            byte[] pdfBytes = externalCvService.maskCv(file, language, getCurrentUser(), httpRequest);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"masked_cv.pdf\"")
                     .contentType(MediaType.APPLICATION_PDF)
                     .body(pdfBytes);
-
         } catch (Exception e) {
-            long processingTime = System.currentTimeMillis() - startTime;
-            cvOperationLogService.logMask(
-                    user, originalResumeData, "/api/v1/external/cvs/mask", processingTime,
-                    false, e.getMessage(),
-                    getClientIp(httpRequest), httpRequest.getHeader("User-Agent"),
-                    file.getOriginalFilename()
-            );
             return ResponseEntity.internalServerError().build();
         }
     }
 
     @Operation(
             summary = "Parse CV (External)",
-            description = "Upload a CV to extract structured data. Requires X-API-KEY header.",
+            description = "Upload a CV to extract structured data. Requires X-API-KEY header. Optional 'userTemplate' as a file part (JSON/YAML) to define output structure.",
             security = @SecurityRequirement(name = "api-key")
     )
     @PostMapping(value = "/parse", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<CvParseResponse> parseCv(
             @RequestPart("file") MultipartFile file,
             @RequestParam(value = "language", required = false) String language,
+            @RequestPart(value = "userTemplate", required = false) String userTemplate,
             HttpServletRequest httpRequest) {
         
-        long startTime = System.currentTimeMillis();
-        User user = getCurrentUser();
-        
-        var request = CvParseRequest.builder()
-                .language(language)
-                .saveToDatabase(false)
-                .build();
-
-        CvParseResponse response = cvParsingService.parseCv(file, request, null);
-        
-        long processingTime = System.currentTimeMillis() - startTime;
-        
-        // Log the operation
-        cvOperationLogService.logParse(
-                user, response.getResumeData(), "/api/v1/external/cvs/parse", processingTime,
-                response.isSuccess(), response.isSuccess() ? null : response.getMessage(),
-                getClientIp(httpRequest), httpRequest.getHeader("User-Agent"),
-                file.getOriginalFilename(), language
-        );
-
-        return ResponseEntity.ok(response);
+        try {
+            CvParseResponse response = externalCvService.parseCv(file, language, userTemplate, getCurrentUser(), httpRequest);
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+             return ResponseEntity.badRequest().body(CvParseResponse.builder()
+                     .success(false)
+                     .message(e.getMessage())
+                     .build());
+        } catch (Exception e) {
+             return ResponseEntity.internalServerError().body(CvParseResponse.builder()
+                     .success(false)
+                     .message("Internal Server Error: " + e.getMessage())
+                     .build());
+        }
     }
 
     private User getCurrentUser() {
@@ -156,14 +84,6 @@ public class ExternalCvController {
             return ((UserPrincipal) authentication.getPrincipal()).getUser();
         }
         return null;
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String xfHeader = request.getHeader("X-Forwarded-For");
-        if (xfHeader == null || xfHeader.isEmpty()) {
-            return request.getRemoteAddr();
-        }
-        return xfHeader.split(",")[0].trim();
     }
 }
 
