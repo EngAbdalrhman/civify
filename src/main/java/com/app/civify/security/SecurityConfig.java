@@ -107,6 +107,8 @@ public class SecurityConfig {
                         .requestMatchers("/v1/payments/webhook/**", "/payments/webhook/**").permitAll() // Allow payment webhooks
                         // Guest CV operations (SaaS trial)
                         .requestMatchers("/v1/cvs/upload", "/v1/cvs/tailor").permitAll()
+                        // Newsletter (Public)
+                        .requestMatchers("/api/v1/newsletter/**").permitAll()
                         // External API endpoints (handled by ApiKeyAuthenticationFilter)
                         .requestMatchers("/api/v1/external/**").permitAll()
                         // Admin endpoints
