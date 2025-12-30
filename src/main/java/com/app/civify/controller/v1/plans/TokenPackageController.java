@@ -7,6 +7,8 @@ import com.app.civify.entity.plans.TokenPackage;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.security.annotation.CivifyAuthorization;
 import com.app.civify.service.plans.TokenPackageService;
+import com.app.civify.util.security.EntityType;
+import com.app.civify.util.security.IdEncodingUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -25,6 +27,7 @@ import java.util.List;
 public class TokenPackageController {
 
     private final TokenPackageService tokenPackageService;
+    private final IdEncodingUtil idEncodingUtil;
 
     // ============ USER ENDPOINTS ============
 
@@ -56,12 +59,13 @@ public class TokenPackageController {
     )
     @PostMapping("/purchase/{packageId}")
     public ResponseEntity<PaymentCreationResult> purchasePackage(
-            @Parameter(description = "ID of the package to purchase")
-            @PathVariable Long packageId,
+            @Parameter(description = "Encoded ID of the package to purchase")
+            @PathVariable String packageId,
             @RequestParam(required = false) String promoCode,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
         Long userId = userPrincipal.getId();
-        return ResponseEntity.ok(tokenPackageService.purchasePackage(userId, packageId, promoCode));
+        Long decodedPackageId = idEncodingUtil.decode(packageId, EntityType.TOKEN_PACKAGE);
+        return ResponseEntity.ok(tokenPackageService.purchasePackage(userId, decodedPackageId, promoCode));
     }
 
     @Operation(
@@ -71,15 +75,14 @@ public class TokenPackageController {
     )
     @GetMapping("/purchase/{packageId}/preview")
     public ResponseEntity<com.app.civify.dto.payment.PurchasePreviewResponse> previewPurchase(
-            @Parameter(description = "ID of the package")
-            @PathVariable Long packageId,
+            @Parameter(description = "Encoded ID of the package")
+            @PathVariable String packageId,
             @RequestParam(required = false) String promoCode,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
         Long userId = userPrincipal.getId();
-        return ResponseEntity.ok(tokenPackageService.previewTokenPurchase(userId, packageId, promoCode));
+        Long decodedPackageId = idEncodingUtil.decode(packageId, EntityType.TOKEN_PACKAGE);
+        return ResponseEntity.ok(tokenPackageService.previewTokenPurchase(userId, decodedPackageId, promoCode));
     }
-
-    // ============ ADMIN ENDPOINTS ============
 
     // ============ ADMIN ENDPOINTS ============
 
@@ -102,8 +105,9 @@ public class TokenPackageController {
     @GetMapping("/packages/{id}")
     @CivifyAuthorization(permission = "TOKEN_PACKAGE.VIEW")
     public ResponseEntity<TokenPackage> getPackageById(
-            @Parameter(description = "ID of the package") @PathVariable Long id) {
-        return ResponseEntity.ok(tokenPackageService.getPackageById(id));
+            @Parameter(description = "Encoded ID of the package") @PathVariable String id) {
+        Long decodedId = idEncodingUtil.decode(id, EntityType.TOKEN_PACKAGE);
+        return ResponseEntity.ok(tokenPackageService.getPackageById(decodedId));
     }
 
     @Operation(
@@ -125,9 +129,10 @@ public class TokenPackageController {
     @PutMapping("/packages/{id}")
     @CivifyAuthorization(permission = "TOKEN_PACKAGE.MODIFY")
     public ResponseEntity<TokenPackage> updatePackage(
-            @Parameter(description = "ID of the package to update") @PathVariable Long id,
+            @Parameter(description = "Encoded ID of the package to update") @PathVariable String id,
             @RequestBody TokenPackage tokenPackage) {
-        return ResponseEntity.ok(tokenPackageService.updatePackage(id, tokenPackage));
+        Long decodedId = idEncodingUtil.decode(id, EntityType.TOKEN_PACKAGE);
+        return ResponseEntity.ok(tokenPackageService.updatePackage(decodedId, tokenPackage));
     }
 
     @Operation(
@@ -138,8 +143,9 @@ public class TokenPackageController {
     @DeleteMapping("/packages/{id}")
     @CivifyAuthorization(permission = "TOKEN_PACKAGE.MODIFY")
     public ResponseEntity<Void> deactivatePackage(
-            @Parameter(description = "ID of the package to deactivate") @PathVariable Long id) {
-        tokenPackageService.deactivatePackage(id);
+            @Parameter(description = "Encoded ID of the package to deactivate") @PathVariable String id) {
+        Long decodedId = idEncodingUtil.decode(id, EntityType.TOKEN_PACKAGE);
+        tokenPackageService.deactivatePackage(decodedId);
         return ResponseEntity.noContent().build();
     }
 }

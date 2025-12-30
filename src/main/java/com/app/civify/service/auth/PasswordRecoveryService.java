@@ -241,7 +241,7 @@ public class PasswordRecoveryService {
             log.warn("User {} has no group assigned", username);
             return PermissionsResponse.builder()
                     .permissions(List.of())
-                    .encryptedPermissions("")
+                    .permissionToken("")
                     .groupName("NONE")
                     .build();
         }
@@ -257,12 +257,12 @@ public class PasswordRecoveryService {
                 .map(Permission::getName)
                 .collect(Collectors.toList());
 
-        // Encrypt permissions
-        String encryptedPermissions = permissionsEncryptionService.encryptPermissions(permissions);
+        // Generate JWT permission token instead of AES encryption
+        String permissionToken = jwtUtil.generatePermissionToken(username, permissionNames, group.getName());
 
         return PermissionsResponse.builder()
                 .permissions(permissionNames)
-                .encryptedPermissions(encryptedPermissions)
+                .permissionToken(permissionToken)
                 .groupName(group.getName())
                 .build();
     }
