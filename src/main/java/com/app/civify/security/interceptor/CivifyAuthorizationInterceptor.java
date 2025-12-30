@@ -1,26 +1,26 @@
 package com.app.civify.security.interceptor;
-
 import com.app.civify.entity.User;
+import com.app.civify.entity.security.Group;
+import com.app.civify.entity.security.Permission;
+import com.app.civify.repository.security.GroupRepository;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.security.annotation.CivifyAuthorization;
-import com.app.civify.service.auth.PermissionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.context.annotation.Lazy;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
+import java.util.List;
+
 @Component
+@RequiredArgsConstructor
 public class CivifyAuthorizationInterceptor implements HandlerInterceptor {
 
-    private final PermissionService permissionService;
-
-    public CivifyAuthorizationInterceptor(@Lazy PermissionService permissionService) {
-        this.permissionService = permissionService;
-    }
+    private final GroupRepository groupRepository;
 
     @Override
     public boolean preHandle(HttpServletRequest request,
@@ -59,8 +59,14 @@ public class CivifyAuthorizationInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        // Check dynamic permissions via PermissionService
-        boolean hasPermission = permissionService.hasPermission(user, requiredPermission);
+        Group group = groupRepository.findByIdWithPermissions(user.getGroup().getId())
+                .orElseThrow(() -> new RuntimeException("Group not found"));
+
+        List<Permission> permissions = group.getPermissions();
+        // Get permissions of the user's group
+        boolean hasPermission = permissions
+                .stream()
+                .anyMatch(p -> p.getName().equalsIgnoreCase(requiredPermission));
 
         if (!hasPermission) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN,
