@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * Response DTO for user permissions endpoint
- * Contains plain permissions and a JWT-signed token for verification
+ * Contains both plain and encrypted permission lists
  * 
  * @author Abdalrhman Mostafa
  * @since 1.0.0
@@ -22,16 +22,15 @@ public class PermissionsResponse {
     
     /**
      * Plain list of permission names for frontend use
-     * Example: ["CV.CREATE", "CV.EXPORT.PDF", "STATS.VIEW"]
+     * Example: ["cv.create", "cv.update", "plan.view"]
      */
     private List<String> permissions;
     
     /**
-     * JWT-signed permission token for secure verification
-     * Frontend can decode this to verify permissions haven't been tampered with
-     * Contains: permissions list, groupName, username, expiry (24 hours)
+     * AES-256 encrypted and Base64 encoded permissions
+     * Provides additional security layer and prevents client-side tampering
      */
-    private String permissionToken;
+    private String encryptedPermissions;
     
     /**
      * User's group name for reference

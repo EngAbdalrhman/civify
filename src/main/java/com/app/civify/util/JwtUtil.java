@@ -1,8 +1,6 @@
 package com.app.civify.util;
 
 import com.app.civify.entity.User;
-import java.util.List;
-
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -175,46 +173,6 @@ public class JwtUtil {
                     .getSubject();
         } catch (JwtException | IllegalArgumentException e) {
             return null; // Invalid or expired JWT
-        }
-    }
-
-    /**
-     * Generate a signed JWT token containing user permissions
-     * Used for secure permission transfer to frontend
-     * 
-     * @param username User's username
-     * @param permissions List of permission names
-     * @param groupName User's group name
-     * @return Signed JWT token (24 hour expiry)
-     */
-    public String generatePermissionToken(String username, List<String> permissions, String groupName) {
-        return Jwts.builder()
-                .setSubject(username)
-                .claim("permissions", permissions)
-                .claim("groupName", groupName)
-                .claim("type", "permission")
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + 24 * 60 * 60 * 1000)) // 24 hours
-                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
-                .compact();
-    }
-
-    /**
-     * Extract permissions from a permission token
-     * @param token Permission JWT token
-     * @return List of permissions, or null if invalid
-     */
-    @SuppressWarnings("unchecked")
-    public List<String> extractPermissionsFromToken(String token) {
-        try {
-            Claims claims = extractAllClaims(token);
-            String type = claims.get("type", String.class);
-            if (!"permission".equals(type)) {
-                return null;
-            }
-            return claims.get("permissions", List.class);
-        } catch (Exception e) {
-            return null;
         }
     }
 }
