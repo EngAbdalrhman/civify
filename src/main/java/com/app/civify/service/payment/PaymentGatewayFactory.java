@@ -16,6 +16,7 @@ public class PaymentGatewayFactory {
 
     private final Map<String, PaymentGateway> gateways;
     private final PaymentGateway nullGateway = new NullPaymentGateway();
+
     @Value("${payment.default.gateway:fawaterak}")
     private String defaultGateway;
 
@@ -53,6 +54,5 @@ public class PaymentGatewayFactory {
     public boolean isAvailable(String gatewayName) {
         return gateways.containsKey(gatewayName);
     }
-
 
 }

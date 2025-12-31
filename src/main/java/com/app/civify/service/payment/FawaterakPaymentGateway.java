@@ -498,9 +498,9 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     private Map<String, String> buildRedirectionUrls() {
         Map<String, String> urls = new HashMap<>();
         // Include gateway parameter to help frontend identify the payment gateway
-        urls.put("successUrl", successUrl + "?gateway=fawaterak");
-        urls.put("failUrl", failUrl + "?gateway=fawaterak");
-        urls.put("pendingUrl", pendingUrl + "?gateway=fawaterak");
+        urls.put("successUrl", successUrl);
+        urls.put("failUrl", failUrl);
+        urls.put("pendingUrl", pendingUrl);
         return urls;
     }
 }
