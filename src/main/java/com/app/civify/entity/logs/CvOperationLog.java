@@ -36,7 +36,7 @@ public class CvOperationLog {
     /**
      * User performing the operation. Nullable for guest users.
      */
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id")
     private User user;
 

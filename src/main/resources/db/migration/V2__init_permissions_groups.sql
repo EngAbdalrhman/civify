@@ -111,6 +111,10 @@ INSERT INTO permissions (name, description, category)
 SELECT 'NEWSLETTER.BROADCAST', 'Broadcast Emails to Subscribers', 'ADMIN'
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'NEWSLETTER.BROADCAST');
 
+INSERT INTO permissions (name, description, category)
+SELECT 'LOGS.CV', 'View CV Operation Logs', 'ADMIN'
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'LOGS.CV');
+
 
 -- User Subscription Permissions
 INSERT INTO permissions (name, description, category)
