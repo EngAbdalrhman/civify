@@ -2,6 +2,7 @@ package com.app.civify.service.notification;
 
 import com.app.civify.entity.Notification;
 import com.app.civify.entity.User;
+import com.app.civify.entity.enums.NotificationType;
 import com.app.civify.repository.NotificationRepository;
 import com.app.civify.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -50,7 +51,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Async
     @Transactional
-    public void sendToAll(String title, String message, com.app.civify.entity.enums.NotificationType type) {
+    public void sendToAll(String title, String message, NotificationType type) {
         log.info("📢 Broadcasting notification to ALL users: [{}] {}", type, title);
 
         try {
@@ -79,7 +80,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Async
     @Transactional
-    public void sendToUser(Long userId, String title, String message, com.app.civify.entity.enums.NotificationType type) {
+    public void sendToUser(Long userId, String title, String message, NotificationType type) {
         sendToUser(userId, title, message, type, null, null);
     }
 
@@ -89,7 +90,7 @@ public class NotificationServiceImpl implements NotificationService {
      * @param idempotencyKey Unique key to prevent duplicates (e.g., "payment_order_123_success")
      */
     @Transactional
-    public void sendToUser(Long userId, String title, String message, com.app.civify.entity.enums.NotificationType type, 
+    public void sendToUser(Long userId, String title, String message, NotificationType type,
                           String idempotencyKey, Map<String, Object> metadata) {
         log.info("📬 Sending notification to user {}: [{}] {}", userId, type, title);
 
@@ -131,7 +132,7 @@ public class NotificationServiceImpl implements NotificationService {
      * Schedule notification for future delivery
      */
     @Transactional
-    public void scheduleNotification(Long userId, String title, String message, String type, 
+    public void scheduleNotification(Long userId, String title, String message, NotificationType type,
                                     LocalDateTime scheduledFor) {
         User user = userId != null ? userRepository.findById(userId).orElse(null) : null;
 

@@ -105,14 +105,11 @@ public class SecurityConfig {
                         .requestMatchers("/v1/subscriptions/**", "/subscriptions/**").permitAll() // Allow public access to plans
                         .requestMatchers("/v1/payments/config", "/payments/config").permitAll() // Allow public access to payment config
                         .requestMatchers("/v1/payments/webhook/**", "/payments/webhook/**").permitAll() // Allow payment webhooks
-                        // Guest CV operations (SaaS trial)
-                        .requestMatchers("/v1/cvs/upload", "/v1/cvs/tailor").permitAll()
                         // Newsletter (Public)
-                        .requestMatchers("/api/v1/newsletter/**").permitAll()
+                        .requestMatchers("/v1/newsletter/**").permitAll()
                         // External API endpoints (handled by ApiKeyAuthenticationFilter)
-                        .requestMatchers("/api/v1/external/**").permitAll()
+                        .requestMatchers("/v1/external/**").permitAll()
                         // Admin endpoints
-                        // Admin endpoints - Protected by Method Security / CivifyAuthorization
                         .requestMatchers("/v1/admin/**").authenticated()
                         .anyRequest().authenticated()
                 )
