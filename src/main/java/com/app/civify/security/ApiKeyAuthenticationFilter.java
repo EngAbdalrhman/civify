@@ -68,12 +68,22 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             
             SecurityContextHolder.getContext().setAuthentication(authentication);
             
-            // Proceed with request
             filterChain.doFilter(request, response);
             
-            // Log success after request is processed
-            log.info("ApiKeyFilter: Logging usage for user: {}", apiKey.getUser().getEmail());
-            apiKeyService.logUsage(apiKey.getUser(), apiKey, path, request.getMethod(), response.getStatus(), true, getClientIp(request), null);
+            int status = response.getStatus();
+            boolean success = status >= 200 && status < 400;
+            
+            String errorMessage = (String) request.getAttribute("API_ERROR_MESSAGE");
+            if (!success && errorMessage == null) {
+                errorMessage = "HTTP Error " + status;
+            }
+
+            log.info("ApiKeyFilter: Logging usage for user: {}. Status: {}, Success: {}", 
+                    apiKey.getUser().getEmail(), status, success);
+            
+            apiKeyService.logUsage(apiKey.getUser(), apiKey, path, request.getMethod(), 
+                    status, success, getClientIp(request), errorMessage);
+            
             log.info("ApiKeyFilter: Usage logged successfully");
 
         } catch (Exception e) {

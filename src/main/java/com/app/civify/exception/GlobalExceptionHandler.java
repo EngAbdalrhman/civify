@@ -10,6 +10,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.WebRequest;
 
 import com.app.civify.service.i18n.MessageService;
@@ -57,19 +58,31 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Helper to set error message request attribute for logging
+     */
+    private void setErrorMessageAttribute(WebRequest request, String message) {
+        request.setAttribute("API_ERROR_MESSAGE", message, RequestAttributes.SCOPE_REQUEST);
+    }
+
+    /**
      * Handle service exceptions
      */
     @ExceptionHandler(ServiceException.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ResponseEntity<CommonResponse<Void>> handleServiceException(ServiceException ex, WebRequest request) {
         String requestId = getRequestId(request);
+        String localizedMessage = getLocalizedMessage(ex.getMessage());
+        
+        // Capture error for API logging
+        setErrorMessageAttribute(request, localizedMessage);
+        
         log.error("SERVICE_EXCEPTION | requestId={} | message={} | stackTrace={}",
                 requestId, ex.getMessage(), ex);
 
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .header("X-Request-ID", requestId)
-                .body(CommonResponse.error(getLocalizedMessage(ex.getMessage())));
+                .body(CommonResponse.error(localizedMessage));
     }
 
     /**
@@ -79,13 +92,18 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ResponseEntity<CommonResponse<Void>> handleException(Exception ex, WebRequest request) {
         String requestId = getRequestId(request);
+        String errorMessage = messageService.getMessage("error.unknown");
+        
+        // Capture error for API logging
+        setErrorMessageAttribute(request, errorMessage + ": " + ex.getMessage());
+        
         log.error("UNEXPECTED_EXCEPTION | requestId={} | message={} | stackTrace={}",
                 requestId, ex.getMessage(), ex);
 
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .header("X-Request-ID", requestId)
-                .body(CommonResponse.error(messageService.getMessage("error.unknown")));
+                .body(CommonResponse.error(errorMessage));
     }
 
     /**
@@ -95,12 +113,16 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ResponseEntity<CommonResponse<Void>> handleEntityNotFoundException(EntityNotFoundException ex, WebRequest request) {
         String requestId = getRequestId(request);
+        String localizedMessage = getLocalizedMessage(ex.getMessage());
+        
+        setErrorMessageAttribute(request, localizedMessage);
+        
         log.warn("ENTITY_NOT_FOUND | requestId={} | message={}", requestId, ex.getMessage());
 
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
                 .header("X-Request-ID", requestId)
-                .body(CommonResponse.error(getLocalizedMessage(ex.getMessage())));
+                .body(CommonResponse.error(localizedMessage));
     }
 
     /**
@@ -108,12 +130,14 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ResourceNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ResponseEntity<CommonResponse<Void>> handleResourceNotFoundException(ResourceNotFoundException ex) {
+    public ResponseEntity<CommonResponse<Void>> handleResourceNotFoundException(ResourceNotFoundException ex, WebRequest request) {
         log.warn("Resource not found: {}", ex.getMessage());
 
         String errorMessage = ex.getMessage() != null && !ex.getMessage().isEmpty()
                 ? getLocalizedMessage(ex.getMessage())
                 : messageService.getMessage("common.notfound");
+                
+        setErrorMessageAttribute(request, errorMessage);
 
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
@@ -125,12 +149,15 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ResourceAlreadyExistsException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
-    public ResponseEntity<CommonResponse<Void>> handleResourceAlreadyExistsException(ResourceAlreadyExistsException ex) {
+    public ResponseEntity<CommonResponse<Void>> handleResourceAlreadyExistsException(ResourceAlreadyExistsException ex, WebRequest request) {
         log.warn("Resource already exists: {}", ex.getMessage());
+        
+        String localizedMessage = getLocalizedMessage(ex.getMessage());
+        setErrorMessageAttribute(request, localizedMessage);
 
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
-                .body(CommonResponse.error(getLocalizedMessage(ex.getMessage())));
+                .body(CommonResponse.error(localizedMessage));
     }
 
     /**
@@ -138,12 +165,15 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ResponseEntity<CommonResponse<Void>> handleIllegalArgumentException(IllegalArgumentException ex) {
+    public ResponseEntity<CommonResponse<Void>> handleIllegalArgumentException(IllegalArgumentException ex, WebRequest request) {
         log.warn("Illegal argument: {}", ex.getMessage());
+        
+        String localizedMessage = getLocalizedMessage(ex.getMessage());
+        setErrorMessageAttribute(request, localizedMessage);
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(CommonResponse.error(getLocalizedMessage(ex.getMessage())));
+                .body(CommonResponse.error(localizedMessage));
     }
 
     /**
@@ -151,12 +181,15 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(BadRequestException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ResponseEntity<CommonResponse<Void>> handleBadRequestException(BadRequestException ex) {
+    public ResponseEntity<CommonResponse<Void>> handleBadRequestException(BadRequestException ex, WebRequest request) {
         log.warn("Bad request: {}", ex.getMessage());
+        
+        String localizedMessage = getLocalizedMessage(ex.getMessage());
+        setErrorMessageAttribute(request, localizedMessage);
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(CommonResponse.error(getLocalizedMessage(ex.getMessage())));
+                .body(CommonResponse.error(localizedMessage));
     }
 
     /**
@@ -171,6 +204,8 @@ public class GlobalExceptionHandler {
         String errorMessage = ex.getMessage() != null && !ex.getMessage().isEmpty()
                 ? getLocalizedMessage(ex.getMessage())
                 : messageService.getMessage("common.unauthorized");
+                
+        setErrorMessageAttribute(request, errorMessage);
 
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
@@ -184,7 +219,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ResponseEntity<CommonResponse<Map<String, String>>> handleMethodArgumentNotValidException(
-            MethodArgumentNotValidException ex) {
+            MethodArgumentNotValidException ex, WebRequest request) {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach((error) -> {
             String fieldName = ((FieldError) error).getField();
@@ -193,6 +228,8 @@ public class GlobalExceptionHandler {
         });
 
         log.warn("Validation failed: {}", errors);
+        
+        setErrorMessageAttribute(request, messageService.getMessage("validation.failed"));
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
@@ -204,7 +241,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ValidationException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ResponseEntity<CommonResponse<Map<String, String>>> handleValidationException(ValidationException ex) {
+    public ResponseEntity<CommonResponse<Map<String, String>>> handleValidationException(ValidationException ex, WebRequest request) {
         log.warn("Custom validation failed: {}", ex.getErrors());
 
         // Translate each error message
@@ -212,10 +249,13 @@ public class GlobalExceptionHandler {
         if (ex.getErrors() != null) {
             ex.getErrors().forEach((key, value) -> localizedErrors.put(key, getLocalizedMessage(value)));
         }
+        
+        String localizedMessage = getLocalizedMessage(ex.getMessage());
+        setErrorMessageAttribute(request, localizedMessage);
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(CommonResponse.error(getLocalizedMessage(ex.getMessage()), localizedErrors));
+                .body(CommonResponse.error(localizedMessage, localizedErrors));
     }
 
     /**
@@ -223,12 +263,15 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(AuthorizationException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
-    public ResponseEntity<CommonResponse<Void>> handleAuthorizationException(AuthorizationException ex) {
+    public ResponseEntity<CommonResponse<Void>> handleAuthorizationException(AuthorizationException ex, WebRequest request) {
         log.warn("Authorization exception: {}", ex.getMessage());
+        
+        String localizedMessage = getLocalizedMessage(ex.getMessage());
+        setErrorMessageAttribute(request, localizedMessage);
 
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
-                .body(CommonResponse.error(getLocalizedMessage(ex.getMessage())));
+                .body(CommonResponse.error(localizedMessage));
     }
 
     /**
@@ -237,12 +280,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(com.app.civify.exception.EntityNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ResponseEntity<CommonResponse<Void>> handleCustomEntityNotFoundException(
-            com.app.civify.exception.EntityNotFoundException ex) {
+            com.app.civify.exception.EntityNotFoundException ex, WebRequest request) {
         log.warn("Custom entity not found: {}", ex.getMessage());
+        
+        String localizedMessage = getLocalizedMessage(ex.getMessage());
+        setErrorMessageAttribute(request, localizedMessage);
 
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
-                .body(CommonResponse.error(getLocalizedMessage(ex.getMessage())));
+                .body(CommonResponse.error(localizedMessage));
     }
 
     /**
