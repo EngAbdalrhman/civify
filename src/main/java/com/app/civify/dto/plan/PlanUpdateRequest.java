@@ -30,6 +30,18 @@ public class PlanUpdateRequest {
     
     private Boolean active;
     
+    // Linked group
+    private Long linkedGroupId;
+    
+    // Billing restrictions
+    private Boolean allowAnnualBilling;
+    private Boolean renewalAllowed;
+    private Integer maxBillingCycles;
+    
+    // Display settings
+    private Boolean isFeatured;
+    private Integer sortOrder;
+    
     // New enhanced fields
     @Valid
     private List<FeatureLimitRequest> features;

@@ -75,6 +75,21 @@ public class SubscriptionPlan extends BaseEntity {
     @Column
     private Integer maxBillingCycles;
 
+    // ==================== DISPLAY SETTINGS ====================
+    /**
+     * Whether this plan is featured/highlighted in the UI.
+     */
+    @Column
+    @ColumnDefault("false")
+    private Boolean isFeatured = false;
+
+    /**
+     * Sort order for displaying plans (lower numbers first).
+     */
+    @Column
+    @ColumnDefault("0")
+    private Integer sortOrder = 0;
+
     // ==================== NEW RELATIONSHIPS ====================
     /**
      * Features included in this plan with their limits

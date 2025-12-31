@@ -78,6 +78,15 @@ public class AdminPlanUseCaseImpl extends CommonService implements AdminPlanUseC
         plan.setAnnualPrice(request.getAnnualPrice());
         plan.setActive(request.getActive());
 
+        // Billing restrictions
+        if (request.getAllowAnnualBilling() != null) plan.setAllowAnnualBilling(request.getAllowAnnualBilling());
+        if (request.getRenewalAllowed() != null) plan.setRenewalAllowed(request.getRenewalAllowed());
+        if (request.getMaxBillingCycles() != null) plan.setMaxBillingCycles(request.getMaxBillingCycles());
+        
+        // Display settings
+        if (request.getIsFeatured() != null) plan.setIsFeatured(request.getIsFeatured());
+        if (request.getSortOrder() != null) plan.setSortOrder(request.getSortOrder());
+
         if (request.getLinkedGroupId() != null) {
             Group linkedGroup = groupRepository.findById(request.getLinkedGroupId())
                     .orElseThrow(() -> new ResourceNotFoundException(
@@ -112,6 +121,23 @@ public class AdminPlanUseCaseImpl extends CommonService implements AdminPlanUseC
         if (request.getMonthlyPrice() != null) updatedPlan.setMonthlyPrice(request.getMonthlyPrice());
         if (request.getAnnualPrice() != null) updatedPlan.setAnnualPrice(request.getAnnualPrice());
         if (request.getActive() != null) updatedPlan.setActive(request.getActive());
+        
+        // Billing restrictions
+        if (request.getAllowAnnualBilling() != null) updatedPlan.setAllowAnnualBilling(request.getAllowAnnualBilling());
+        if (request.getRenewalAllowed() != null) updatedPlan.setRenewalAllowed(request.getRenewalAllowed());
+        if (request.getMaxBillingCycles() != null) updatedPlan.setMaxBillingCycles(request.getMaxBillingCycles());
+        
+        // Display settings
+        if (request.getIsFeatured() != null) updatedPlan.setIsFeatured(request.getIsFeatured());
+        if (request.getSortOrder() != null) updatedPlan.setSortOrder(request.getSortOrder());
+        
+        // Linked group
+        if (request.getLinkedGroupId() != null) {
+            Group linkedGroup = groupRepository.findById(request.getLinkedGroupId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Group not found: " + request.getLinkedGroupId()));
+            updatedPlan.setLinkedGroup(linkedGroup);
+        }
 
         SubscriptionPlan updated = subscriptionService.updatePlan(planId, updatedPlan);
         

@@ -36,6 +36,19 @@ public class PlanDetailResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     
+    // Billing restrictions
+    private Boolean allowAnnualBilling;
+    private Boolean renewalAllowed;
+    private Integer maxBillingCycles;
+    
+    // Display settings
+    private Boolean isFeatured;
+    private Integer sortOrder;
+    
+    // Linked group
+    private Long linkedGroupId;
+    private String linkedGroupName;
+    
     // New enhanced fields
     private List<FeatureLimitDTO> features;
     private List<PricingDTO> pricingOptions;

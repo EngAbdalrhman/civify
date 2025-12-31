@@ -33,6 +33,17 @@ public class PlanMapper {
                 .active(plan.getActive())
                 .createdAt(plan.getCreatedAt())
                 .updatedAt(plan.getUpdatedAt())
+                // Billing restrictions
+                .allowAnnualBilling(plan.getAllowAnnualBilling())
+                .renewalAllowed(plan.getRenewalAllowed())
+                .maxBillingCycles(plan.getMaxBillingCycles())
+                // Display settings
+                .isFeatured(plan.getIsFeatured())
+                .sortOrder(plan.getSortOrder())
+                // Linked group
+                .linkedGroupId(plan.getLinkedGroup() != null ? plan.getLinkedGroup().getId() : null)
+                .linkedGroupName(plan.getLinkedGroup() != null ? plan.getLinkedGroup().getName() : null)
+                // Collections
                 .features(toFeatureLimitDTOs(plan.getFeatureLimits()))
                 .pricingOptions(toPricingDTOs(plan.getPricingOptions()))
                 .discounts(toDiscountDTOs(plan.getDiscounts()))
