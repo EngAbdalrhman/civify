@@ -48,14 +48,14 @@ public class AdminNotificationController {
     public static class NotificationRequest {
         private String title;
         private String message;
-        private String type; // e.g., INFO, WARNING, PROMO
+        private com.app.civify.entity.enums.NotificationType type; // e.g., INFO, WARNING, PROMO
     }
 
     @Data
     public static class SendToUsersRequest {
         private String title;
         private String message;
-        private String type;
+        private com.app.civify.entity.enums.NotificationType type;
         private List<Long> userIds;
     }
 }

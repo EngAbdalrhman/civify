@@ -9,6 +9,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import com.app.civify.entity.enums.NotificationType;
+
 import java.time.LocalDateTime;
 import java.util.Map;
 
@@ -39,7 +41,7 @@ public class Notification {
      * NULL = broadcast to all users
      * NOT NULL = send to specific user only
      */
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id")
     private User user;
 
@@ -49,8 +51,9 @@ public class Notification {
     @Column(nullable = false, length = 1000)
     private String message;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
-    private String type; // INFO, SUCCESS, WARNING, ERROR, PROMO, SYSTEM
+    private NotificationType type;
 
     /**
      * Delivery tracking to prevent duplicates.

@@ -39,7 +39,7 @@ public class NewsletterController {
     @CivifyAuthorization(permission = "NEWSLETTER.BROADCAST")
     @Operation(summary = "Broadcast newsletter to all subscribers", security = @SecurityRequirement(name = "bearer-key"))
     public ResponseEntity<?> broadcast(@Valid @RequestBody NewsletterBroadcastRequest request) {
-        newsletterService.broadcastEmail(request.getSubject(), request.getContent());
+        newsletterService.broadcastEmail(request.getSubject(), request.getContent(), request.isHtml());
         return ResponseEntity.ok(Map.of("message", "Broadcast initiated successfully"));
     }
 

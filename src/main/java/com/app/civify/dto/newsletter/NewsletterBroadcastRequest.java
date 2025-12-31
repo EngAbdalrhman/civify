@@ -17,4 +17,7 @@ public class NewsletterBroadcastRequest {
 
     @NotBlank(message = "Content is required")
     private String content;
+
+    @Builder.Default
+    private boolean isHtml = false;
 }

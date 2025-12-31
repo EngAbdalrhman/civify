@@ -34,6 +34,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     private final FawaterakClient fawaterakClient;
     private final PaymentRepository paymentRepository;
     private final ObjectMapper objectMapper;
+    private final com.app.civify.service.notification.NotificationService notificationService;
 
     @Value("${payment.fawaterak.api-key:}")
     private String apiKey;
@@ -260,6 +261,13 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                     result.setSuccess(true);
                     result.setMessage("PAYMENT_COMPLETED");
                     log.info("✅ Payment COMPLETED for invoice {}", invoiceId);
+                    
+                    try {
+                        notificationService.sendToUser(transaction.getUserId(), "Payment Successful", 
+                                "Your payment was successful and your plan is active.", com.app.civify.entity.enums.NotificationType.SYSTEM);
+                    } catch (Exception ex) {
+                        log.error("Failed to send payment success notification: {}", ex.getMessage());
+                    }
                 }
                 case "failed", "declined", "cancelled" -> {
                     transaction.setStatus(PaymentStatus.FAILED);

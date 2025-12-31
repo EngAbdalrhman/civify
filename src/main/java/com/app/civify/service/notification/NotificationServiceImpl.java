@@ -50,7 +50,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Async
     @Transactional
-    public void sendToAll(String title, String message, String type) {
+    public void sendToAll(String title, String message, com.app.civify.entity.enums.NotificationType type) {
         log.info("📢 Broadcasting notification to ALL users: [{}] {}", type, title);
 
         try {
@@ -79,7 +79,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Async
     @Transactional
-    public void sendToUser(Long userId, String title, String message, String type) {
+    public void sendToUser(Long userId, String title, String message, com.app.civify.entity.enums.NotificationType type) {
         sendToUser(userId, title, message, type, null, null);
     }
 
@@ -89,7 +89,7 @@ public class NotificationServiceImpl implements NotificationService {
      * @param idempotencyKey Unique key to prevent duplicates (e.g., "payment_order_123_success")
      */
     @Transactional
-    public void sendToUser(Long userId, String title, String message, String type, 
+    public void sendToUser(Long userId, String title, String message, com.app.civify.entity.enums.NotificationType type, 
                           String idempotencyKey, Map<String, Object> metadata) {
         log.info("📬 Sending notification to user {}: [{}] {}", userId, type, title);
 
