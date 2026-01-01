@@ -1,8 +1,8 @@
-name: Deploy to Dokploy
+name: Deploy Prod to Dokploy
 
 on:
   push:
-    branches: [ "Staging" ]
+    branches: [ "Production" ]
   workflow_dispatch:
 
 env:
