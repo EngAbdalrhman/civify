@@ -21,11 +21,11 @@ public class NewsletterSubscriber {
     private UUID id;
 
     @Column(nullable = false, unique = true)
-    private String email;
+    String email;
 
     @Column(nullable = false)
     @Builder.Default
-    private boolean active = true;
+    boolean active = true;
 
     @CreationTimestamp
     @Column(updatable = false)
