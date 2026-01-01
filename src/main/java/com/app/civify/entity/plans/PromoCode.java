@@ -48,7 +48,7 @@ public class PromoCode extends BaseEntity {
      * What this promo can be applied to: PLAN, TOKEN, or ALL
      */
     @Enumerated(EnumType.STRING)
-    @ColumnDefault("ALL")
+    @ColumnDefault("'ALL'")
     @Column(nullable = false)
     private PromoApplicabilityType applicabilityType = PromoApplicabilityType.ALL;
 
