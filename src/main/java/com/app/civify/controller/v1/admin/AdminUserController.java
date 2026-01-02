@@ -30,7 +30,6 @@ import jakarta.validation.Valid;
 @RequestMapping("/admin/users")
 @RequiredArgsConstructor
 @Tag(name = "Admin User Management", description = "Admin endpoints for user management and filtering")
-// @PreAuthorize("hasAuthority('ROLE_ADMIN')") - Removed in favor of Granular Permissions
 public class AdminUserController {
 
     private final AdminUserUseCase adminUserUseCase;
