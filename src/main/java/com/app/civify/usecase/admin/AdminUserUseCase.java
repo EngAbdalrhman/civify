@@ -14,4 +14,6 @@ public interface AdminUserUseCase {
     UserResponseDTO getUserByIdWithStats(Long userId);
 
     UserResponseDTO updateUserLimits(Long userId, Integer cvLimit);
+
+    UserResponseDTO toggleAccountLock(Long userId);
 }

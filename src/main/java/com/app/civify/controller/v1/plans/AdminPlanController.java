@@ -89,6 +89,31 @@ public class AdminPlanController {
     }
 
     @Operation(
+            summary = "Get plan lookup list",
+            description = "Retrieves simple plan list (id, name) for filter dropdowns. Admin only.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "200",
+                description = "Plan lookup list retrieved successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = com.app.civify.dto.plan.PlanLookupDto.class))
+        )
+    })
+    @com.app.civify.security.annotation.CivifyAuthorization(permission = "PLAN.VIEW")
+    @GetMapping("/lookup")
+    public ResponseEntity<List<com.app.civify.dto.plan.PlanLookupDto>> getPlanLookup() {
+        log.info("Fetching plan lookup list for filters");
+        List<com.app.civify.dto.plan.PlanLookupDto> lookup = adminPlanUseCase.getAllPlans().stream()
+                .map(plan -> com.app.civify.dto.plan.PlanLookupDto.builder()
+                        .id(plan.getId())
+                        .name(plan.getName())
+                        .build())
+                .toList();
+        return ResponseEntity.ok(lookup);
+    }
+
+    @Operation(
             summary = "Get plan with subscription statistics",
             description = "Retrieves a plan with full details and active subscription count. Admin only.",
             security = @SecurityRequirement(name = "bearer-jwt")

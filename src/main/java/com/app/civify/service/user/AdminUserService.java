@@ -48,5 +48,13 @@ public interface AdminUserService {
      * @return Updated user DTO
      */
     UserResponseDTO updateUserLimits(Long userId, Integer cvLimit);
+
+    /**
+     * Toggle user account lock status (ban/unban)
+     * 
+     * @param userId User ID
+     * @return Updated user DTO
+     */
+    UserResponseDTO toggleAccountLock(Long userId);
 }
 
