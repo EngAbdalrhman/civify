@@ -107,6 +107,11 @@ public class User extends BaseEntity implements Serializable {
     @Column(name = "extra_tokens", nullable = false)
     private Integer extraTokens = 0;
 
+    // Account lock status (for admin ban/unban)
+    @Builder.Default
+    @Column(name = "account_locked", nullable = false)
+    private Boolean accountLocked = false;
+
     // Relationships
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnore
@@ -118,7 +123,7 @@ public class User extends BaseEntity implements Serializable {
     }
 
     public boolean isAccountNonLocked() {
-        return !isDeleted;
+        return !Boolean.TRUE.equals(accountLocked);
     }
 
     public boolean isCredentialsNonExpired() {

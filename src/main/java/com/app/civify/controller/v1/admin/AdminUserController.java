@@ -144,5 +144,32 @@ public class AdminUserController {
 
         return ResponseEntity.ok(CommonResponse.success("User limits updated successfully", userDTO));
     }
+
+    @Operation(
+            summary = "Toggle user account lock",
+            description = "Toggles the account lock status (ban/unban) for a user. Admin only.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+                responseCode = "200",
+                description = "Account lock status toggled successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))
+        ),
+        @ApiResponse(
+                responseCode = "404",
+                description = "User not found",
+                content = @Content(mediaType = "application/json")
+        )
+    })
+    @CivifyAuthorization(permission = "USER.MODIFY")
+    @PatchMapping("/{userId}/toggle-lock")
+    public ResponseEntity<CommonResponse<UserResponseDTO>> toggleAccountLock(@PathVariable Long userId) {
+        log.info("Admin toggling account lock for user {}", userId);
+
+        UserResponseDTO userDTO = adminUserUseCase.toggleAccountLock(userId);
+
+        return ResponseEntity.ok(CommonResponse.success("Account lock status toggled successfully", userDTO));
+    }
 }
 

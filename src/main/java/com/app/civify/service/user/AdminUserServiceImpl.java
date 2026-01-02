@@ -162,4 +162,20 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
         
         return getUserByIdWithStats(savedUser.getId());
     }
+
+    @Override
+    @Transactional
+    public UserResponseDTO toggleAccountLock(Long userId) {
+        log.info("Toggling account lock for user {}", userId);
+        
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + userId));
+        
+        user.setAccountLocked(!Boolean.TRUE.equals(user.getAccountLocked()));
+        
+        User savedUser = userRepository.save(user);
+        log.info("User {} account locked status: {}", userId, savedUser.getAccountLocked());
+        
+        return userCustomeMapper.toResponseDTO(savedUser);
+    }
 }
