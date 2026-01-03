@@ -166,15 +166,20 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
     @Override
     @Transactional
     public UserResponseDTO toggleAccountLock(Long userId) {
-        log.info("Toggling account lock for user {}", userId);
+        log.info("Toggling account status for user {}", userId);
         
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + userId));
         
-        user.setAccountLocked(!Boolean.TRUE.equals(user.getAccountLocked()));
+        // Toggle between ACTIVE and DISABLED
+        if (user.getStatus() == com.app.civify.entity.enums.UserStatus.ACTIVE) {
+            user.setStatus(com.app.civify.entity.enums.UserStatus.DISABLED);
+        } else {
+            user.setStatus(com.app.civify.entity.enums.UserStatus.ACTIVE);
+        }
         
         User savedUser = userRepository.save(user);
-        log.info("User {} account locked status: {}", userId, savedUser.getAccountLocked());
+        log.info("User {} status changed to: {}", userId, savedUser.getStatus());
         
         return userCustomeMapper.toResponseDTO(savedUser);
     }

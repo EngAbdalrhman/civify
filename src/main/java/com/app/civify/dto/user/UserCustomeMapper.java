@@ -40,7 +40,7 @@ public class UserCustomeMapper {
                 .createdBy(user.getCreatedBy())
                 .updatedBy(user.getUpdatedBy())
                 .isDeleted(user.getIsDeleted())
-                .accountLocked(user.getAccountLocked())
+                .status(user.getStatus() != null ? user.getStatus().name() : "ACTIVE")
                 .build();
     }
     
