@@ -1,6 +1,7 @@
 package com.app.civify.entity;
 
 
+import com.app.civify.entity.enums.UserStatus;
 import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.entity.security.Group;
 import com.app.civify.entity.utils.BaseEntity;
@@ -101,16 +102,15 @@ public class User extends BaseEntity implements Serializable {
     @JoinColumn(name = "group_id")
     private Group group;
 
-    // Token wallet - purchased tokens that never expire
     @Builder.Default
     @ColumnDefault("0")
     @Column(name = "extra_tokens", nullable = false)
     private Integer extraTokens = 0;
 
-    // Account lock status (for admin ban/unban)
     @Builder.Default
-    @Column(name = "account_locked", nullable = false)
-    private Boolean accountLocked = false;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private UserStatus status = UserStatus.ACTIVE;
 
     // Relationships
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
@@ -123,7 +123,7 @@ public class User extends BaseEntity implements Serializable {
     }
 
     public boolean isAccountNonLocked() {
-        return !Boolean.TRUE.equals(accountLocked);
+        return status == com.app.civify.entity.enums.UserStatus.ACTIVE;
     }
 
     public boolean isCredentialsNonExpired() {

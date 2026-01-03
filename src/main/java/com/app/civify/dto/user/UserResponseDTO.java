@@ -85,8 +85,8 @@ public class UserResponseDTO {
     @Schema(description = "Soft delete flag", example = "false")
     private Boolean isDeleted;
 
-    @Schema(description = "Account locked/banned flag", example = "false")
-    private Boolean accountLocked;
+    @Schema(description = "User account status", example = "ACTIVE")
+    private String status;
     
     // Statistics (for admin)
     @Schema(description = "Number of active subscriptions", example = "1")
