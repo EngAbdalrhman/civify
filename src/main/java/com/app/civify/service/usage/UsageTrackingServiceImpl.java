@@ -4,7 +4,6 @@ import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.entity.enums.CvGenerationType;
 import com.app.civify.entity.enums.SubscriptionStatus;
 import com.app.civify.exception.BadRequestException;
-import com.app.civify.repository.resume.CvRepository;
 import com.app.civify.repository.resume.ResumeRepository;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
 import com.app.civify.service.i18n.MessageService;
@@ -15,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Implementation of usage tracking service
- * Tracks CV generation and stored CVs against subscription limits
+ * Tracks CV generation and stored resumes against subscription limits
  */
 @Service
 @RequiredArgsConstructor
@@ -23,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class UsageTrackingServiceImpl implements UsageTrackingService {
 
     private final UserSubscriptionRepository subscriptionRepository;
-    private final CvRepository cvRepository;
     private final ResumeRepository resumeRepository;
     private final MessageService messageService;
 
@@ -38,18 +36,8 @@ public class UsageTrackingServiceImpl implements UsageTrackingService {
 
     @Override
     public boolean canStoreCv(Long userId) {
-        UserSubscription subscription = getActiveSubscription(userId);
-        if (subscription == null) {
-            return false;
-        }
-
-        Integer cvLimit = subscription.getPlan().getCvLimit();
-        if (cvLimit == null) {
-            return true; // Unlimited
-        }
-
-        long storedCount = cvRepository.countByUserId(userId);
-        return storedCount < cvLimit;
+        // Delegate to canStoreResume since we now only track Resume entities
+        return canStoreResume(userId);
     }
 
     @Override
@@ -64,7 +52,6 @@ public class UsageTrackingServiceImpl implements UsageTrackingService {
             return true; // Unlimited
         }
 
-        // Count resumes from ResumeRepository (injected separately)
         long storedCount = resumeRepository.countByUserId(userId);
         return storedCount < cvLimit;
     }
@@ -106,7 +93,7 @@ public class UsageTrackingServiceImpl implements UsageTrackingService {
         }
 
         Integer cvLimit = subscription.getPlan().getCvLimit();
-        long storedCvCount = cvRepository.countByUserId(userId);
+        long storedResumeCount = resumeRepository.countByUserId(userId);
 
         return UsageStats.builder()
                 .subscriptionId(subscription.getId())
@@ -115,19 +102,18 @@ public class UsageTrackingServiceImpl implements UsageTrackingService {
                 .uiCvCount(subscription.getCurrentCvCount())
                 .uiCvLimit(cvLimit)
                 .uiCvRemaining(cvLimit != null ? Math.max(0, cvLimit - subscription.getCurrentCvCount()) : null)
-                .storedCvCount(storedCvCount)
+                .storedCvCount(storedResumeCount)
                 .storedCvLimit(cvLimit)
-                .storedCvRemaining(cvLimit != null ? Math.max(0, cvLimit - storedCvCount) : null)
+                .storedCvRemaining(cvLimit != null ? Math.max(0, cvLimit - storedResumeCount) : null)
                 .usageResetDate(subscription.getUsageResetDate())
                 .build();
     }
 
     @Override
     public long getStoredCvCount(Long userId, CvGenerationType generationType) {
-        if (generationType == null) {
-            return cvRepository.countByUserId(userId);
-        }
-        return cvRepository.countByUserIdAndGenerationType(userId, generationType);
+        // Since we removed Cv entity, we just count resumes
+        // The generationType parameter is kept for interface compatibility but ignored
+        return resumeRepository.countByUserId(userId);
     }
 
     /**
@@ -141,3 +127,4 @@ public class UsageTrackingServiceImpl implements UsageTrackingService {
                 .orElse(null);
     }
 }
+
