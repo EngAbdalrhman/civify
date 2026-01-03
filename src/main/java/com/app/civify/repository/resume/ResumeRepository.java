@@ -11,4 +11,5 @@ import java.util.Optional;
 public interface ResumeRepository extends JpaRepository<Resume, String> {
     List<Resume> findByUserId(Long userId);
     Optional<Resume> findByIdAndUserId(String id, Long userId);
+    long countByUserId(Long userId);
 }

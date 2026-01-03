@@ -43,7 +43,7 @@ public interface SubscriptionService {
     PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway);
 
     // Usage tracking
-    boolean canUserUseFeature(Long userId, String feature); // CV, API, WATERMARK, DASHBOARD
+    boolean canUserUseFeature(Long userId, String feature); // CV, WATERMARK
 
     boolean canUserUseTokens(Long userId, int tokensNeeded);
 

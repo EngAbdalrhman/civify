@@ -5,7 +5,9 @@ import com.app.civify.entity.enums.CvGenerationType;
 import com.app.civify.entity.enums.SubscriptionStatus;
 import com.app.civify.exception.BadRequestException;
 import com.app.civify.repository.resume.CvRepository;
+import com.app.civify.repository.resume.ResumeRepository;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
+import com.app.civify.service.i18n.MessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,7 +24,8 @@ public class UsageTrackingServiceImpl implements UsageTrackingService {
 
     private final UserSubscriptionRepository subscriptionRepository;
     private final CvRepository cvRepository;
-    private final com.app.civify.service.i18n.MessageService messageService;
+    private final ResumeRepository resumeRepository;
+    private final MessageService messageService;
 
     @Override
     public boolean canGenerateUiCv(Long userId) {
@@ -46,6 +49,23 @@ public class UsageTrackingServiceImpl implements UsageTrackingService {
         }
 
         long storedCount = cvRepository.countByUserId(userId);
+        return storedCount < cvLimit;
+    }
+
+    @Override
+    public boolean canStoreResume(Long userId) {
+        UserSubscription subscription = getActiveSubscription(userId);
+        if (subscription == null) {
+            return false;
+        }
+
+        Integer cvLimit = subscription.getPlan().getCvLimit();
+        if (cvLimit == null) {
+            return true; // Unlimited
+        }
+
+        // Count resumes from ResumeRepository (injected separately)
+        long storedCount = resumeRepository.countByUserId(userId);
         return storedCount < cvLimit;
     }
 
