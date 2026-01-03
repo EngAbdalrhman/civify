@@ -23,6 +23,13 @@ public interface UsageTrackingService {
     boolean canStoreCv(Long userId);
 
     /**
+     * Check if user can store more resumes (against cvLimit feature limit)
+     * @param userId User ID
+     * @return true if within limit
+     */
+    boolean canStoreResume(Long userId);
+
+    /**
      * Increment UI CV generation counter
      * @param userId User ID
      * @throws com.app.civify.exception.BadRequestException if limit reached

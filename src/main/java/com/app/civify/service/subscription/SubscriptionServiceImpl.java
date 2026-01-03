@@ -399,7 +399,8 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         var tokenInfoOpt = subscriptionRepository.findTokenInfoByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE);
         
         if (tokenInfoOpt.isEmpty()) {
-            return false;
+            int walletTokens = userRepository.findExtraTokensByUserId(userId).orElse(0);
+            return walletTokens >= tokensNeeded;
         }
         
         var info = tokenInfoOpt.get();
