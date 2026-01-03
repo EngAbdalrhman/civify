@@ -6,7 +6,7 @@ import com.app.civify.entity.User;
 import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.exception.ResourceNotFoundException;
 import com.app.civify.repository.logs.ApiKeyUsageLogRepository;
-import com.app.civify.repository.resume.CvRepository;
+import com.app.civify.repository.resume.ResumeRepository;
 import com.app.civify.repository.UserRepository;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
 import com.app.civify.util.filter.InputDataModel;
@@ -36,7 +36,7 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
     
     private final UserRepository userRepository;
     private final UserSubscriptionRepository subscriptionRepository;
-    private final CvRepository cvRepository;
+    private final ResumeRepository resumeRepository;
     private final ApiKeyUsageLogRepository apiKeyUsageLogRepository;
     private final UserCustomeMapper userCustomeMapper;
     
@@ -56,8 +56,8 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
         String currentMonth = java.time.LocalDate.now().toString().substring(0, 7); // YYYY-MM
 
         for (UserResponseDTO dto : userDTOs) {
-            // CV Count
-            dto.setCvCount((int) cvRepository.countByUserId(dto.getId()));
+            // Resume Count (stored resumes)
+            dto.setCvCount((int) resumeRepository.countByUserId(dto.getId()));
 
             // API Usage Count (External Keys)
             dto.setApiUsageCount(Math.toIntExact(apiKeyUsageLogRepository.countByUserIdAndMonth(dto.getId(), currentMonth)));
