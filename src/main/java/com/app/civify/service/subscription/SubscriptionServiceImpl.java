@@ -450,7 +450,14 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         var tokenInfoOpt = subscriptionRepository.findTokenInfoByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE);
         
         if (tokenInfoOpt.isEmpty()) {
-            throw new BadRequestException("subscription.notfound");
+            // No active subscription - charge from wallet only
+            int walletTokens = userRepository.findExtraTokensByUserId(userId).orElse(0);
+            if (walletTokens < tokensUsed) {
+                throw new BadRequestException(messageService.getMessage("token.insufficient") + " (Wallet balance: " + walletTokens + ")");
+            }
+            userRepository.updateExtraTokens(userId, walletTokens - tokensUsed);
+            log.info("Charged {} tokens from wallet for user {} (no active subscription)", tokensUsed, userId);
+            return;
         }
         
         var info = tokenInfoOpt.get();
