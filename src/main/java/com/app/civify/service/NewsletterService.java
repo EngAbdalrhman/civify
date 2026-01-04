@@ -66,8 +66,6 @@ public class NewsletterService {
         List<NewsletterSubscriber> subscribers = newsletterRepository.findAllByActiveTrue();
 
         // Prepare template parts
-        String templateHeader = getTemplateHeader();
-
         String templateFooterStart = "  </div>" +
                 "  <div style=\"background-color: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #e0e0e0;\">" +
                 "    <p>You are receiving this email because you subscribed to our newsletter.</p>";
@@ -82,17 +80,13 @@ public class NewsletterService {
 
                 String finalBody;
                 if (isHtml) {
-                    // Inject content directly, but still wrap in our container?
-                    // User said: "even send as html enabled consider the admin enter html and surroned the header and footer to it as deafult template"
-                    // So YES, always wrap.
                     finalBody = content;
                 } else {
                      // Text mode: Escape HTML (basic) and wrap in paragraphs for newlines
                      finalBody = "<p>" + content.replace("\n", "<br>") + "</p>";
                 }
 
-                String fullHtml = templateHeader +
-                                  finalBody +
+                String fullHtml = finalBody +
                                   templateFooterStart +
                                   "    <a href=\"" + unsubscribeLink + "\" style=\"color: #007bff; text-decoration: none;\">Unsubscribe</a>" +
                                   templateFooterEnd;
@@ -103,19 +97,6 @@ public class NewsletterService {
                 log.error("Failed to send broadcast to " + subscriber.getEmail() + ": " + e.getMessage());
             }
         }
-    }
-
-    private static @NotNull String getTemplateHeader() {
-        String logoUrl = "https://ik.imagekit.io/civify/civify%20logo%20simple.png";
-
-
-        String templateHeader = "" +
-                "<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;\">" +
-                "  <div style=\"background-color: #f8f9fa; padding: 20px; text-align: center; border-bottom: 1px solid #e0e0e0;\">" +
-                "    <img src=\"" + logoUrl + "\" alt=\"Civify\" style=\"max-height: 50px;\">" +
-                "  </div>" +
-                "  <div style=\"padding: 30px; color: #333; line-height: 1.6;\">";
-        return templateHeader;
     }
 
     @Transactional
