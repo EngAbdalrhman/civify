@@ -88,12 +88,11 @@ public class NewsletterService {
 
                 String fullHtml = finalBody +
                                   templateFooterStart +
-                                  "    <a href=\"" + unsubscribeLink + "\" style=\"color: #007bff; text-decoration: none;\">Unsubscribe</a>" +
+                                  "    <a href=\"" + unsubscribeLink + "\" style=\"color: #007bff; text-decoration: none; clicktracking=\"off\" \">Unsubscribe</a>" +
                                   templateFooterEnd;
 
                 emailService.sendHtmlEmail(subscriber.getEmail(), subject, fullHtml);
             } catch (Exception e) {
-                // Log but continue
                 log.error("Failed to send broadcast to " + subscriber.getEmail() + ": " + e.getMessage());
             }
         }

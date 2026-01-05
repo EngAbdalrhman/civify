@@ -141,12 +141,6 @@
 </head>
 <body>
     <div class="email-container">
-        <!-- Header -->
-        <div class="header">
-            <h1>🎯 Civify</h1>
-            <p>Welcome to Your Professional Journey</p>
-        </div>
-
         <!-- Main Content -->
         <div class="content">
             <p class="greeting">Dear {{username}},</p>
@@ -158,7 +152,7 @@
 
             <!-- CTA Button -->
             <div class="button-container">
-                <a href="{{verificationLink}}" class="cta-button">Verify Email Address</a>
+                <a href="{{verificationLink}}" class="cta-button" clicktracking="off">Verify Email Address</a>
             </div>
 
             <!-- Expiration Notice -->
@@ -169,7 +163,7 @@
             <!-- Alternative Link -->
             <div class="alternative-link">
                 <p>If the button above doesn't work, copy and paste this link into your browser:</p>
-                <a href="{{verificationLink}}">{{verificationLink}}</a>
+                <a href="{{verificationLink}}" clicktracking="off">{{verificationLink}}</a>
             </div>
 
             <!-- Security Notice -->
@@ -178,14 +172,6 @@
             </p>
         </div>
 
-        <!-- Footer -->
-        <div class="footer">
-            <p><strong>The Civify Team</strong></p>
-            <p>Building professional futures, one resume at a time.</p>
-            <p style="margin-top: 15px; font-size: 12px;">
-                © 2025 Civify. All rights reserved.
-            </p>
-        </div>
     </div>
 </body>
 </html>
