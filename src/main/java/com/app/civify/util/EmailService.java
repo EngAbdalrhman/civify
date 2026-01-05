@@ -125,11 +125,10 @@ public class EmailService {
      * @return HTML footer string
      */
     public String getTemplateFooter() {
-        return "  </div>" + // Closes content div
+        return "  </div>" + // Closes content Body div
                 "</div>" +   // Closes container div
-                // Generic footer for system emails
                 "<div style=\"text-align: center; font-size: 12px; color: #999; margin-top: 20px;\">" +
-                "  <p>&copy; 2026 Civify</p>" +
+                "  <p>&copy; 2026 Civify. All rights reserved.</p>" +
                 "</div>";
     }
 
