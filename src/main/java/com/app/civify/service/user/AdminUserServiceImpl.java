@@ -6,10 +6,10 @@ import com.app.civify.entity.User;
 import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.entity.security.Group;
 import com.app.civify.exception.ResourceNotFoundException;
-import com.app.civify.repository.logs.ApiKeyUsageLogRepository;
-import com.app.civify.repository.resume.ResumeRepository;
 import com.app.civify.repository.UserRepository;
+import com.app.civify.repository.logs.ApiKeyUsageLogRepository;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
+import com.app.civify.repository.resume.ResumeRepository;
 import com.app.civify.repository.security.GroupRepository;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
@@ -17,9 +17,6 @@ import com.app.civify.util.persistence.CommonService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,7 +69,7 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
             );
             
             if (!activeSubs.isEmpty()) {
-                dto.setPlan(activeSubs.get(0).getPlan().getName());
+                dto.setPlan(activeSubs.getFirst().getPlan().getName());
             } else {
                 dto.setPlan("free");
             }
@@ -94,36 +91,7 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
         
         return response;
     }
-    
-    @Override
-    public PagedResponse<UserResponseDTO> getAllUsers(int page, int size) {
-        log.debug("Fetching all users - page: {}, size: {}", page, size);
-        
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<User> userPage = userRepository.findAll(pageable);
-        
-        // Convert entities to DTOs
-        List<UserResponseDTO> userDTOs = userPage.getContent().stream()
-                .map(userCustomeMapper::toResponseDTO)
-                .collect(Collectors.toList());
-        
-        // Create and populate paged response
-        PagedResponse<UserResponseDTO> response = new PagedResponse<>();
-        response.setContent(userDTOs);
-        response.setPage(userPage.getNumber());
-        response.setSize(userPage.getSize());
-        response.setTotalElements(userPage.getTotalElements());
-        response.setTotalPages(userPage.getTotalPages());
-        response.setFirst(userPage.isFirst());
-        response.setLast(userPage.isLast());
-        response.setHasNext(userPage.hasNext());
-        response.setHasPrevious(userPage.hasPrevious());
-        
-        log.debug("Retrieved {} users", userDTOs.size());
-        
-        return response;
-    }
-    
+
     @Override
     public UserResponseDTO getUserById(Long userId) {
         log.debug("Fetching user by ID: {}", userId);

@@ -23,11 +23,6 @@ public class AdminUserUseCaseImpl extends CommonService implements AdminUserUseC
     }
 
     @Override
-    public PagedResponse<UserResponseDTO> getAllUsers(int page, int size) {
-        return adminUserService.getAllUsers(page, size);
-    }
-
-    @Override
     public UserResponseDTO getUserById(Long userId) {
         return adminUserService.getUserById(userId);
     }

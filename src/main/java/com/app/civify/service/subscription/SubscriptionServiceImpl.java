@@ -262,7 +262,10 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
     @Override
     public long countActiveSubscriptions() {
-        return subscriptionRepository.count();
+        return subscriptionRepository.countByStatusAndPlanNameNotIgnoreCase(
+            SubscriptionStatus.ACTIVE, 
+            FREE_PLAN_NAME
+        );
     }
 
     @Override

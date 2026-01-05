@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
 /**
  * Response DTO for User entity
@@ -43,20 +44,20 @@ public class UserResponseDTO {
     @Schema(description = "Profile picture URL")
     private String profilePictureUrl;
     
-    @Schema(description = "Phone (legacy field)", example = "+1234567890")
-    private String phone;
-    
+//    @Schema(description = "Phone (legacy field)", example = "+1234567890")
+//    private String phone;
+//
     @Schema(description = "Professional summary")
     private String summary;
     
-    @Schema(description = "Work experience")
-    private String experience;
-    
-    @Schema(description = "Education background")
-    private String education;
-    
-    @Schema(description = "Skills")
-    private String skills;
+//    @Schema(description = "Work experience")
+//    private String experience;
+//
+//    @Schema(description = "Education background")
+//    private String education;
+//
+//    @Schema(description = "Skills")
+//    private String skills;
 
     @Schema(description = "Email verification status", example = "true")
     private Boolean isEmailVerified;
@@ -75,10 +76,7 @@ public class UserResponseDTO {
     
     @Schema(description = "Last update timestamp")
     private LocalDateTime updatedAt;
-    
-    @Schema(description = "Created by user", example = "admin")
-    private String createdBy;
-    
+
     @Schema(description = "Last updated by user", example = "admin")
     private String updatedBy;
     
@@ -98,6 +96,9 @@ public class UserResponseDTO {
     @Schema(description = "Current subscription plan", example = "premium")
     private String plan;
 
+    @Schema(description = "User Group Name", example = "Admin")
+    private String groupName;
+
     @Schema(description = "Number of CVs created", example = "2")
     private Integer cvCount;
 
@@ -105,6 +106,6 @@ public class UserResponseDTO {
     private Integer apiUsageCount;
 
     @Schema(description = "Effective permissions for the user")
-    private java.util.Set<String> permissions;
+    private Set<String> permissions;
 }
 

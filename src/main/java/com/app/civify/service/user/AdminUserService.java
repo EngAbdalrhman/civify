@@ -17,14 +17,7 @@ public interface AdminUserService {
      * @return Paged response containing user DTOs
      */
     PagedResponse<UserResponseDTO> filterUsers(InputDataModel inputData);
-    
-    /**
-     * Get all users without filtering
-     * 
-     * @return Paged response containing all user DTOs
-     */
-    PagedResponse<UserResponseDTO> getAllUsers(int page, int size);
-    
+
     /**
      * Get user by ID
      * 
