@@ -107,6 +107,8 @@ public class SecurityConfig {
                         .requestMatchers("/v1/payments/webhook/**", "/payments/webhook/**").permitAll() // Allow payment webhooks
                         // Newsletter (Public)
                         .requestMatchers("/v1/newsletter/**").permitAll()
+                        // Geolocation (Public - for pricing detection)
+                        .requestMatchers("/v1/geo/**").permitAll()
                         // External API endpoints (handled by ApiKeyAuthenticationFilter)
                         .requestMatchers("/v1/external/**").permitAll()
                         // Admin endpoints

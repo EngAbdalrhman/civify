@@ -1,13 +1,11 @@
 package com.app.civify.controller.v1.plans;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
-import com.app.civify.dto.plan.PlansWithCurrencyResponse;
 import com.app.civify.dto.plan.SimplePlanDTO;
 import com.app.civify.dto.subscription.PriceCalculationResponse;
 import com.app.civify.dto.subscription.SubscriptionResponse;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.security.annotation.CivifyAuthorization;
-import com.app.civify.service.plans.PlanPricingService;
 import com.app.civify.usecase.user.SubscriptionUseCase;
 import com.app.civify.util.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,7 +15,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -35,7 +32,6 @@ import java.util.Map;
 public class SubscriptionController {
 
     private final SubscriptionUseCase subscriptionUseCase;
-    private final PlanPricingService planPricingService;
 
     @Operation(
             summary = "Get all subscription plans",
@@ -49,20 +45,6 @@ public class SubscriptionController {
     public ResponseEntity<CommonResponse<List<SimplePlanDTO>>> getAllPlans() {
         List<SimplePlanDTO> plans = subscriptionUseCase.getAllActivePlans();
         return ResponseEntity.ok(CommonResponse.success(plans));
-    }
-
-    @Operation(
-            summary = "Get plans with currency pricing",
-            description = "Retrieves all active plans with prices in user's currency (auto-detected from IP). Also returns available payment gateways for the detected currency."
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Plans with currency retrieved successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PlansWithCurrencyResponse.class)))
-    })
-    @GetMapping("/plans/pricing")
-    public ResponseEntity<CommonResponse<PlansWithCurrencyResponse>> getPlansWithCurrency(HttpServletRequest request) {
-        PlansWithCurrencyResponse response = planPricingService.getAllPlansForUser(request);
-        return ResponseEntity.ok(CommonResponse.success(response));
     }
     // maybe in the future we need to hash the id
 
