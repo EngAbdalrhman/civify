@@ -33,7 +33,7 @@ public class AdminStatsController {
             description = "Retrieves key statistics for the admin dashboard with optional time period filter. Admin only.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
-    @CivifyAuthorization(permission = "SYSTEM.LOGS.VIEW")
+    @CivifyAuthorization(permission = "ADMIN_STATS.VIEW")
     @GetMapping
     public ResponseEntity<AdminStatsDTO> getStats(
             @Parameter(description = "Time period for statistics (MONTHLY, QUARTERLY, YEARLY, OVERALL)")
