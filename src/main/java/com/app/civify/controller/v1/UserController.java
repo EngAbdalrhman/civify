@@ -4,6 +4,7 @@ import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.user.ProfileUpdateRequest;
 import com.app.civify.dto.user.UserPreferenceDTO;
 import com.app.civify.entity.User;
+import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.user.UserPreferenceService;
 import com.app.civify.service.user.UserService;
 
@@ -13,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -61,8 +63,8 @@ public class UserController {
                 content = @Content(mediaType = "application/json"))
     })
     @PutMapping("/me")
-    public ResponseEntity<UserDto> updateMe(@RequestBody ProfileUpdateRequest request) {
-        return ResponseEntity.ok(userService.updateMyUser(request));
+    public ResponseEntity<UserDto> updateMe(@RequestBody ProfileUpdateRequest request, @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        return ResponseEntity.ok(userService.updateMyUser(request, userPrincipal));
     }
 
     @Operation(
@@ -96,9 +98,8 @@ public class UserController {
                 content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/me/preferences")
-    public ResponseEntity<UserPreferenceDTO> getMyPreferences() {
-        Long userId = userService.getCurrentUserId();
-        return ResponseEntity.ok(userPreferenceService.getUserPreferences(userId));
+    public ResponseEntity<UserPreferenceDTO> getMyPreferences(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+        return ResponseEntity.ok(userPreferenceService.getUserPreferences(userPrincipal.getId()));
     }
 
     @Operation(
@@ -113,9 +114,9 @@ public class UserController {
                 content = @Content(mediaType = "application/json"))
     })
     @PutMapping("/me/preferences")
-    public ResponseEntity<UserPreferenceDTO> updateMyPreferences(@RequestBody UserPreferenceDTO preferences) {
-        Long userId = userService.getCurrentUserId();
-        return ResponseEntity.ok(userPreferenceService.updatePreferences(userId, preferences));
+    public ResponseEntity<UserPreferenceDTO> updateMyPreferences(@RequestBody UserPreferenceDTO preferences,
+                                                                 @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        return ResponseEntity.ok(userPreferenceService.updatePreferences(userPrincipal.getId(), preferences));
     }
 }
 

@@ -1,20 +1,18 @@
 package com.app.civify.service.user;
 
 import com.app.civify.dto.user.ProfileUpdateRequest;
+import com.app.civify.dto.user.UserDto;
 import com.app.civify.entity.User;
 import com.app.civify.mapper.UserMapper;
 import com.app.civify.repository.UserRepository;
-
+import com.app.civify.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-
-import com.app.civify.dto.user.UserDto;
 
 @Service
 @Slf4j
@@ -46,8 +44,8 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public UserDto updateMyUser(ProfileUpdateRequest request) {
-        User user = getCurrentUser();
+    public UserDto updateMyUser(ProfileUpdateRequest request, UserPrincipal userPrincipal) {
+        User user = userPrincipal.getUser();
         if (user == null) {
             throw new IllegalStateException("User not authenticated");
         }

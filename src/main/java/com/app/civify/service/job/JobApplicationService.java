@@ -3,10 +3,9 @@ package com.app.civify.service.job;
 import com.app.civify.dto.job.JobApplicationRequest;
 import com.app.civify.dto.job.JobApplicationResponse;
 import com.app.civify.entity.resume.JobApplication;
-import com.app.civify.entity.User;
 import com.app.civify.exception.ResourceNotFoundException;
 import com.app.civify.repository.resume.JobApplicationRepository;
-import com.app.civify.service.user.UserService;
+import com.app.civify.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,21 +20,18 @@ import java.util.stream.Collectors;
 public class JobApplicationService {
 
     private final JobApplicationRepository jobApplicationRepository;
-    private final UserService userService;
 
-    public List<JobApplicationResponse> getAllApplications() {
-        User currentUser = userService.getCurrentUser();
-        return jobApplicationRepository.findByUserId(currentUser.getId()).stream()
+    public List<JobApplicationResponse> getAllApplications(UserPrincipal userPrincipal) {
+        return jobApplicationRepository.findByUserId(userPrincipal.getId()).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
-    public JobApplicationResponse getApplication(Long id) {
-        User currentUser = userService.getCurrentUser();
+    public JobApplicationResponse getApplication(Long id, UserPrincipal userPrincipal) {
         JobApplication application = jobApplicationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Job application not found"));
 
-        if (!application.getUser().getId().equals(currentUser.getId())) {
+        if (!application.getUser().getId().equals(userPrincipal.getId())) {
             throw new ResourceNotFoundException("job.application.notfound");
         }
 
@@ -43,11 +39,10 @@ public class JobApplicationService {
     }
 
     @Transactional
-    public JobApplicationResponse createApplication(JobApplicationRequest request) {
-        User currentUser = userService.getCurrentUser();
+    public JobApplicationResponse createApplication(JobApplicationRequest request, UserPrincipal userPrincipal) {
 
         JobApplication application = new JobApplication();
-        application.setUser(currentUser);
+        application.setUser(userPrincipal.getUser());
         application.setCvId(request.getCvId());
         application.setJobTitle(request.getJobTitle());
         application.setCompany(request.getCompany());
@@ -62,12 +57,11 @@ public class JobApplicationService {
     }
 
     @Transactional
-    public JobApplicationResponse updateApplication(Long id, JobApplicationRequest request) {
-        User currentUser = userService.getCurrentUser();
+    public JobApplicationResponse updateApplication(Long id, JobApplicationRequest request, UserPrincipal userPrincipal) {
         JobApplication application = jobApplicationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Job application not found"));
 
-        if (!application.getUser().getId().equals(currentUser.getId())) {
+        if (!application.getUser().getId().equals(userPrincipal.getId())) {
             throw new ResourceNotFoundException("job.application.notfound");
         }
 
@@ -85,12 +79,11 @@ public class JobApplicationService {
     }
 
     @Transactional
-    public void deleteApplication(Long id) {
-        User currentUser = userService.getCurrentUser();
+    public void deleteApplication(Long id, UserPrincipal userPrincipal) {
         JobApplication application = jobApplicationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Job application not found"));
 
-        if (!application.getUser().getId().equals(currentUser.getId())) {
+        if (!application.getUser().getId().equals(userPrincipal.getId())) {
             throw new ResourceNotFoundException("job.application.notfound");
         }
 
