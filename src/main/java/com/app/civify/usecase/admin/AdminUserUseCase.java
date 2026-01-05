@@ -7,8 +7,6 @@ import com.app.civify.util.filter.PagedResponse;
 public interface AdminUserUseCase {
     PagedResponse<UserResponseDTO> filterUsers(InputDataModel inputData);
 
-    PagedResponse<UserResponseDTO> getAllUsers(int page, int size);
-
     UserResponseDTO getUserById(Long userId);
 
     UserResponseDTO getUserByIdWithStats(Long userId);

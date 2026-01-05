@@ -18,7 +18,10 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Entity
 @Data
@@ -130,6 +133,9 @@ public class User extends BaseEntity implements Serializable {
     @JsonIgnore
     private List<UserSubscription> subscriptions;
 
+    @Transient
+    private String groupName;
+
     // Helper methods for security
     public boolean isAccountNonExpired() {
         return !isDeleted;
@@ -146,7 +152,7 @@ public class User extends BaseEntity implements Serializable {
     public boolean isEnabled() {
         // Only check if account is deleted
         // Email verification is checked separately in AuthService.login()
-        return !isDeleted;
+        return !isDeleted && !this.isAccountNonLocked();
     }
 
     public String getName() {
@@ -156,12 +162,17 @@ public class User extends BaseEntity implements Serializable {
         return username;
     }
 
-    public java.util.Collection<? extends GrantedAuthority> getAuthorities() {
+    public Collection<? extends GrantedAuthority> getAuthorities() {
         if (group == null || group.getPermissions() == null) {
-            return java.util.Collections.emptyList();
+            return Collections.emptyList();
         }
         return group.getPermissions().stream()
                 .map(permission -> new SimpleGrantedAuthority(permission.getName()))
-                .collect(java.util.stream.Collectors.toList());
+                .collect(Collectors.toList());
+    }
+
+    @PostLoad
+    public void postLoad(){
+        this.groupName = this.group.getName();
     }
 }

@@ -47,6 +47,9 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
 
     Long countByUserIdAndStatus(Long userId, SubscriptionStatus status);
 
+    @Query("SELECT COUNT(s) FROM UserSubscription s WHERE s.status = :status AND LOWER(s.plan.name) != LOWER(:excludePlanName)")
+    long countByStatusAndPlanNameNotIgnoreCase(@Param("status") SubscriptionStatus status, @Param("excludePlanName") String excludePlanName);
+
     // Admin queries
     Page<UserSubscription> findByStatus(SubscriptionStatus status, Pageable pageable);
 

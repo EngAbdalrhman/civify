@@ -62,30 +62,6 @@ public class AdminUserController {
     }
 
     @Operation(
-            summary = "Get all users with pagination",
-            description = "Retrieves all users with pagination (no filtering). Admin only.",
-            security = @SecurityRequirement(name = "bearer-jwt")
-    )
-    @ApiResponses(value = {
-        @ApiResponse(
-                responseCode = "200",
-                description = "Users retrieved successfully",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))
-        )
-    })
-    @CivifyAuthorization(permission = "USER.VIEW")
-    @GetMapping
-    public ResponseEntity<CommonResponse<PagedResponse<UserResponseDTO>>> getAllUsers(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        log.info("Admin fetching all users - page: {}, size: {}", page, size);
-
-        PagedResponse<UserResponseDTO> pagedResponse = adminUserUseCase.getAllUsers(page, size);
-
-        return ResponseEntity.ok(CommonResponse.success("Users retrieved successfully", pagedResponse));
-    }
-
-    @Operation(
             summary = "Get user by ID",
             description = "Retrieves a specific user by ID with optional statistics. Admin only.",
             security = @SecurityRequirement(name = "bearer-jwt")
