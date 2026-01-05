@@ -142,7 +142,7 @@ public class User extends BaseEntity implements Serializable {
     }
 
     public boolean isAccountNonLocked() {
-        return status == com.app.civify.entity.enums.UserStatus.ACTIVE;
+        return status != UserStatus.DISABLED;
     }
 
     public boolean isCredentialsNonExpired() {
@@ -151,8 +151,7 @@ public class User extends BaseEntity implements Serializable {
 
     public boolean isEnabled() {
         // Only check if account is deleted
-        // Email verification is checked separately in AuthService.login()
-        return !isDeleted && !this.isAccountNonLocked();
+        return !isDeleted && this.isAccountNonLocked();
     }
 
     public String getName() {
@@ -173,6 +172,7 @@ public class User extends BaseEntity implements Serializable {
 
     @PostLoad
     public void postLoad(){
-        this.groupName = this.group.getName();
+        if (this.group != null)
+            this.groupName = this.group.getName();
     }
 }

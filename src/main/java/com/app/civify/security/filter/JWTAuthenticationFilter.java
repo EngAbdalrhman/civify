@@ -13,6 +13,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -44,25 +45,13 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        logger.info("Logging...");
         ObjectMapper objectMapper = new ObjectMapper();
         var loginRequest = objectMapper.readValue(request.getInputStream(), AuthRequest.class);
 
         // Use whichever credential is provided (username or email)
         // Determine which credential to use for authentication
-        String credential = null;
-        if (loginRequest.getUsername() != null && !loginRequest.getUsername().trim().isEmpty()) {
-            credential = loginRequest.getUsername();
-        } else if (loginRequest.getEmail() != null && !loginRequest.getEmail().trim().isEmpty()) {
-            credential = loginRequest.getEmail();
-        }
-
-        if (credential == null) {
-            throw new AuthenticationServiceException("Either username or email must be provided");
-        }
-
-        // Create authentication token with the provided credential and password
-        UsernamePasswordAuthenticationToken authToken
-                = new UsernamePasswordAuthenticationToken(credential, loginRequest.getPassword());
+        UsernamePasswordAuthenticationToken authToken = getUsernamePasswordAuthenticationToken(loginRequest);
 
         try {
             Authentication authResult = authenticationManager.authenticate(authToken);
@@ -100,6 +89,24 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
             writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
                 ErrorCode.AUTH_INVALID_CREDENTIALS, "Authentication failed: " + e.getMessage());
         }
+    }
+
+    private static @NotNull UsernamePasswordAuthenticationToken getUsernamePasswordAuthenticationToken(AuthRequest loginRequest) {
+        String credential = null;
+        if (loginRequest.getUsername() != null && !loginRequest.getUsername().trim().isEmpty()) {
+            credential = loginRequest.getUsername();
+        } else if (loginRequest.getEmail() != null && !loginRequest.getEmail().trim().isEmpty()) {
+            credential = loginRequest.getEmail();
+        }
+
+        if (credential == null) {
+            throw new AuthenticationServiceException("Either username or email must be provided");
+        }
+
+        // Create authentication token with the provided credential and password
+        UsernamePasswordAuthenticationToken authToken
+                = new UsernamePasswordAuthenticationToken(credential, loginRequest.getPassword());
+        return authToken;
     }
 
     /**

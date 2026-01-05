@@ -3,6 +3,7 @@ package com.app.civify.service.auth;
 import com.app.civify.dto.auth.AuthRequest;
 import com.app.civify.dto.auth.AuthResponse;
 import com.app.civify.dto.auth.ChangePasswordRequest;
+import com.app.civify.entity.enums.UserStatus;
 import com.app.civify.entity.security.Group;
 import com.app.civify.entity.User;
 import com.app.civify.exception.BadRequestException;
@@ -141,7 +142,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // Check if user is banned/disabled
-        if (user.getStatus() == com.app.civify.entity.enums.UserStatus.DISABLED) {
+        if (user.getStatus() == UserStatus.DISABLED) {
             log.warn("Login attempt for banned user: {}", user.getUsername());
             throw new BadRequestException("auth.login.banned");
         }
