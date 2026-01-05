@@ -6,6 +6,7 @@ import java.util.List;
 
 import com.app.civify.dto.user.ProfileUpdateRequest;
 import com.app.civify.dto.user.UserDto;
+import com.app.civify.security.UserPrincipal;
 
 public interface UserService {
 
@@ -15,7 +16,7 @@ public interface UserService {
 
     UserDto getMyUser();
 
-    UserDto updateMyUser(ProfileUpdateRequest request);
+    UserDto updateMyUser(ProfileUpdateRequest request, UserPrincipal userPrincipal);
 
     User getCurrentUser();
 

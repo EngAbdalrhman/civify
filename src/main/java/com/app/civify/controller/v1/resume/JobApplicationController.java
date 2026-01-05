@@ -3,6 +3,7 @@ package com.app.civify.controller.v1.resume;
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.job.JobApplicationRequest;
 import com.app.civify.dto.job.JobApplicationResponse;
+import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.job.JobApplicationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,34 +28,36 @@ public class JobApplicationController {
 
     @Operation(summary = "Get all job applications", security = @SecurityRequirement(name = "bearer-jwt"))
     @GetMapping
-    public ResponseEntity<List<JobApplicationResponse>> getAllApplications() {
-        return ResponseEntity.ok(jobApplicationService.getAllApplications());
+    public ResponseEntity<List<JobApplicationResponse>> getAllApplications(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+        return ResponseEntity.ok(jobApplicationService.getAllApplications(userPrincipal));
     }
 
     @Operation(summary = "Get job application by ID", security = @SecurityRequirement(name = "bearer-jwt"))
     @GetMapping("/{id}")
-    public ResponseEntity<JobApplicationResponse> getApplication(@PathVariable Long id) {
-        return ResponseEntity.ok(jobApplicationService.getApplication(id));
+    public ResponseEntity<JobApplicationResponse> getApplication(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        return ResponseEntity.ok(jobApplicationService.getApplication(id, userPrincipal));
     }
 
     @Operation(summary = "Create job application", security = @SecurityRequirement(name = "bearer-jwt"))
     @PostMapping
-    public ResponseEntity<JobApplicationResponse> createApplication(@RequestBody JobApplicationRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(jobApplicationService.createApplication(request));
+    public ResponseEntity<JobApplicationResponse> createApplication(@RequestBody JobApplicationRequest request,
+                                                                    @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(jobApplicationService.createApplication(request, userPrincipal));
     }
 
     @Operation(summary = "Update job application", security = @SecurityRequirement(name = "bearer-jwt"))
     @PatchMapping("/{id}")
     public ResponseEntity<JobApplicationResponse> updateApplication(
             @PathVariable Long id,
-            @RequestBody JobApplicationRequest request) {
-        return ResponseEntity.ok(jobApplicationService.updateApplication(id, request));
+            @RequestBody JobApplicationRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        return ResponseEntity.ok(jobApplicationService.updateApplication(id, request, userPrincipal));
     }
 
     @Operation(summary = "Delete job application", security = @SecurityRequirement(name = "bearer-jwt"))
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteApplication(@PathVariable Long id) {
-        jobApplicationService.deleteApplication(id);
+    public ResponseEntity<Void> deleteApplication(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        jobApplicationService.deleteApplication(id, userPrincipal);
         return ResponseEntity.noContent().build();
     }
 }

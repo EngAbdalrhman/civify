@@ -7,6 +7,7 @@ import com.app.civify.dto.document.MaskRequest;
 import com.app.civify.dto.document.MaskResponse;
 import com.app.civify.dto.document.ProcessedDocument;
 import com.app.civify.entity.User;
+import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.user.UserService;
 import com.app.civify.service.document.CvParsingService;
 import com.app.civify.service.document.DocumentProcessorService;
@@ -23,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -59,12 +61,13 @@ public class DocumentController {
     })
     @PostMapping(value = "/parse", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<CommonResponse<CvParseResponse>> parseCv(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
             @RequestPart("file") MultipartFile file,
             @RequestPart(value = "request", required = false) CvParseRequest request) {
 
         log.info("Parsing CV: {}, size: {} bytes", file.getOriginalFilename(), file.getSize());
 
-        User currentUser = userService.getCurrentUser();
+        User currentUser = userPrincipal.getUser();
         CvParseRequest parseRequest = request != null ? request : CvParseRequest.builder().build();
 
         CvParseResponse response = cvParsingService.parseCv(file, parseRequest, currentUser.getId());

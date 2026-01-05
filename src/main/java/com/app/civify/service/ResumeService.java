@@ -82,7 +82,8 @@ public class ResumeService {
     public void deleteResume(String id, Long userId) {
         Resume resume = resumeRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Resume not found or access denied"));
-        resumeRepository.delete(resume);
+        resume.setIsDeleted(true);
+        resumeRepository.save(resume);
         log.info("Deleted resume {} for user {}", id, userId);
     }
 
