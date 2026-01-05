@@ -170,5 +170,62 @@ public class AdminUserController {
 
         return ResponseEntity.ok(CommonResponse.success("Account lock status toggled successfully", userDTO));
     }
-}
 
+    @Operation(
+            summary = "Update user group",
+            description = "Assigns a user to a permission group. Admin only.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+                responseCode = "200",
+                description = "User group updated successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))
+        ),
+        @ApiResponse(
+                responseCode = "404",
+                description = "User or group not found",
+                content = @Content(mediaType = "application/json")
+        )
+    })
+    @CivifyAuthorization(permission = "USER.MODIFY_GROUP")
+    @PatchMapping("/{userId}/group")
+    public ResponseEntity<CommonResponse<UserResponseDTO>> updateUserGroup(
+            @PathVariable Long userId,
+            @RequestParam Long groupId) {
+        log.info("Admin updating group for user {}: groupId={}", userId, groupId);
+
+        UserResponseDTO userDTO = adminUserUseCase.updateUserGroup(userId, groupId);
+
+        return ResponseEntity.ok(CommonResponse.success("User group updated successfully", userDTO));
+    }
+
+    @Operation(
+            summary = "Update user tokens",
+            description = "Updates extra tokens (wallet) for a user. Admin only.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+                responseCode = "200",
+                description = "User tokens updated successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonResponse.class))
+        ),
+        @ApiResponse(
+                responseCode = "404",
+                description = "User not found",
+                content = @Content(mediaType = "application/json")
+        )
+    })
+    @CivifyAuthorization(permission = "USER.MODIFY_TOKENS")
+    @PatchMapping("/{userId}/tokens")
+    public ResponseEntity<CommonResponse<UserResponseDTO>> updateUserTokens(
+            @PathVariable Long userId,
+            @RequestParam Integer extraTokens) {
+        log.info("Admin updating tokens for user {}: extraTokens={}", userId, extraTokens);
+
+        UserResponseDTO userDTO = adminUserUseCase.updateUserTokens(userId, extraTokens);
+
+        return ResponseEntity.ok(CommonResponse.success("User tokens updated successfully", userDTO));
+    }
+}

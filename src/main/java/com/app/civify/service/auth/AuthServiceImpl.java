@@ -140,6 +140,12 @@ public class AuthServiceImpl implements AuthService {
             throw new BadRequestException("auth.login.failed");
         }
 
+        // Check if user is banned/disabled
+        if (user.getStatus() == com.app.civify.entity.enums.UserStatus.DISABLED) {
+            log.warn("Login attempt for banned user: {}", user.getUsername());
+            throw new BadRequestException("auth.login.banned");
+        }
+
         // Check if email is verified (only if verification is enabled)
         if (emailVerificationEnabled && !user.getIsEmailVerified()) {
             log.warn("Login attempt with unverified email: {}", user.getUsername());

@@ -4,11 +4,13 @@ import com.app.civify.dto.user.UserCustomeMapper;
 import com.app.civify.dto.user.UserResponseDTO;
 import com.app.civify.entity.User;
 import com.app.civify.entity.plans.UserSubscription;
+import com.app.civify.entity.security.Group;
 import com.app.civify.exception.ResourceNotFoundException;
 import com.app.civify.repository.logs.ApiKeyUsageLogRepository;
 import com.app.civify.repository.resume.ResumeRepository;
 import com.app.civify.repository.UserRepository;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
+import com.app.civify.repository.security.GroupRepository;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
 import com.app.civify.util.persistence.CommonService;
@@ -38,6 +40,7 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
     private final UserSubscriptionRepository subscriptionRepository;
     private final ResumeRepository resumeRepository;
     private final ApiKeyUsageLogRepository apiKeyUsageLogRepository;
+    private final GroupRepository groupRepository;
     private final UserCustomeMapper userCustomeMapper;
     
     @Override
@@ -148,6 +151,7 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
         
         return userCustomeMapper.toResponseDTOWithStats(user, activeSubscriptionCount, totalSubscriptionCount);
     }
+
     @Override
     @Transactional
     public UserResponseDTO updateUserLimits(Long userId, Integer cvLimit) {
@@ -183,4 +187,38 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
         
         return userCustomeMapper.toResponseDTO(savedUser);
     }
+
+    @Override
+    @Transactional
+    public UserResponseDTO updateUserGroup(Long userId, Long groupId) {
+        log.info("Updating group for user {}: groupId={}", userId, groupId);
+        
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + userId));
+        
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group not found with ID: " + groupId));
+        
+        user.setGroup(group);
+        User savedUser = userRepository.save(user);
+        log.info("User {} assigned to group: {}", userId, group.getName());
+        
+        return userCustomeMapper.toResponseDTO(savedUser);
+    }
+
+    @Override
+    @Transactional
+    public UserResponseDTO updateUserTokens(Long userId, Integer extraTokens) {
+        log.info("Updating extra tokens for user {}: extraTokens={}", userId, extraTokens);
+        
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + userId));
+        
+        user.setExtraTokens(extraTokens != null ? extraTokens : 0);
+        User savedUser = userRepository.save(user);
+        log.info("User {} extra tokens set to: {}", userId, savedUser.getExtraTokens());
+        
+        return userCustomeMapper.toResponseDTO(savedUser);
+    }
 }
+
