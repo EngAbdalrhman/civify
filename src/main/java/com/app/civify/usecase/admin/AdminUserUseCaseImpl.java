@@ -46,4 +46,14 @@ public class AdminUserUseCaseImpl extends CommonService implements AdminUserUseC
     public UserResponseDTO toggleAccountLock(Long userId) {
         return adminUserService.toggleAccountLock(userId);
     }
+
+    @Override
+    public UserResponseDTO updateUserGroup(Long userId, Long groupId) {
+        return adminUserService.updateUserGroup(userId, groupId);
+    }
+
+    @Override
+    public UserResponseDTO updateUserTokens(Long userId, Integer extraTokens) {
+        return adminUserService.updateUserTokens(userId, extraTokens);
+    }
 }

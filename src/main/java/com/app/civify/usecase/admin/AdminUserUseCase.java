@@ -16,4 +16,9 @@ public interface AdminUserUseCase {
     UserResponseDTO updateUserLimits(Long userId, Integer cvLimit);
 
     UserResponseDTO toggleAccountLock(Long userId);
+
+    UserResponseDTO updateUserGroup(Long userId, Long groupId);
+
+    UserResponseDTO updateUserTokens(Long userId, Integer extraTokens);
 }
+

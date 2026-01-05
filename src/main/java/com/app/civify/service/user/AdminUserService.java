@@ -56,5 +56,22 @@ public interface AdminUserService {
      * @return Updated user DTO
      */
     UserResponseDTO toggleAccountLock(Long userId);
-}
 
+    /**
+     * Update user's permission group
+     * 
+     * @param userId User ID
+     * @param groupId Group ID to assign
+     * @return Updated user DTO
+     */
+    UserResponseDTO updateUserGroup(Long userId, Long groupId);
+
+    /**
+     * Update user's extra tokens (wallet)
+     * 
+     * @param userId User ID
+     * @param extraTokens Extra tokens to set
+     * @return Updated user DTO
+     */
+    UserResponseDTO updateUserTokens(Long userId, Integer extraTokens);
+}
