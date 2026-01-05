@@ -2,7 +2,9 @@ package com.app.civify.controller.v1;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.user.ProfileUpdateRequest;
+import com.app.civify.dto.user.UserPreferenceDTO;
 import com.app.civify.entity.User;
+import com.app.civify.service.user.UserPreferenceService;
 import com.app.civify.service.user.UserService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,6 +31,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 public class UserController {
 
     private final UserService userService;
+    private final UserPreferenceService userPreferenceService;
 
     @Operation(
             summary = "Get current user profile",
@@ -80,4 +83,39 @@ public class UserController {
     public ResponseEntity<List<User>> getAll() {
         return ResponseEntity.ok(userService.findAll());
     }
+
+    @Operation(
+            summary = "Get user preferences",
+            description = "Retrieves the preferences (language, theme) of the currently authenticated user.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Preferences retrieved successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserPreferenceDTO.class))),
+        @ApiResponse(responseCode = "401", description = "Unauthorized",
+                content = @Content(mediaType = "application/json"))
+    })
+    @GetMapping("/me/preferences")
+    public ResponseEntity<UserPreferenceDTO> getMyPreferences() {
+        Long userId = userService.getCurrentUserId();
+        return ResponseEntity.ok(userPreferenceService.getUserPreferences(userId));
+    }
+
+    @Operation(
+            summary = "Update user preferences",
+            description = "Updates the preferences (language, theme) of the currently authenticated user.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Preferences updated successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserPreferenceDTO.class))),
+        @ApiResponse(responseCode = "401", description = "Unauthorized",
+                content = @Content(mediaType = "application/json"))
+    })
+    @PutMapping("/me/preferences")
+    public ResponseEntity<UserPreferenceDTO> updateMyPreferences(@RequestBody UserPreferenceDTO preferences) {
+        Long userId = userService.getCurrentUserId();
+        return ResponseEntity.ok(userPreferenceService.updatePreferences(userId, preferences));
+    }
 }
+

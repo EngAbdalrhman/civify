@@ -1,5 +1,7 @@
 package com.app.civify.util;
 
+import com.app.civify.entity.enums.UserPreferredTheme;
+import com.app.civify.service.user.UserPreferenceService;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -14,22 +16,28 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
- * @author Abdalrhman Mostafa <amabdo30@gmail.com>
- * @version 1.0.0
- * @details Email service
- * @date 2025-01-25
- * @since 1.0.0
+ * Centralized Email Service
+ * 
+ * Provides consistent email template headers/footers based on user theme preferences.
+ * All email sending should go through this service to ensure consistent branding.
  *
+ * @author Abdalrhman Mostafa <amabdo30@gmail.com>
+ * @version 2.0.0
+ * @since 1.0.0
  */
 @Service
 @RequiredArgsConstructor
 public class EmailService {
 
     private final JavaMailSender mailSender;
+    private final UserPreferenceService userPreferenceService;
 
     @Value("${default.email:${spring.mail.username}}")
     private String defaultFromEmail;
 
+    /**
+     * Send plain text email (no template wrapping)
+     */
     public void sendEmail(String to, String subject, String body) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(defaultFromEmail);
@@ -40,14 +48,51 @@ public class EmailService {
     }
 
     /**
-     * Send HTML email
+     * Send HTML email with default LIGHT theme header/footer
      *
      * @param to       recipient email address
      * @param subject  email subject
-     * @param htmlBody HTML content of the email
+     * @param htmlBody HTML content of the email (body only, header/footer will be added)
      */
     public void sendHtmlEmail(String to, String subject, String htmlBody) {
-        String body = getTemplateHeader() + htmlBody + getTemplateFooter();
+        sendHtmlEmail(to, subject, htmlBody, UserPreferredTheme.LIGHT);
+    }
+
+    /**
+     * Send HTML email with specified theme header/footer
+     *
+     * @param to       recipient email address
+     * @param subject  email subject
+     * @param htmlBody HTML content of the email (body only)
+     * @param theme    theme for header/footer styling
+     */
+    public void sendHtmlEmail(String to, String subject, String htmlBody, UserPreferredTheme theme) {
+        String body = getTemplateHeader(theme) + htmlBody + getTemplateFooter();
+        sendRawHtmlEmail(to, subject, body);
+    }
+
+    /**
+     * Send HTML email to a user with their preferred theme (cached lookup)
+     *
+     * @param userId   user ID for theme preference lookup
+     * @param to       recipient email address
+     * @param subject  email subject
+     * @param htmlBody HTML content of the email (body only)
+     */
+    public void sendHtmlEmailToUser(Long userId, String to, String subject, String htmlBody) {
+        UserPreferredTheme theme = userPreferenceService.getUserTheme(userId);
+        sendHtmlEmail(to, subject, htmlBody, theme);
+    }
+
+    /**
+     * Send raw HTML email without any template wrapping
+     * Use this for emails that already have complete HTML structure
+     *
+     * @param to       recipient email address
+     * @param subject  email subject
+     * @param fullHtml complete HTML email content
+     */
+    public void sendRawHtmlEmail(String to, String subject, String fullHtml) {
         MimeMessage message = mailSender.createMimeMessage();
 
         try {
@@ -55,25 +100,42 @@ public class EmailService {
             helper.setFrom(defaultFromEmail);
             helper.setTo(to);
             helper.setSubject(subject);
-            helper.setText(body, true);
+            helper.setText(fullHtml, true);
             mailSender.send(message);
         } catch (MessagingException e) {
             throw new RuntimeException("Failed to send HTML email", e);
         }
     }
 
-    // Helper Methods
-    private String dateFormat(String dateString) {
-        DateTimeFormatter inputFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+    // ============= Public Template Methods =============
 
-        LocalDateTime dateTime = LocalDateTime.parse(dateString, inputFormatter);
-
-        DateTimeFormatter outputFormatter = DateTimeFormatter.ofPattern("MM-dd-yyyy");
-
-        return dateTime.format(outputFormatter);
+    /**
+     * Get template header based on theme preference
+     *
+     * @param theme the theme to use (LIGHT or DARK)
+     * @return HTML header string
+     */
+    public String getTemplateHeader(UserPreferredTheme theme) {
+        return theme == UserPreferredTheme.DARK ? getTemplateDarkHeader() : getTemplateLightHeader();
     }
 
-    private static @NotNull String getTemplateHeader() {
+    /**
+     * Get standard template footer
+     *
+     * @return HTML footer string
+     */
+    public String getTemplateFooter() {
+        return "  </div>" + // Closes content div
+                "</div>" +   // Closes container div
+                // Generic footer for system emails
+                "<div style=\"text-align: center; font-size: 12px; color: #999; margin-top: 20px;\">" +
+                "  <p>&copy; 2026 Civify</p>" +
+                "</div>";
+    }
+
+    // ============= Private Template Methods =============
+
+    private static @NotNull String getTemplateLightHeader() {
         String logoUrl = "https://ik.imagekit.io/civify/civfiy%20logo.png";
         String brandColor = "#007bff"; // Civify Blue
 
@@ -108,29 +170,12 @@ public class EmailService {
                 .toString();
     }
 
-    private static @NotNull String getTemplateMinimalHeader() {
-        String logoUrl = "https://ik.imagekit.io/civify/civify%20logo%20simple.png";
+    // ============= Utility Methods =============
 
-        return new StringBuilder()
-                // Main Container: No border, just centering
-                .append("<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto;\">")
-
-                // Logo Section: Minimal padding
-                .append("  <div style=\"padding: 40px 0 20px 0; text-align: center;\">")
-                .append("    <img src=\"").append(logoUrl).append("\" alt=\"Civify\" style=\"max-height: 40px;\">")
-                .append("  </div>")
-
-                // Content Body Start
-                .append("  <div style=\"padding: 0 10px; color: #111; line-height: 1.5; font-size: 16px;\">")
-                .toString();
-    }
-
-    private static String getTemplateFooter() {
-        return "  </div>" + // Closes content div
-                "</div>" +   // Closes container div
-                // Optional: Generic footer for system emails
-                "<div style=\"text-align: center; font-size: 12px; color: #999; margin-top: 20px;\">" +
-                "  <p>&copy; 2026 Civify</p>" +
-                "</div>";
+    private String dateFormat(String dateString) {
+        DateTimeFormatter inputFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+        LocalDateTime dateTime = LocalDateTime.parse(dateString, inputFormatter);
+        DateTimeFormatter outputFormatter = DateTimeFormatter.ofPattern("MM-dd-yyyy");
+        return dateTime.format(outputFormatter);
     }
 }

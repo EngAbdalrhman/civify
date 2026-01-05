@@ -1,6 +1,8 @@
 package com.app.civify.entity;
 
 
+import com.app.civify.entity.enums.UserPreferredLanguage;
+import com.app.civify.entity.enums.UserPreferredTheme;
 import com.app.civify.entity.enums.UserStatus;
 import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.entity.security.Group;
@@ -111,6 +113,17 @@ public class User extends BaseEntity implements Serializable {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private UserStatus status = UserStatus.ACTIVE;
+
+    // User Preferences
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "preferred_language", nullable = false, length = 10)
+    private UserPreferredLanguage preferredLanguage = UserPreferredLanguage.EN;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "preferred_theme", nullable = false, length = 10)
+    private UserPreferredTheme preferredTheme = UserPreferredTheme.LIGHT;
 
     // Relationships
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

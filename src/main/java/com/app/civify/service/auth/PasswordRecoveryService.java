@@ -268,82 +268,50 @@ public class PasswordRecoveryService {
     }
 
     /**
-     * Send professional password recovery email with OTP
+     * Send professional password recovery email with OTP using centralized templates
      */
     private void sendPasswordRecoveryEmailWithOtp(User user, String otp) {
         try {
             String subject = "Password Reset Request - Verification Code";
-            String body = String.format("""
-                    <html>
-                    <head>
-                        <style>
-                            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }
-                            .container { max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9; }
-                            .header { background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                            .content { background-color: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-                            .otp-box { background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 20px; margin: 25px 0; border-radius: 8px; font-family: 'Courier New', monospace; }
-                            .info-box { background-color: #e8f4f8; border-left: 4px solid #2196F3; padding: 15px; margin: 20px 0; border-radius: 4px; }
-                            .warning-box { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; }
-                            .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #777; font-size: 12px; }
-                            .btn { display: inline-block; background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 10px 0; }
-                            ul { padding-left: 20px; }
-                            li { margin: 8px 0; }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="container">
-                            <div class="header">
-                                <h1 style="margin: 0; font-size: 28px;">🔐 Password Reset Request</h1>
-                                <p style="margin: 10px 0 0 0; opacity: 0.9;">Civify Account Security</p>
-                            </div>
-                            
-                            <div class="content">
-                                <p>Hello <strong>%s</strong>,</p>
-                                
-                                <p>We received a request to reset your Civify account password. Use the verification code below to complete the password reset process:</p>
-                                
-                                <div class="otp-box">%s</div>
-                                
-                                <div class="info-box">
-                                    <p style="margin: 0;"><strong>ℹ️ How to use this code:</strong></p>
-                                    <ul style="margin: 10px 0 0 0;">
-                                        <li>Enter this code in the password reset page</li>
-                                        <li>Choose your new secure password</li>
-                                        <li>Confirm the password reset</li>
-                                    </ul>
-                                </div>
-                                
-                                <div class="warning-box">
-                                    <p style="margin: 0;"><strong>⚠️ Security Information:</strong></p>
-                                    <ul style="margin: 10px 0 0 0;">
-                                        <li><strong>Valid for 30 minutes only</strong></li>
-                                        <li>Maximum 3 reset attempts within 15 minutes</li>
-                                        <li>All active sessions will be logged out after password reset</li>
-                                        <li>Never share this code with anyone</li>
-                                    </ul>
-                                </div>
-                                
-                                <p style="margin-top: 25px;"><strong>Didn't request this?</strong></p>
-                                <p>If you didn't request a password reset, please ignore this email. Your account is secure and no changes have been made.</p>
-                                
-                                <p style="margin-top: 25px;">For security reasons, this verification code will expire in <strong>30 minutes</strong>.</p>
-                            </div>
-                            
-                            <div class="footer">
-                                <p style="margin: 5px 0;">This is an automated message from Civify</p>
-                                <p style="margin: 5px 0;">© 2025 Civify. All rights reserved.</p>
-                                <p style="margin: 5px 0; color: #999;">Please do not reply to this email</p>
-                            </div>
-                        </div>
-                    </body>
-                    </html>
+            
+            // Body content only - header/footer handled by EmailService based on user preference
+            String bodyContent = String.format("""
+                    <p>Hello <strong>%s</strong>,</p>
+                    
+                    <p>We received a request to reset your Civify account password. Use the verification code below to complete the password reset process:</p>
+                    
+                    <div style="background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 20px; margin: 25px 0; border-radius: 8px; font-family: 'Courier New', monospace;">%s</div>
+                    
+                    <div style="background-color: #e8f4f8; border-left: 4px solid #2196F3; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                        <p style="margin: 0;"><strong>ℹ️ How to use this code:</strong></p>
+                        <ul style="margin: 10px 0 0 0; padding-left: 20px;">
+                            <li style="margin: 8px 0;">Enter this code in the password reset page</li>
+                            <li style="margin: 8px 0;">Choose your new secure password</li>
+                            <li style="margin: 8px 0;">Confirm the password reset</li>
+                        </ul>
+                    </div>
+                    
+                    <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                        <p style="margin: 0;"><strong>⚠️ Security Information:</strong></p>
+                        <ul style="margin: 10px 0 0 0; padding-left: 20px;">
+                            <li style="margin: 8px 0;"><strong>Valid for 30 minutes only</strong></li>
+                            <li style="margin: 8px 0;">Maximum 3 reset attempts within 15 minutes</li>
+                            <li style="margin: 8px 0;">All active sessions will be logged out after password reset</li>
+                            <li style="margin: 8px 0;">Never share this code with anyone</li>
+                        </ul>
+                    </div>
+                    
+                    <p style="margin-top: 25px;"><strong>Didn't request this?</strong></p>
+                    <p>If you didn't request a password reset, please ignore this email. Your account is secure and no changes have been made.</p>
+                    
+                    <p style="margin-top: 25px;">For security reasons, this verification code will expire in <strong>30 minutes</strong>.</p>
                     """, user.getUsername(), otp);
 
-            emailService.sendHtmlEmail(user.getEmail(), subject, body);
-            log.info("Professional password recovery email sent to: {}", user.getEmail());
+            emailService.sendHtmlEmailToUser(user.getId(), user.getEmail(), subject, bodyContent);
+            log.info("Password recovery email sent to: {}", user.getEmail());
         } catch (Exception e) {
             log.error("Failed to send password recovery email to user: {}", user.getUsername(), e);
-            throw e; // Re-throw to be caught by outer try-catch
+            throw e;
         }
     }
 

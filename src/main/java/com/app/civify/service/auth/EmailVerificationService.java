@@ -4,6 +4,7 @@ import com.app.civify.entity.User;
 import com.app.civify.exception.BadRequestException;
 import com.app.civify.repository.UserRepository;
 import com.app.civify.service.cache.CacheService;
+import com.app.civify.service.i18n.MessageService;
 import com.app.civify.service.subscription.SubscriptionService;
 import com.app.civify.util.EmailService;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +34,7 @@ public class EmailVerificationService {
     private final CacheService cacheService;
     private final SubscriptionService subscriptionService;
     private final ResourceLoader resourceLoader;
-    private final com.app.civify.service.i18n.MessageService messageService;
+    private final MessageService messageService;
 
     @Value("${email.verification.token-expiration:86400000}") // 24 hours default -> TODO check consts
     private long tokenExpiration;

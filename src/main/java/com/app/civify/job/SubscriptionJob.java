@@ -126,26 +126,38 @@ public class SubscriptionJob implements Job {
     }
 
     /**
-     * Send email notification about upcoming renewal with payment link.
+     * Send email notification about upcoming renewal with payment link using centralized templates
      */
     private void sendRenewalNotificationEmail(UserSubscription sub, String paymentUrl, BigDecimal amount, boolean isAnnual) {
         try {
-            // TODO send HTML mail
             String subject = "Your Civify Subscription Renewal";
-            String body = String.format(
-                    "Hello %s,\n\n" +
-                    "Your %s subscription to %s plan is expiring soon.\n\n" +
-                    "Renewal amount: %.2f EGP\n\n" +
-                    "Please complete your payment to continue enjoying Civify services:\n%s\n\n" +
-                    "Thank you for being a valued customer!\n\n" +
-                    "Best regards,\nThe Civify Team",
+            String bodyContent = String.format("""
+                    <p>Hello <strong>%s</strong>,</p>
+                    
+                    <p>Your <strong>%s</strong> subscription to <strong>%s</strong> plan is expiring soon.</p>
+                    
+                    <div style="background-color: #e8f4f8; border-left: 4px solid #2196F3; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                        <p style="margin: 0;"><strong>Renewal Amount:</strong> %.2f EGP</p>
+                    </div>
+                    
+                    <p>Please complete your payment to continue enjoying Civify services:</p>
+                    
+                    <p style="text-align: center; margin: 25px 0;">
+                        <a href="%s" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Complete Payment</a>
+                    </p>
+                    
+                    <p>Thank you for being a valued customer!</p>
+                    
+                    <p>Best regards,<br>The Civify Team</p>
+                    """,
                     sub.getUser().getName(),
                     isAnnual ? "annual" : "monthly",
                     sub.getPlan().getName(),
                     amount.doubleValue(),
                     paymentUrl
             );
-            emailService.sendEmail(sub.getUser().getEmail(), subject, body);
+            
+            emailService.sendHtmlEmailToUser(sub.getUser().getId(), sub.getUser().getEmail(), subject, bodyContent);
         } catch (Exception e) {
             log.warn("Failed to send renewal email for subscription {}: {}", sub.getId(), e.getMessage());
         }
