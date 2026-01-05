@@ -115,6 +115,13 @@ public class SubscriptionPlan extends BaseEntity {
     @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<PlanIntegration> integrations = new ArrayList<>();
 
+    /**
+     * Currency-specific price overrides
+     * If an override exists for a currency, use it instead of converting from USD
+     */
+    @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<PlanCurrencyPrice> currencyPrices = new ArrayList<>();
+
     // ==================== HELPER METHODS ====================
 
     /**
