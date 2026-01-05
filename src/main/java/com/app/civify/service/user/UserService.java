@@ -19,5 +19,7 @@ public interface UserService {
 
     User getCurrentUser();
 
+    Long getCurrentUserId();
+
     long countTotalUsers();
 }

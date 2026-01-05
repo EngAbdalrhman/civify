@@ -189,24 +189,31 @@ public class SubscriptionLifecycleService {
     }
 
     /**
-     * Send renewal invoice email with payment instructions
+     * Send renewal invoice email with payment instructions using centralized templates
      */
     private void sendRenewalInvoiceEmail(UserSubscription subscription) {
         String subject = "Your Subscription Renewal Invoice";
-        String body = String.format(
-                "Dear %s,\n\n"
-                + "Your subscription to %s plan expires tomorrow (%s).\n\n"
-                + "To continue your subscription without interruption, please renew now.\n"
-                + "If payment is not received by tomorrow, you will be automatically downgraded to the free plan.\n\n"
-                + "Login to your account to complete the renewal.\n\n"
-                + "Best regards,\n"
-                + "Civify Team",
+        String bodyContent = String.format("""
+                <p>Dear <strong>%s</strong>,</p>
+                
+                <p>Your subscription to <strong>%s</strong> plan expires tomorrow (%s).</p>
+                
+                <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                    <p style="margin: 0;"><strong>⚠️ Action Required</strong></p>
+                    <p style="margin: 10px 0 0 0;">To continue your subscription without interruption, please renew now.
+                    If payment is not received by tomorrow, you will be automatically downgraded to the free plan.</p>
+                </div>
+                
+                <p>Login to your account to complete the renewal.</p>
+                
+                <p>Best regards,<br>Civify Team</p>
+                """,
                 subscription.getUser().getUsername(),
                 subscription.getPlan().getName(),
                 subscription.getEndDate().toLocalDate()
         );
 
-        emailService.sendEmail(subscription.getUser().getEmail(), subject, body);
+        emailService.sendHtmlEmailToUser(subscription.getUser().getId(), subscription.getUser().getEmail(), subject, bodyContent);
     }
 
     /**
@@ -237,79 +244,101 @@ public class SubscriptionLifecycleService {
         // Send cancellation notification
         try {
             String subject = "Subscription Request Cancelled";
-            String body = String.format(
-                    "Dear %s,\n\n"
-                    + "Your subscription request for %s plan has been cancelled due to non-payment.\n"
-                    + "You can create a new subscription request anytime from your account.\n\n"
-                    + "Best regards,\n"
-                    + "Civify Team",
+            String bodyContent = String.format("""
+                    <p>Dear <strong>%s</strong>,</p>
+                    
+                    <p>Your subscription request for <strong>%s</strong> plan has been cancelled due to non-payment.</p>
+                    
+                    <p>You can create a new subscription request anytime from your account.</p>
+                    
+                    <p>Best regards,<br>Civify Team</p>
+                    """,
                     subscription.getUser().getUsername(),
                     subscription.getPlan().getName()
             );
 
-            emailService.sendEmail(subscription.getUser().getEmail(), subject, body);
+            emailService.sendHtmlEmailToUser(subscription.getUser().getId(), subscription.getUser().getEmail(), subject, bodyContent);
         } catch (Exception e) {
             log.error("Failed to send cancellation notification: {}", e.getMessage());
         }
     }
 
     /**
-     * Send renewal reminder email
+     * Send renewal reminder email using centralized templates
      */
     private void sendRenewalReminder(UserSubscription subscription) {
         String subject = "Subscription Renewal Reminder";
-        String body = String.format(
-                "Dear %s,\n\n"
-                + "Your subscription to %s plan is expiring on %s.\n"
-                + "To continue enjoying premium features, please renew your subscription before it expires.\n\n"
-                + "If your subscription expires, you will automatically be moved to the free plan.\n\n"
-                + "Best regards,\n"
-                + "Civify Team",
+        String bodyContent = String.format("""
+                <p>Dear <strong>%s</strong>,</p>
+                
+                <p>Your subscription to <strong>%s</strong> plan is expiring on <strong>%s</strong>.</p>
+                
+                <p>To continue enjoying premium features, please renew your subscription before it expires.</p>
+                
+                <div style="background-color: #e8f4f8; border-left: 4px solid #2196F3; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                    <p style="margin: 0;"><strong>ℹ️ Note:</strong> If your subscription expires, you will automatically be moved to the free plan.</p>
+                </div>
+                
+                <p>Best regards,<br>Civify Team</p>
+                """,
                 subscription.getUser().getUsername(),
                 subscription.getPlan().getName(),
                 subscription.getEndDate().toLocalDate()
         );
 
-        emailService.sendEmail(subscription.getUser().getEmail(), subject, body);
+        emailService.sendHtmlEmailToUser(subscription.getUser().getId(), subscription.getUser().getEmail(), subject, bodyContent);
     }
 
     /**
-     * Send payment reminder email
+     * Send payment reminder email using centralized templates
      */
     private void sendPaymentReminder(UserSubscription subscription) {
         String subject = "Payment Reminder - Complete Your Subscription";
-        String body = String.format(
-                "Dear %s,\n\n"
-                + "You have a pending subscription to %s plan that was created on %s.\n"
-                + "Please complete your payment to activate your subscription and start enjoying premium features.\n\n"
-                + "If payment is not completed within 7 days, your subscription request will be automatically cancelled.\n\n"
-                + "If you have any questions, please contact our support team.\n\n"
-                + "Best regards,\n"
-                + "Civify Team",
+        String bodyContent = String.format("""
+                <p>Dear <strong>%s</strong>,</p>
+                
+                <p>You have a pending subscription to <strong>%s</strong> plan that was created on <strong>%s</strong>.</p>
+                
+                <p>Please complete your payment to activate your subscription and start enjoying premium features.</p>
+                
+                <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                    <p style="margin: 0;"><strong>⚠️ Important:</strong> If payment is not completed within 7 days, your subscription request will be automatically cancelled.</p>
+                </div>
+                
+                <p>If you have any questions, please contact our support team.</p>
+                
+                <p>Best regards,<br>Civify Team</p>
+                """,
                 subscription.getUser().getUsername(),
                 subscription.getPlan().getName(),
                 subscription.getStartDate().toLocalDate()
         );
 
-        emailService.sendEmail(subscription.getUser().getEmail(), subject, body);
+        emailService.sendHtmlEmailToUser(subscription.getUser().getId(), subscription.getUser().getEmail(), subject, bodyContent);
     }
 
     /**
-     * Send subscription expiration notification
+     * Send subscription expiration notification using centralized templates
      */
     private void sendExpirationNotification(UserSubscription subscription) {
         String subject = "Subscription Expired";
-        String body = String.format(
-                "Dear %s,\n\n"
-                + "Your subscription to %s plan has expired.\n"
-                + "You have been automatically moved to the free plan.\n\n"
-                + "To continue enjoying premium features, please renew your subscription from your account.\n\n"
-                + "Best regards,\n"
-                + "Civify Team",
+        String bodyContent = String.format("""
+                <p>Dear <strong>%s</strong>,</p>
+                
+                <p>Your subscription to <strong>%s</strong> plan has expired.</p>
+                
+                <p>You have been automatically moved to the free plan.</p>
+                
+                <div style="background-color: #e8f4f8; border-left: 4px solid #2196F3; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                    <p style="margin: 0;"><strong>ℹ️ Want to continue?</strong> To continue enjoying premium features, please renew your subscription from your account.</p>
+                </div>
+                
+                <p>Best regards,<br>Civify Team</p>
+                """,
                 subscription.getUser().getUsername(),
                 subscription.getPlan().getName()
         );
 
-        emailService.sendEmail(subscription.getUser().getEmail(), subject, body);
+        emailService.sendHtmlEmailToUser(subscription.getUser().getId(), subscription.getUser().getEmail(), subject, bodyContent);
     }
 }

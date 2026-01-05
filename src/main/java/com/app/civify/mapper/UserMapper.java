@@ -26,6 +26,10 @@ public interface UserMapper extends CommonMapper<User, UserDto> {
     @Mapping(target = "isEmailVerified", ignore = true)
     @Mapping(target = "twoFactorEnabled", ignore = true)
     @Mapping(target = "lastLoginAt", ignore = true)
+    @Mapping(target = "extraTokens", ignore = true)
+    @Mapping(target = "status", ignore = true)
+    @Mapping(target = "preferredLanguage", ignore = true)
+    @Mapping(target = "preferredTheme", ignore = true)
     User toEntity(UserDto dto);
 
 }
