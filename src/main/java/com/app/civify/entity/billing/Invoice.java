@@ -10,6 +10,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -19,7 +20,7 @@ import java.util.UUID;
 @Table(name = "invoices")
 @Data
 @EqualsAndHashCode(callSuper = true)
-@org.hibernate.annotations.SQLRestriction("is_deleted = false")
+@SQLRestriction("is_deleted = false")
 public class Invoice extends BaseEntity {
 
     @Id
@@ -33,11 +34,11 @@ public class Invoice extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "subscription_id")
     private UserSubscription subscription;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "plan_id", nullable = false)
     private SubscriptionPlan plan;
 
