@@ -1,27 +1,27 @@
 package com.app.civify.job;
 
+import com.app.civify.entity.billing.Invoice;
 import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.entity.plans.SubscriptionPlan;
 import com.app.civify.entity.enums.SubscriptionStatus;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
 import com.app.civify.service.subscription.SubscriptionService;
-import com.app.civify.service.payment.PaymentService;
-import com.app.civify.dto.payment.PaymentCreationResult;
+import com.app.civify.service.billing.InvoiceService;
 import com.app.civify.util.EmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.Job;
 import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
 @Component
 @Slf4j
@@ -32,8 +32,11 @@ public class SubscriptionJob implements Job {
 
     private final UserSubscriptionRepository subscriptionRepository;
     private final SubscriptionService subscriptionService;
-    private final PaymentService paymentService;
+    private final InvoiceService invoiceService;
     private final EmailService emailService;
+
+    @Value("${app.frontend.base-url}")
+    private String frontendUrl;
 
     @Override
     @Transactional
@@ -53,6 +56,7 @@ public class SubscriptionJob implements Job {
      * Step 1: Invoicing
      * Create renewal invoices for subscriptions approaching their renewal date.
      * Skip if autoRenew is false (user cancelled).
+     * If a PENDING invoice already exists, send a reminder email instead.
      */
     private void processInvoicing() {
         LocalDateTime now = LocalDateTime.now();
@@ -65,6 +69,7 @@ public class SubscriptionJob implements Job {
         );
 
         int invoiceCount = 0;
+        int reminderCount = 0;
         int skippedCount = 0;
         for (UserSubscription sub : expiringTomorrow) {
             try {
@@ -89,47 +94,46 @@ public class SubscriptionJob implements Job {
                     continue;
                 }
 
-                // Create renewal invoice via payment service
-                Map<String, Object> metadata = new HashMap<>();
-                metadata.put("subscriptionId", sub.getId());
-                metadata.put("renewalType", isAnnual ? "annual" : "monthly");
-                metadata.put("firstName", sub.getUser().getName());
-                metadata.put("email", sub.getUser().getEmail());
+                // Check if PENDING invoice already exists
+                Optional<Invoice> existingInvoice = invoiceService.findPendingInvoice(sub.getId());
+                if (existingInvoice.isPresent()) {
+                    // Send reminder email instead of creating new invoice
+                    invoiceService.sendReminderEmail(existingInvoice.get());
+                    reminderCount++;
+                    continue;
+                }
 
-                PaymentCreationResult result = paymentService.createPayment(
-                        sub.getUser().getId(),
-                        amount.doubleValue(),
-                        "fawaterak"
-                );
-
-                log.info("📧 Created renewal invoice for subscription {} (User {}). Payment URL: {}", 
-                        sub.getId(), sub.getUser().getId(), result.getPaymentUrl());
-
-                // Send renewal notification email
-                sendRenewalNotificationEmail(sub, result.getPaymentUrl(), amount, isAnnual);
+                // Create renewal invoice (gateway-agnostic, no paymentUrl yet)
+                Optional<Invoice> invoiceOpt = invoiceService.createRenewalInvoice(sub, amount, "EGP");
                 
-                invoiceCount++;
+                if (invoiceOpt.isPresent()) {
+                    Invoice invoice = invoiceOpt.get();
+                    // Send renewal notification email with checkout link
+                    sendRenewalNotificationEmail(sub, invoice, amount, isAnnual);
+                    invoiceCount++;
+                }
             } catch (Exception e) {
                 log.error("Error creating invoice for subscription {}: {}", sub.getId(), e.getMessage());
             }
         }
-        log.info("📝 Created {} renewal invoices, skipped {} cancelled subscriptions.", invoiceCount, skippedCount);
+        log.info("📝 Created {} renewal invoices, sent {} reminders, skipped {} cancelled subscriptions.", 
+                invoiceCount, reminderCount, skippedCount);
     }
 
     /**
      * Determine if subscription is annual based on duration between start and end dates.
      */
     private boolean isAnnualSubscription(UserSubscription sub) {
-        // TODO check
         long daysBetween = ChronoUnit.DAYS.between(sub.getStartDate(), sub.getEndDate());
         return daysBetween > 180; // More than 6 months = annual
     }
 
     /**
-     * Send email notification about upcoming renewal with payment link using centralized templates
+     * Send email notification about upcoming renewal with checkout page link (user selects gateway there)
      */
-    private void sendRenewalNotificationEmail(UserSubscription sub, String paymentUrl, BigDecimal amount, boolean isAnnual) {
+    private void sendRenewalNotificationEmail(UserSubscription sub, Invoice invoice, BigDecimal amount, boolean isAnnual) {
         try {
+            String checkoutUrl = frontendUrl + "/checkout?invoice=" + invoice.getUuid();
             String subject = "Your Civify Subscription Renewal";
             String bodyContent = String.format("""
                     <p>Hello <strong>%s</strong>,</p>
@@ -154,10 +158,11 @@ public class SubscriptionJob implements Job {
                     isAnnual ? "annual" : "monthly",
                     sub.getPlan().getName(),
                     amount.doubleValue(),
-                    paymentUrl
+                    checkoutUrl
             );
             
             emailService.sendHtmlEmailToUser(sub.getUser().getId(), sub.getUser().getEmail(), subject, bodyContent);
+            log.info("📧 Sent renewal email for subscription {} to {}", sub.getId(), sub.getUser().getEmail());
         } catch (Exception e) {
             log.warn("Failed to send renewal email for subscription {}: {}", sub.getId(), e.getMessage());
         }
@@ -167,6 +172,7 @@ public class SubscriptionJob implements Job {
      * Step 2: Process Expired Subscriptions
      * - Cancelled (autoRenew=false): Downgrade immediately at endDate
      * - All others that passed endDate: Also downgrade (no grace period per user request)
+     * - Expire any PENDING invoices associated with the subscription
      */
     private void processExpiredSubscriptions() {
         LocalDateTime now = LocalDateTime.now();
@@ -190,6 +196,9 @@ public class SubscriptionJob implements Job {
                         
                 log.info("📉 Downgrading subscription {} (User {}) - {} - expired on {}", 
                         sub.getId(), sub.getUser().getId(), reason, sub.getEndDate());
+                
+                // Expire any pending invoices for this subscription
+                invoiceService.expirePendingInvoices(sub.getId());
                 
                 sub.setStatus(SubscriptionStatus.EXPIRED);
                 subscriptionRepository.save(sub);
