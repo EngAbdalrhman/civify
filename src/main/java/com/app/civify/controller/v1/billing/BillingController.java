@@ -2,6 +2,7 @@ package com.app.civify.controller.v1.billing;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.billing.InvoiceDto;
+import com.app.civify.security.UserPrincipal;
 import com.app.civify.usecase.user.BillingUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -9,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -27,9 +27,8 @@ public class BillingController {
     @GetMapping("/invoices")
     @Operation(summary = "Get user's invoice history")
     public ResponseEntity<List<InvoiceDto>> getUserInvoices(
-            @AuthenticationPrincipal UserDetails userDetails) {
-        Long userId = Long.parseLong(userDetails.getUsername());
-        return ResponseEntity.ok(billingUseCase.getUserInvoices(userId));
+            @AuthenticationPrincipal UserPrincipal userDetails) {
+        return ResponseEntity.ok(billingUseCase.getUserInvoices(userDetails.getId()));
     }
 
     @GetMapping("/invoices/{uuid}")

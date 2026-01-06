@@ -4,6 +4,7 @@ import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.entity.plans.PaymentTransaction;
 import com.app.civify.repository.plans.PaymentRepository;
+import com.app.civify.service.billing.InvoiceService;
 import com.app.civify.service.plans.TokenPackageService;
 import com.app.civify.service.subscription.SubscriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,6 +37,10 @@ public class PaymentServiceImpl implements PaymentService {
     @Lazy
     @Autowired
     private SubscriptionService subscriptionService;
+
+    @Lazy
+    @Autowired
+    private InvoiceService invoiceService;
 
     @Override
     public PaymentCreationResult createPayment(Long userId, double amount, String gateway) {
@@ -80,10 +85,16 @@ public class PaymentServiceImpl implements PaymentService {
                     }
                 }
 
-                // Default: Try to activate subscription
-                // Subscription is linked via paymentKey (transactionId)
-                log.info("Processing SUBSCRIPTION activation for paymentKey: {}", transaction.getPaymentKey());
-                subscriptionService.activateSubscription(transaction.getPaymentKey());
+                // Handle invoice payment (for renewals or initial invoices)
+                boolean invoiceHandled = invoiceService.handleSuccessfulPayment(transaction.getPaymentKey());
+                
+                if (!invoiceHandled) {
+                    // No invoice found - try to activate subscription (initial purchase flow)
+                    log.info("Processing SUBSCRIPTION activation for paymentKey: {}", transaction.getPaymentKey());
+                    subscriptionService.activateSubscription(transaction.getPaymentKey());
+                } else {
+                    log.info("Invoice payment processed for paymentKey: {}", transaction.getPaymentKey());
+                }
             } catch (Exception e) {
                 log.error("Failed to process payment fulfillment: {}", e.getMessage(), e);
             }

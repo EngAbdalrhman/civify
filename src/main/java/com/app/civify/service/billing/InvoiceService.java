@@ -69,4 +69,11 @@ public interface InvoiceService {
      * Check if a pending invoice exists for subscription.
      */
     Optional<Invoice> findPendingInvoice(Long subscriptionId);
+
+    /**
+     * Handle successful payment for an invoice.
+     * Marks invoice as PAID and extends subscription if it's a renewal.
+     * @return true if an invoice was found and processed
+     */
+    boolean handleSuccessfulPayment(String paymentTransactionId);
 }

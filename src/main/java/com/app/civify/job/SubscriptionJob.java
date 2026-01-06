@@ -97,9 +97,12 @@ public class SubscriptionJob implements Job {
                 // Check if PENDING invoice already exists
                 Optional<Invoice> existingInvoice = invoiceService.findPendingInvoice(sub.getId());
                 if (existingInvoice.isPresent()) {
-                    // Send reminder email instead of creating new invoice
-                    invoiceService.sendReminderEmail(existingInvoice.get());
-                    reminderCount++;
+                    Invoice invoice = existingInvoice.get();
+                    // Service handles reminderSent flag internally
+                    if (!Boolean.TRUE.equals(invoice.getReminderSent())) {
+                        invoiceService.sendReminderEmail(invoice);
+                        reminderCount++;
+                    }
                     continue;
                 }
 
