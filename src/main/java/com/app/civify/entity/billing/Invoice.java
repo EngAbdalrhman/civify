@@ -87,6 +87,10 @@ public class Invoice extends BaseEntity {
 
     private Boolean isAnnual = false;
 
+    @Column(nullable = false)
+    @ColumnDefault("false")
+    private Boolean reminderSent = false;
+
     @PrePersist
     @Override
     public void prePersist() {

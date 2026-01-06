@@ -157,6 +157,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     @Override
+    @Transactional
     public void sendReminderEmail(Invoice invoice) {
         try {
             String checkoutUrl = frontendUrl + "/checkout?invoice=" + invoice.getUuid();
@@ -190,6 +191,11 @@ public class InvoiceServiceImpl implements InvoiceService {
             );
 
             emailService.sendHtmlEmailToUser(invoice.getUser().getId(), invoice.getUserEmail(), subject, bodyContent);
+            
+            // Mark reminder as sent to avoid spamming
+            invoice.setReminderSent(true);
+            invoiceRepository.save(invoice);
+            
             log.info("Sent reminder email for invoice {} to {}", invoice.getUuid(), invoice.getUserEmail());
         } catch (Exception e) {
             log.warn("Failed to send reminder email for invoice {}: {}", invoice.getUuid(), e.getMessage());
@@ -209,6 +215,52 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     public Optional<Invoice> findPendingInvoice(Long subscriptionId) {
         return invoiceRepository.findBySubscriptionIdAndStatus(subscriptionId, InvoiceStatus.PENDING);
+    }
+
+    @Override
+    @Transactional
+    public boolean handleSuccessfulPayment(String paymentTransactionId) {
+        Optional<Invoice> invoiceOpt = invoiceRepository.findByPaymentTransactionId(paymentTransactionId);
+        if (invoiceOpt.isEmpty()) {
+            log.debug("No invoice found for transaction ID: {}", paymentTransactionId);
+            return false;
+        }
+
+        Invoice invoice = invoiceOpt.get();
+        if (invoice.getStatus() == InvoiceStatus.PAID) {
+            log.info("Invoice {} already marked as PAID", invoice.getUuid());
+            return true;
+        }
+
+        // Mark invoice as paid
+        invoice.markPaid(paymentTransactionId);
+        invoiceRepository.save(invoice);
+        log.info("Marked invoice {} as PAID", invoice.getUuid());
+
+        // If this is a RENEWAL invoice, extend the subscription
+        if ("RENEWAL".equals(invoice.getBillingType()) && invoice.getSubscription() != null) {
+            UserSubscription subscription = invoice.getSubscription();
+            
+            // Calculate new end date based on current end date
+            LocalDateTime currentEnd = subscription.getEndDate();
+            LocalDateTime newEnd;
+            
+            if (Boolean.TRUE.equals(invoice.getIsAnnual())) {
+                newEnd = currentEnd.plusYears(1);
+            } else {
+                newEnd = currentEnd.plusMonths(1);
+            }
+            
+            subscription.setEndDate(newEnd);
+            subscription.setAutoRenew(true); // Re-enable auto-renew after successful payment
+            // Note: We don't save here as this might cause issues with lazy loading
+            // The subscription change will be committed with the transaction
+            
+            log.info("Extended subscription {} to {} (renewal invoice {})", 
+                    subscription.getId(), newEnd, invoice.getUuid());
+        }
+
+        return true;
     }
 
     private boolean isAnnualSubscription(UserSubscription sub) {
