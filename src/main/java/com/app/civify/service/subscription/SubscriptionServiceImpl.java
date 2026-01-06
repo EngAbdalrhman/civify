@@ -17,6 +17,7 @@ import com.app.civify.repository.plans.PromoCodeRepository;
 import com.app.civify.repository.plans.SubscriptionPlanRepository;
 import com.app.civify.repository.plans.UserPromoUsageRepository;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
+import com.app.civify.service.billing.InvoiceService;
 import com.app.civify.service.payment.PaymentService;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
@@ -52,6 +53,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     private final UserRepository userRepository;
     private final PaymentService paymentService;
     private final MessageService messageService;
+    private final InvoiceService invoiceService;
 
     private static final String FREE_PLAN_NAME = "free";
 
@@ -545,6 +547,9 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         // Mark subscription to not auto-renew (graceful cancellation)
         subscription.setAutoRenew(false);
         subscriptionRepository.save(subscription);
+
+        // Cancel any pending invoices for this subscription
+        invoiceService.cancelPendingInvoices(subscription.getId());
 
         log.info("Subscription {} marked for cancellation (autoRenew=false). Will expire on {}", 
                 subscription.getId(), subscription.getEndDate());
