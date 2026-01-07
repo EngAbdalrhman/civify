@@ -85,4 +85,16 @@ public class UserServiceImpl implements UserService {
     public long countTotalUsers() {
         return userRepository.count();
     }
+
+    @Override
+    @Transactional
+    public UserDto updateProfilePicture(Long userId, String base64Image) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalStateException("User not found"));
+        
+        user.setProfilePictureUrl(base64Image);
+        User savedUser = userRepository.save(user);
+        log.info("Profile picture updated for user: {}", user.getUsername());
+        return userMapper.toDto(savedUser);
+    }
 }
