@@ -1,6 +1,7 @@
 package com.app.civify.controller.v1;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
+import com.app.civify.dto.user.ProfilePictureRequest;
 import com.app.civify.dto.user.ProfileUpdateRequest;
 import com.app.civify.dto.user.UserPreferenceDTO;
 import com.app.civify.entity.User;
@@ -117,6 +118,27 @@ public class UserController {
     public ResponseEntity<UserPreferenceDTO> updateMyPreferences(@RequestBody UserPreferenceDTO preferences,
                                                                  @AuthenticationPrincipal UserPrincipal userPrincipal) {
         return ResponseEntity.ok(userPreferenceService.updatePreferences(userPrincipal.getId(), preferences));
+    }
+
+    @Operation(
+            summary = "Upload profile picture",
+            description = "Updates the profile picture of the currently authenticated user. Accepts base64 encoded image.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Profile picture updated successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserDto.class))),
+        @ApiResponse(responseCode = "401", description = "Unauthorized",
+                content = @Content(mediaType = "application/json"))
+    })
+    @PutMapping("/me/profile-picture")
+    public ResponseEntity<UserDto> uploadProfilePicture(@RequestBody ProfilePictureRequest request,
+                                                        @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        String base64Image = request.getImage();
+        if (base64Image == null || base64Image.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(userService.updateProfilePicture(userPrincipal.getId(), base64Image));
     }
 }
 

@@ -23,4 +23,6 @@ public interface UserService {
     Long getCurrentUserId();
 
     long countTotalUsers();
+
+    UserDto updateProfilePicture(Long userId, String base64Image);
 }
