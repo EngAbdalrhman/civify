@@ -62,8 +62,8 @@ public class SubscriptionJob implements Job {
 
     /**
      * Process invoicing and reminders for subscriptions expiring within 3 days.
-     * - If no invoice exists: create one and send first email
-     * - If invoice exists but unpaid: send daily reminder
+     * - Zero-fee plans: auto-extend if renewal allowed and cycles permit
+     * - Paid plans: create invoice and send reminders
      */
     private void processInvoicingAndReminders() {
         LocalDateTime now = LocalDateTime.now();
@@ -76,6 +76,7 @@ public class SubscriptionJob implements Job {
 
         int invoiceCount = 0;
         int reminderCount = 0;
+        int autoExtendCount = 0;
         int skippedCount = 0;
 
         for (UserSubscription sub : expiringSubscriptions) {
@@ -89,7 +90,7 @@ public class SubscriptionJob implements Job {
 
                 SubscriptionPlan plan = sub.getPlan();
 
-                // Skip free plan
+                // Skip free plan (never needs renewal)
                 if (FREE_PLAN_NAME.equalsIgnoreCase(plan.getName())) {
                     continue;
                 }
@@ -101,19 +102,29 @@ public class SubscriptionJob implements Job {
                     continue;
                 }
 
-                boolean isAnnual = isAnnualSubscription(sub);
-                BigDecimal amount = isAnnual ? plan.getAnnualPrice() : plan.getMonthlyPrice();
-
-                if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-                    log.warn("⚠️ Skipping subscription {} - no valid price", sub.getId());
+                // Check max billing cycles
+                if (plan.getMaxBillingCycles() != null && sub.getCurrentCycleCount() >= plan.getMaxBillingCycles()) {
+                    log.info("⏭️ Skipping subscription {} - max billing cycles reached ({}/{})",
+                            sub.getId(), sub.getCurrentCycleCount(), plan.getMaxBillingCycles());
+                    skippedCount++;
                     continue;
                 }
 
-                // Check if PENDING invoice already exists
+                boolean isAnnual = isAnnualSubscription(sub);
+                BigDecimal amount = isAnnual ? plan.getAnnualPrice() : plan.getMonthlyPrice();
+
+                // Handle zero-fee plans (e.g., beta plans) - auto-extend
+                if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+                    autoExtendSubscription(sub, isAnnual);
+                    autoExtendCount++;
+                    continue;
+                }
+
+                // Paid plans - handle invoicing and reminders
                 Optional<Invoice> existingInvoice = invoiceService.findPendingInvoice(sub.getId());
-                
+
                 if (existingInvoice.isPresent()) {
-                    // Invoice exists - send daily reminder (uses InvoiceService which has checkout link)
+                    // Invoice exists - send daily reminder
                     Invoice invoice = existingInvoice.get();
                     invoiceService.sendReminderEmail(invoice);
                     reminderCount++;
@@ -133,8 +144,71 @@ public class SubscriptionJob implements Job {
             }
         }
 
-        log.info("📝 Created {} renewal invoices, sent {} reminders, skipped {} subscriptions.",
-                invoiceCount, reminderCount, skippedCount);
+        log.info("📝 Created {} invoices, sent {} reminders, auto-extended {} subscriptions, skipped {}.",
+                invoiceCount, reminderCount, autoExtendCount, skippedCount);
+    }
+
+    /**
+     * Auto-extend a zero-fee subscription (e.g., beta plan).
+     * Extends the subscription period and sends confirmation email.
+     */
+    private void autoExtendSubscription(UserSubscription sub, boolean isAnnual) {
+        try {
+            LocalDateTime currentEnd = sub.getEndDate();
+            LocalDateTime newEnd = isAnnual ? currentEnd.plusYears(1) : currentEnd.plusMonths(1);
+
+            sub.setEndDate(newEnd);
+            sub.setCurrentCycleCount(sub.getCurrentCycleCount() + 1);
+            subscriptionRepository.save(sub);
+
+            log.info("🔄 Auto-extended subscription {} to {} (cycle {}/{})",
+                    sub.getId(), newEnd.toLocalDate(),
+                    sub.getCurrentCycleCount(),
+                    sub.getPlan().getMaxBillingCycles() != null ? sub.getPlan().getMaxBillingCycles() : "∞");
+
+            // Send auto-extension confirmation email
+            sendAutoExtensionEmail(sub, newEnd, isAnnual);
+        } catch (Exception e) {
+            log.error("❌ Failed to auto-extend subscription {}: {}", sub.getId(), e.getMessage());
+        }
+    }
+
+    /**
+     * Send confirmation email for auto-extended zero-fee subscription.
+     */
+    private void sendAutoExtensionEmail(UserSubscription sub, LocalDateTime newEndDate, boolean isAnnual) {
+        try {
+            String subject = "Your Civify Subscription Has Been Extended";
+            String cycleInfo = sub.getPlan().getMaxBillingCycles() != null
+                    ? String.format("Cycle %d of %d", sub.getCurrentCycleCount(), sub.getPlan().getMaxBillingCycles())
+                    : "Unlimited renewal";
+
+            String bodyContent = String.format("""
+                    <p>Hello <strong>%s</strong>,</p>
+                    
+                    <p>Great news! Your <strong>%s</strong> subscription to <strong>%s</strong> plan has been automatically renewed at no cost.</p>
+                    
+                    <div style="background-color: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                        <p style="margin: 0;"><strong>✅ New Expiration Date:</strong> %s</p>
+                        <p style="margin: 5px 0 0 0;"><strong>📊 %s</strong></p>
+                    </div>
+                    
+                    <p>Continue enjoying all your premium features!</p>
+                    
+                    <p>Best regards,<br>The Civify Team</p>
+                    """,
+                    sub.getUser().getName(),
+                    isAnnual ? "annual" : "monthly",
+                    sub.getPlan().getName(),
+                    newEndDate.toLocalDate().toString(),
+                    cycleInfo
+            );
+
+            emailService.sendHtmlEmailToUser(sub.getUser().getId(), sub.getUser().getEmail(), subject, bodyContent);
+            log.info("📧 Sent auto-extension email for subscription {} to {}", sub.getId(), sub.getUser().getEmail());
+        } catch (Exception e) {
+            log.warn("⚠️ Failed to send auto-extension email for subscription {}: {}", sub.getId(), e.getMessage());
+        }
     }
 
     /**
