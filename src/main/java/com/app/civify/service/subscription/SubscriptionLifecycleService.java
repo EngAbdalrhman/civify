@@ -6,8 +6,6 @@ import com.app.civify.repository.plans.UserSubscriptionRepository;
 import com.app.civify.util.EmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,10 +19,14 @@ import java.util.List;
  * - Send payment and renewal reminders
  * - Auto-reactivate free plan when paid subscription expires
  */
+/**
+ * Service containing subscription lifecycle utility methods.
+ * Note: Scheduling is handled by SubscriptionJob (Quartz).
+ * This service is kept as a utility for potential direct calls.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@EnableScheduling
 public class SubscriptionLifecycleService {
 
     private final UserSubscriptionRepository subscriptionRepository;
@@ -32,9 +34,9 @@ public class SubscriptionLifecycleService {
     private final EmailService emailService;
 
     /**
-     * Runs daily at 2 AM to check for expired subscriptions
+     * Process expired subscriptions.
+     * Called by SubscriptionJob (Quartz) - DO NOT add @Scheduled.
      */
-    @Scheduled(cron = "0 0 2 * * ?")
     @Transactional
     public void processExpiredSubscriptions() {
         log.info("Starting expired subscription processing");
@@ -56,10 +58,9 @@ public class SubscriptionLifecycleService {
     }
 
     /**
-     * Runs daily at 3 AM to check for subscriptions with overdue payments
-     * Cancels subscriptions that haven't been paid within 7 days of creation
+     * Process overdue PENDING subscriptions.
+     * Called by SubscriptionJob (Quartz) - DO NOT add @Scheduled.
      */
-    @Scheduled(cron = "0 0 3 * * ?")
     @Transactional
     public void processOverduePayments() {
         log.info("Starting overdue payment processing");
@@ -81,10 +82,9 @@ public class SubscriptionLifecycleService {
     }
 
     /**
-     * Runs daily at 4 AM to check for subscriptions that need payment reminders
-     * Sends reminders for pending subscriptions older than 3 days
+     * Process payment reminders for pending subscriptions.
+     * Called by SubscriptionJob (Quartz) - DO NOT add @Scheduled.
      */
-    @Scheduled(cron = "0 0 4 * * ?")
     @Transactional
     public void processPaymentReminders() {
         log.info("Starting payment reminder processing");
@@ -110,10 +110,10 @@ public class SubscriptionLifecycleService {
     }
 
     /**
-     * Runs daily at 5 AM to send renewal reminders
-     * Reminds users whose subscriptions are expiring in 3 days
+     * Send renewal reminders for subscriptions expiring soon.
+     * Note: Invoice creation and reminders are now handled in SubscriptionJob.
+     * This method is kept for backward compatibility.
      */
-    @Scheduled(cron = "0 0 5 * * ?")
     @Transactional
     public void sendRenewalReminders() {
         log.info("Starting renewal reminder processing");
@@ -141,10 +141,10 @@ public class SubscriptionLifecycleService {
     }
 
     /**
-     * Runs daily at 6 AM to create renewal invoices
-     * Creates payment invoice for subscriptions expiring tomorrow
+     * Create renewal invoices for subscriptions expiring soon.
+     * Note: This is now handled in SubscriptionJob with 3-day advance notice.
+     * This method is kept for backward compatibility.
      */
-    @Scheduled(cron = "0 0 6 * * ?")
     @Transactional
     public void createRenewalInvoices() {
         log.info("Starting renewal invoice creation");
