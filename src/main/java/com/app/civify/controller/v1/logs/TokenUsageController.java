@@ -1,8 +1,10 @@
 package com.app.civify.controller.v1.logs;
 
+import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.token.TokenUsageDto;
 import com.app.civify.dto.token.TokenUsageSummaryDto;
 import com.app.civify.entity.User;
+import com.app.civify.security.UserPrincipal;
 import com.app.civify.security.annotation.CivifyAuthorization;
 import com.app.civify.usecase.logs.AuditLogUseCase;
 import com.app.civify.util.filter.InputDataModel;
@@ -15,8 +17,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-@RestController
-@RequestMapping("/v1")
+@ApiV1Controller
+@RequestMapping("/token-usage")
 @RequiredArgsConstructor
 @Tag(name = "Token Usage", description = "Token usage tracking endpoints")
 public class TokenUsageController {
@@ -24,9 +26,9 @@ public class TokenUsageController {
     private final AuditLogUseCase auditLogUseCase;
 
     @Operation(summary = "Get my token usage history")
-    @GetMapping("/users/me/token-usage")
+    @GetMapping("/users/me")
     public ResponseEntity<Page<TokenUsageDto>> getMyTokenUsage(
-            @AuthenticationPrincipal User user,
+            @AuthenticationPrincipal UserPrincipal user,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Page<TokenUsageDto> usage = auditLogUseCase.getMyTokenUsageHistory(user, page, size);
@@ -34,30 +36,20 @@ public class TokenUsageController {
     }
 
     @Operation(summary = "Get my monthly token usage summary")
-    @GetMapping("/users/me/token-usage/summary")
+    @GetMapping("/users/me/summary")
     public ResponseEntity<TokenUsageSummaryDto> getMyTokenUsageSummary(
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal UserPrincipal user) {
         TokenUsageSummaryDto summary = auditLogUseCase.getMyTokenUsageSummary(user);
         return ResponseEntity.ok(summary);
     }
 
     @Operation(summary = "Get all token usage logs (Admin)")
-    @PostMapping("/admin/token-usage/filter")
-    @CivifyAuthorization(permission = "ADMIN_STATS.VIEW")
+    @PostMapping("/admin/filter")
+    @CivifyAuthorization(permission = "SYSTEM.LOGS.VIEW")
     public ResponseEntity<PagedResponse<TokenUsageDto>> filterTokenUsage(
             @RequestBody InputDataModel inputData) {
         PagedResponse<TokenUsageDto> usage = auditLogUseCase.filterTokenUsageLogs(inputData);
         return ResponseEntity.ok(usage);
     }
 
-    @Operation(summary = "Get specific user's token usage (Admin)")
-    @GetMapping("/admin/token-usage/user/{userId}")
-    @CivifyAuthorization(permission = "ADMIN_STATS.VIEW")
-    public ResponseEntity<Page<TokenUsageDto>> getUserTokenUsage(
-            @PathVariable Long userId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        Page<TokenUsageDto> usage = auditLogUseCase.getUserTokenUsageHistory(userId, page, size);
-        return ResponseEntity.ok(usage);
-    }
 }
