@@ -27,6 +27,17 @@ public interface PaymentService {
     PaymentCreationResult createPayment(Long userId, double amount, Map<String, Object> metadata);
 
     /**
+     * Create a payment transaction with gateway and metadata
+     *
+     * @param userId User ID
+     * @param amount Amount
+     * @param gateway Gateway name
+     * @param metadata Metadata
+     * @return PaymentCreationResult
+     */
+    PaymentCreationResult createPayment(Long userId, double amount, String gateway, Map<String, Object> metadata);
+
+    /**
      * Verify a payment transaction
      *
      * @param paymentId Payment ID to verify

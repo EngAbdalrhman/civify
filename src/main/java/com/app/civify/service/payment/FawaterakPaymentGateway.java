@@ -504,17 +504,32 @@ public class FawaterakPaymentGateway implements PaymentGateway {
 
     private Map<String, String> buildCustomerData(Map<String, Object> metadata) {
         Map<String, String> customer = new HashMap<>();
-        customer.put("first_name", "Customer");
-        customer.put("last_name", "User");
-        customer.put("email", "customer@example.com");
-        customer.put("phone", "01000000000"); // Required format
+        
+        // Defaults
+        String firstName = "Customer";
+        String lastName = "User";
+        String email = "customer@example.com";
+        String phone = "01000000000";
 
         if (metadata != null) {
-            if (metadata.containsKey("firstName")) customer.put("first_name", (String) metadata.get("firstName"));
-            if (metadata.containsKey("lastName")) customer.put("last_name", (String) metadata.get("lastName"));
-            if (metadata.containsKey("email")) customer.put("email", (String) metadata.get("email"));
-            if (metadata.containsKey("phone")) customer.put("phone", (String) metadata.get("phone"));
+            if (metadata.containsKey("firstName") && metadata.get("firstName") != null) 
+                firstName = (String) metadata.get("firstName");
+                
+            if (metadata.containsKey("lastName") && metadata.get("lastName") != null) 
+                lastName = (String) metadata.get("lastName");
+                
+            if (metadata.containsKey("email") && metadata.get("email") != null) 
+                email = (String) metadata.get("email");
+                
+            if (metadata.containsKey("phone") && metadata.get("phone") != null) 
+                phone = (String) metadata.get("phone");
         }
+
+        customer.put("first_name", firstName);
+        customer.put("last_name", lastName);
+        customer.put("email", email);
+        customer.put("phone", phone);
+        
         return customer;
     }
 
