@@ -86,7 +86,7 @@ public class User extends BaseEntity implements Serializable {
     @Column(name = "phone_number")
     private String phoneNumber;
 
-    @Column(name = "profile_picture_url")
+    @Column(name = "profile_picture_url", columnDefinition = "TEXT")
     private String profilePictureUrl;
 
     @Builder.Default
