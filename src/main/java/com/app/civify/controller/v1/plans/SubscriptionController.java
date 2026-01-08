@@ -126,7 +126,6 @@ public class SubscriptionController {
         List<SubscriptionResponse> subscriptions = subscriptionUseCase.getUserSubscriptions(userId);
         return ResponseEntity.ok(CommonResponse.success(subscriptions));
     }
-// ToDO   not needed
 
     @Operation(
             summary = "Cancel subscription",

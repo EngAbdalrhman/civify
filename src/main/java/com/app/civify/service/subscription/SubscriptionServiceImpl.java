@@ -33,7 +33,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -126,7 +128,6 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         }
         // =============================================================
 
-        //TODO Don't allow creating another subscription if user already has a pending one
         Optional<UserSubscription> pendingSubscription = subscriptionRepository
                 .findByUserIdAndStatus(userId, SubscriptionStatus.PENDING)
                 .stream()
@@ -335,7 +336,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         // Check if price is zero (Free plan or 100% discount)
         if (priceCalc.getTotalPrice().compareTo(BigDecimal.ZERO) <= 0) {
             log.info("Total price is 0. Bypassing payment gateway for user {}", userId);
-            String transactionId = "FREE-" + java.util.UUID.randomUUID().toString();
+            String transactionId = "FREE-" + java.util.UUID.randomUUID();
             
             subscription.setPaymentTransactionId(transactionId);
             subscriptionRepository.save(subscription);
@@ -354,7 +355,16 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         }
 
         // Create payment transaction
-        PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), gateway);
+        Map<String, Object> metadata = new HashMap<>();
+        if (subscription.getUser() != null) {
+            User user = subscription.getUser();
+            metadata.put("firstName", user.getFirstName());
+            metadata.put("lastName", user.getLastName());
+            metadata.put("email", user.getEmail());
+            metadata.put("phone", user.getPhoneNumber() != null ? user.getPhoneNumber() : user.getPhone());
+        }
+
+        PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), gateway, metadata);
 
         // Link payment to subscription
         subscription.setPaymentTransactionId(paymentResult.getPaymentKey());
@@ -368,7 +378,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                 .orderId(paymentResult.getOrderId())
                 .subscriptionId(subscription.getId())
                 .amount(priceCalc.getTotalPrice())
-                .currency("EGP") // TODO detect via ip the nationality and currency egp or usd or sar or aed
+                .currency("EGP") 
                 .message(messageService.getMessage("payment.initiated"))
                 .build();
     }
