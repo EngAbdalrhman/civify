@@ -3,12 +3,14 @@ package com.app.civify.service.user;
 import com.app.civify.dto.user.ProfileUpdateRequest;
 import com.app.civify.dto.user.UserDto;
 import com.app.civify.entity.User;
+import com.app.civify.exception.BadRequestException;
 import com.app.civify.mapper.UserMapper;
 import com.app.civify.repository.UserRepository;
 import com.app.civify.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,7 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final UserMapper userMapper;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public List<User> findAll() {
@@ -97,4 +100,24 @@ public class UserServiceImpl implements UserService {
         log.info("Profile picture updated for user: {}", user.getUsername());
         return userMapper.toDto(savedUser);
     }
+
+    @Override
+    @Transactional
+    public void deleteMyAccount(UserPrincipal userPrincipal, String password) {
+        User user = userPrincipal.getUser();
+        if (user == null) {
+            throw new IllegalStateException("User not authenticated");
+        }
+
+        // Verify password before deletion
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            throw new BadRequestException("user.account.delete.password.incorrect");
+        }
+
+        // Soft delete the user
+        user.setIsDeleted(true);
+        userRepository.save(user);
+        log.info("Account soft deleted for user: {}", user.getUsername());
+    }
 }
+

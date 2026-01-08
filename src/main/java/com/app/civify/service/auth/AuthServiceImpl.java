@@ -52,12 +52,14 @@ public class AuthServiceImpl implements AuthService {
         log.info("Registering new user: {}", req.getUsername());
 
         if (bloomFilterService.mightHaveUsername(req.getUsername())) {
-            if (userRepository.findByUsername(req.getUsername()).isPresent()) {
+            // Only block if an ACTIVE (non-deleted) user exists with this username
+            if (userRepository.findActiveByUsername(req.getUsername()).isPresent()) {
                 throw new BadRequestException("user.username.exists");
             }
         }
         if (bloomFilterService.mightHaveEmail(req.getEmail())) {
-            if (userRepository.findByEmail(req.getEmail()).isPresent()) {
+            // Only block if an ACTIVE (non-deleted) user exists with this email
+            if (userRepository.findActiveByEmail(req.getEmail()).isPresent()) {
                 throw new BadRequestException("user.email.exists");
             }
         }
