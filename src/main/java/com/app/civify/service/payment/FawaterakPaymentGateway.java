@@ -2,9 +2,11 @@ package com.app.civify.service.payment;
 
 import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
+import com.app.civify.entity.enums.BillingAuditType;
 import com.app.civify.entity.enums.PaymentStatus;
 import com.app.civify.entity.plans.PaymentTransaction;
 import com.app.civify.repository.plans.PaymentRepository;
+import com.app.civify.service.logs.BillingAuditService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -35,6 +37,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     private final PaymentRepository paymentRepository;
     private final ObjectMapper objectMapper;
     private final com.app.civify.service.notification.NotificationService notificationService;
+    private final BillingAuditService billingAuditService;
 
     @Value("${payment.fawaterak.api-key:}")
     private String apiKey;
@@ -306,6 +309,26 @@ public class FawaterakPaymentGateway implements PaymentGateway {
             paymentRepository.save(transaction);
             log.info("💾 Transaction state updated: {} -> {} for invoice {}",
                     previousStatus, transaction.getStatus(), invoiceId);
+
+            // Log billing audit
+            String paymentMethodValue = callbackData.has("payment_method") 
+                    ? callbackData.get("payment_method").asText() : null;
+            BillingAuditType auditType = result.isSuccess() 
+                    ? BillingAuditType.WEBHOOK_SUCCESS 
+                    : BillingAuditType.WEBHOOK_FAILED;
+            billingAuditService.logWebhook(
+                getGatewayName(),
+                transaction.getUserId(),
+                null, // invoiceId - we don't have our invoice ID here
+                transaction.getPaymentKey(),
+                invoiceId,
+                status,
+                paymentMethodValue,
+                result.getMessage(),
+                rawPayload,
+                null,
+                auditType
+            );
 
             return result;
 
