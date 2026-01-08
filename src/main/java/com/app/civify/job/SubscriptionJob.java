@@ -3,8 +3,10 @@ package com.app.civify.job;
 import com.app.civify.entity.billing.Invoice;
 import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.entity.plans.SubscriptionPlan;
+import com.app.civify.entity.enums.SubscriptionAuditType;
 import com.app.civify.entity.enums.SubscriptionStatus;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
+import com.app.civify.service.logs.SubscriptionAuditService;
 import com.app.civify.service.subscription.SubscriptionService;
 import com.app.civify.service.billing.InvoiceService;
 import com.app.civify.util.EmailService;
@@ -42,6 +44,7 @@ public class SubscriptionJob implements Job {
     private final SubscriptionService subscriptionService;
     private final InvoiceService invoiceService;
     private final EmailService emailService;
+    private final SubscriptionAuditService subscriptionAuditService;
 
     @Value("${app.frontend.base-url}")
     private String frontendUrl;
@@ -137,6 +140,17 @@ public class SubscriptionJob implements Job {
                         Invoice invoice = invoiceOpt.get();
                         sendRenewalNotificationEmail(sub, invoice, amount, isAnnual);
                         invoiceCount++;
+                        
+                        // Audit log: Invoice created
+                        subscriptionAuditService.logEvent(
+                            sub.getUser().getId(),
+                            sub.getId(),
+                            SubscriptionAuditType.INVOICE_CREATED,
+                            invoice.getId(),
+                            plan.getId(),
+                            "scheduler",
+                            "Renewal invoice created, amount: " + amount + " EGP"
+                        );
                     }
                 }
             } catch (Exception e) {
@@ -165,6 +179,17 @@ public class SubscriptionJob implements Job {
                     sub.getId(), newEnd.toLocalDate(),
                     sub.getCurrentCycleCount(),
                     sub.getPlan().getMaxBillingCycles() != null ? sub.getPlan().getMaxBillingCycles() : "∞");
+
+            // Audit log: Auto-extend
+            subscriptionAuditService.logEvent(
+                sub.getUser().getId(),
+                sub.getId(),
+                SubscriptionAuditType.AUTO_EXTEND,
+                null,
+                sub.getPlan().getId(),
+                "scheduler",
+                "Auto-extended to " + newEnd.toLocalDate()
+            );
 
             // Send auto-extension confirmation email
             sendAutoExtensionEmail(sub, newEnd, isAnnual);
@@ -301,6 +326,26 @@ public class SubscriptionJob implements Job {
                 sub.setStatus(SubscriptionStatus.EXPIRED);
                 subscriptionRepository.save(sub);
                 subscriptionService.reactivateFreePlan(sub.getUser().getId());
+                
+                // Audit log: Expire and downgrade
+                subscriptionAuditService.logEvent(
+                    sub.getUser().getId(),
+                    sub.getId(),
+                    SubscriptionAuditType.EXPIRE,
+                    null,
+                    sub.getPlan().getId(),
+                    "scheduler",
+                    reason
+                );
+                subscriptionAuditService.logEvent(
+                    sub.getUser().getId(),
+                    sub.getId(),
+                    SubscriptionAuditType.DOWNGRADE,
+                    null,
+                    sub.getPlan().getId(),
+                    "scheduler",
+                    "Downgraded to free plan"
+                );
                 
                 // Send expiration notification
                 sendExpirationNotification(sub);

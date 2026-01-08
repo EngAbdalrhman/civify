@@ -3,6 +3,7 @@ package com.app.civify.service.subscription;
 import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.dto.subscription.PriceCalculationResponse;
 import com.app.civify.entity.User;
+import com.app.civify.entity.enums.TokenUsageType;
 import com.app.civify.entity.plans.SubscriptionPlan;
 import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.exception.ResourceNotFoundException;
@@ -50,6 +51,15 @@ public interface SubscriptionService {
     void incrementUsage(Long userId, String feature);
 
     void chargeTokens(Long userId, int tokensUsed);
+
+    /**
+     * Charge tokens with usage tracking.
+     * @param userId User ID
+     * @param tokensUsed Number of tokens to charge
+     * @param usageType Type of usage (CV_PARSE, CV_TAILOR, etc.)
+     * @param description Optional description for the usage
+     */
+    void chargeTokens(Long userId, int tokensUsed, TokenUsageType usageType, String description);
 
     // Subscription lifecycle
     void activateSubscription(String paymentTransactionId);

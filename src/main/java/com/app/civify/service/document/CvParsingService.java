@@ -4,6 +4,7 @@ import com.app.civify.dto.document.CvParseRequest;
 import com.app.civify.dto.document.CvParseResponse;
 import com.app.civify.dto.document.ProcessedDocument;
 import com.app.civify.dto.resume.ResumeData;
+import com.app.civify.entity.enums.TokenUsageType;
 import com.app.civify.service.ResumeService;
 import com.app.civify.service.ai.AiService;
 import com.app.civify.service.ai.TokenizerService;
@@ -162,7 +163,7 @@ public class CvParsingService {
 
             // Step 4: Charge tokens after successful parse
             if (userId != null) {
-                subscriptionService.chargeTokens(userId, estimatedTokens);
+                subscriptionService.chargeTokens(userId, estimatedTokens, TokenUsageType.CV_PARSE, "CV Upload Parsing");
             }
 
             return CvParseResponse.builder()

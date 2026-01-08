@@ -6,6 +6,7 @@ import com.app.civify.dto.subscription.PriceCalculationResponse;
 import com.app.civify.entity.User;
 import com.app.civify.entity.enums.PromoApplicabilityType;
 import com.app.civify.entity.enums.SubscriptionStatus;
+import com.app.civify.entity.enums.TokenUsageType;
 import com.app.civify.entity.plans.PromoCode;
 import com.app.civify.entity.plans.SubscriptionPlan;
 import com.app.civify.entity.plans.UserPromoUsage;
@@ -18,6 +19,7 @@ import com.app.civify.repository.plans.SubscriptionPlanRepository;
 import com.app.civify.repository.plans.UserPromoUsageRepository;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
 import com.app.civify.service.billing.InvoiceService;
+import com.app.civify.service.logs.TokenUsageService;
 import com.app.civify.service.payment.PaymentService;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
@@ -54,6 +56,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     private final PaymentService paymentService;
     private final MessageService messageService;
     private final InvoiceService invoiceService;
+    private final TokenUsageService tokenUsageService;
 
     private static final String FREE_PLAN_NAME = "free";
 
@@ -451,8 +454,18 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     @Override
     @Transactional
     public void chargeTokens(Long userId, int tokensUsed) {
+        // Delegate to overloaded method with default usage type
+        chargeTokens(userId, tokensUsed, TokenUsageType.OTHER, null);
+    }
+
+    @Override
+    @Transactional
+    public void chargeTokens(Long userId, int tokensUsed, TokenUsageType usageType, String description) {
         // Optimized charge logic using projections and direct updates
         var tokenInfoOpt = subscriptionRepository.findTokenInfoByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE);
+        
+        int fromSubscription = 0;
+        int fromWallet = 0;
         
         if (tokenInfoOpt.isEmpty()) {
             // No active subscription - charge from wallet only
@@ -461,37 +474,38 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                 throw new BadRequestException(messageService.getMessage("token.insufficient") + " (Wallet balance: " + walletTokens + ")");
             }
             userRepository.updateExtraTokens(userId, walletTokens - tokensUsed);
+            fromWallet = tokensUsed;
             log.info("Charged {} tokens from wallet for user {} (no active subscription)", tokensUsed, userId);
-            return;
-        }
-        
-        var info = tokenInfoOpt.get();
-        int currentUsage = info.getCurrentTokenUsage() != null ? info.getCurrentTokenUsage() : 0;
-        int limit = info.getTokenLimit() != null ? info.getTokenLimit() : Integer.MAX_VALUE;
-        int monthlyRemaining = Math.max(0, limit - currentUsage);
-        
-        int deductFromMonthly = Math.min(tokensUsed, monthlyRemaining);
-        int remainingToCharge = tokensUsed - deductFromMonthly;
-        
-        // 1. Deduct from monthly allowance (subscription usage)
-        if (deductFromMonthly > 0) {
-            subscriptionRepository.updateTokenUsage(info.getId(), currentUsage + deductFromMonthly);
-        }
-        
-        // 2. Deduct remaining from user's wallet (extra tokens)
-        if (remainingToCharge > 0) {
-            int walletTokens = userRepository.findExtraTokensByUserId(userId).orElse(0);
+        } else {
+            var info = tokenInfoOpt.get();
+            int currentUsage = info.getCurrentTokenUsage() != null ? info.getCurrentTokenUsage() : 0;
+            int limit = info.getTokenLimit() != null ? info.getTokenLimit() : Integer.MAX_VALUE;
+            int monthlyRemaining = Math.max(0, limit - currentUsage);
             
-            if (walletTokens < remainingToCharge) {
-                // Should not happen if checked via canUserUseTokens beforehand, but safe guard
-                throw new BadRequestException(messageService.getMessage("token.insufficient") + " (Wallet balance: " + walletTokens + ")");
+            int deductFromMonthly = Math.min(tokensUsed, monthlyRemaining);
+            int remainingToCharge = tokensUsed - deductFromMonthly;
+            
+            // 1. Deduct from monthly allowance (subscription usage)
+            if (deductFromMonthly > 0) {
+                subscriptionRepository.updateTokenUsage(info.getId(), currentUsage + deductFromMonthly);
+                fromSubscription = deductFromMonthly;
             }
             
-            userRepository.updateExtraTokens(userId, walletTokens - remainingToCharge);
+            // 2. Deduct remaining from user's wallet (extra tokens)
+            if (remainingToCharge > 0) {
+                int walletTokens = userRepository.findExtraTokensByUserId(userId).orElse(0);
+                
+                if (walletTokens < remainingToCharge) {
+                    throw new BadRequestException(messageService.getMessage("token.insufficient") + " (Wallet balance: " + walletTokens + ")");
+                }
+                
+                userRepository.updateExtraTokens(userId, walletTokens - remainingToCharge);
+                fromWallet = remainingToCharge;
+            }
         }
         
-        // Log implementation note: We are not blocking here, relying on optimistic flow 
-        // assuming canUserUseTokens was called.
+        // Log the token usage
+        tokenUsageService.logUsage(userId, usageType, tokensUsed, fromSubscription, fromWallet, description);
     }
 
     @Override
