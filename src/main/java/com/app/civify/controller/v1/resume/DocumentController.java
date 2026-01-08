@@ -7,12 +7,8 @@ import com.app.civify.dto.document.MaskRequest;
 import com.app.civify.dto.document.MaskResponse;
 import com.app.civify.dto.document.ProcessedDocument;
 import com.app.civify.entity.User;
-import com.app.civify.entity.enums.TokenUsageType;
 import com.app.civify.security.UserPrincipal;
-import com.app.civify.service.document.CvParsingService;
-import com.app.civify.service.document.DocumentProcessorService;
-import com.app.civify.service.document.masking.MaskingService;
-import com.app.civify.service.subscription.SubscriptionService;
+import com.app.civify.usecase.document.DocumentUseCase;
 import com.app.civify.util.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -42,15 +38,7 @@ import java.util.Set;
 @Tag(name = "Document Processing", description = "CV parsing, OCR, and masking endpoints")
 public class DocumentController {
 
-    private final DocumentProcessorService documentProcessorService;
-    private final CvParsingService cvParsingService;
-    private final MaskingService maskingService;
-    private final SubscriptionService subscriptionService;
-    
-    // Token costs
-    private static final int TOKENS_EXTRACT = 50;
-    private static final int TOKENS_MASK = 150;
-    private static final int TOKENS_MASK_TEXT = 50;
+    private final DocumentUseCase documentUseCase;
 
     @Operation(
             summary = "Parse CV/Resume",
@@ -71,13 +59,13 @@ public class DocumentController {
             @RequestPart("file") MultipartFile file,
             @RequestPart(value = "request", required = false) CvParseRequest request) {
 
-        log.info("Parsing CV: {}, size: {} bytes", file.getOriginalFilename(), file.getSize());
-
-        User currentUser = userPrincipal.getUser();
-        CvParseRequest parseRequest = request != null ? request : CvParseRequest.builder().build();
-
-        // Token charging for parse is handled inside CvParsingService
-        CvParseResponse response = cvParsingService.parseCv(file, parseRequest, currentUser.getId());
+        log.info("Request to parse CV: {}", file.getOriginalFilename());
+        
+        Long userId = (userPrincipal != null && userPrincipal.getUser() != null) 
+                ? userPrincipal.getUser().getId() 
+                : null;
+        
+        CvParseResponse response = documentUseCase.parseCv(file, request, userId);
 
         if (response.isSuccess()) {
             return ResponseEntity.ok(CommonResponse.success("CV parsed successfully", response));
@@ -105,19 +93,15 @@ public class DocumentController {
             @RequestPart("file") MultipartFile file,
             @RequestParam(value = "language", required = false) String languageHint) {
 
-        log.info("Extracting text from: {}, size: {} bytes", file.getOriginalFilename(), file.getSize());
+        log.info("Request to extract text from: {}", file.getOriginalFilename());
 
-        ProcessedDocument result = documentProcessorService.process(file, languageHint);
+        Long userId = (userPrincipal != null && userPrincipal.getUser() != null) 
+                ? userPrincipal.getUser().getId() 
+                : null;
+
+        ProcessedDocument result = documentUseCase.extractText(file, languageHint, userId);
 
         if (result.isSuccess()) {
-            if (userPrincipal != null) {
-                try {
-                subscriptionService.chargeTokens(userPrincipal.getUser().getId(), TOKENS_EXTRACT, TokenUsageType.DOC_EXTRACT,
-                            "Document Text Extraction: " + file.getOriginalFilename());
-                } catch (Exception e) {
-                    log.error("Failed to charge tokens for extract", e);
-                }
-            }
             return ResponseEntity.ok(CommonResponse.success("Text extracted successfully", result));
         } else {
             return ResponseEntity.badRequest()
@@ -144,34 +128,19 @@ public class DocumentController {
             @RequestPart("file") MultipartFile file,
             @RequestPart(value = "request", required = false) MaskRequest request) {
 
-        log.info("Masking document: {}, size: {} bytes", file.getOriginalFilename(), file.getSize());
+        log.info("Request to mask document: {}", file.getOriginalFilename());
 
-        try {
-            MaskRequest maskRequest = request != null ? request : MaskRequest.builder().build();
-            MaskResponse response = maskingService.maskDocument(
-                    file.getBytes(),
-                    file.getContentType(),
-                    maskRequest
-            );
+        Long userId = (userPrincipal != null && userPrincipal.getUser() != null) 
+                ? userPrincipal.getUser().getId() 
+                : null;
+                
+        MaskResponse response = documentUseCase.maskDocument(file, request, userId);
 
-            if (response.isSuccess()) {
-                if (userPrincipal != null) {
-                    try {
-                        subscriptionService.chargeTokens(userPrincipal.getUser().getId(), TOKENS_MASK, TokenUsageType.DOC_MASK,
-                                "Document Masking: " + file.getOriginalFilename());
-                    } catch (Exception e) {
-                        log.error("Failed to charge tokens for mask", e);
-                    }
-                }
-                return ResponseEntity.ok(CommonResponse.success("Document masked successfully", response));
-            } else {
-                return ResponseEntity.badRequest()
-                        .body(CommonResponse.error(response.getErrorMessage(), response));
-            }
-        } catch (Exception e) {
-            log.error("Error masking document", e);
+        if (response.isSuccess()) {
+            return ResponseEntity.ok(CommonResponse.success("Document masked successfully", response));
+        } else {
             return ResponseEntity.badRequest()
-                    .body(CommonResponse.error("Failed to mask document: " + e.getMessage()));
+                    .body(CommonResponse.error(response.getErrorMessage(), response));
         }
     }
 
@@ -190,26 +159,19 @@ public class DocumentController {
     public ResponseEntity<CommonResponse<MaskResponse>> maskText(
             @AuthenticationPrincipal UserPrincipal userPrincipal,
             @RequestBody MaskRequest request) {
-        log.info("Masking text content, length: {} chars",
-                request.getText() != null ? request.getText().length() : 0);
-
-        if (request.getText() == null || request.getText().isEmpty()) {
+        
+        Long userId = (userPrincipal != null && userPrincipal.getUser() != null) 
+                ? userPrincipal.getUser().getId() 
+                : null;
+                
+        MaskResponse response = documentUseCase.maskText(request, userId);
+        
+        if (response.isSuccess()) {
+            return ResponseEntity.ok(CommonResponse.success("Text masked successfully", response));
+        } else {
             return ResponseEntity.badRequest()
-                    .body(CommonResponse.error("Text content is required"));
+                    .body(CommonResponse.error(response.getErrorMessage()));
         }
-
-        MaskResponse response = maskingService.maskText(request.getText(), request);
-
-        if (userPrincipal != null) {
-            try {
-                subscriptionService.chargeTokens(userPrincipal.getUser().getId(), TOKENS_MASK_TEXT, TokenUsageType.DOC_MASK,
-                        "Text Content Masking");
-            } catch (Exception e) {
-                log.error("Failed to charge tokens for mask text", e);
-            }
-        }
-
-        return ResponseEntity.ok(CommonResponse.success("Text masked successfully", response));
     }
 
     @Operation(
@@ -218,6 +180,6 @@ public class DocumentController {
     )
     @GetMapping("/supported-types")
     public ResponseEntity<CommonResponse<Set<String>>> getSupportedTypes() {
-        return ResponseEntity.ok(CommonResponse.success(documentProcessorService.getSupportedMimeTypes()));
+        return ResponseEntity.ok(CommonResponse.success(documentUseCase.getSupportedMimeTypes()));
     }
 }
