@@ -15,12 +15,53 @@ public enum TokenUsageType {
     CV_TAILOR,
     
     /**
-     * AI content generation
+     * Cover letter generation
+     */
+    COVER_LETTER,
+    
+    /**
+     * Interview preparation questions
+     */
+    INTERVIEW_PREP,
+    
+    /**
+     * Career roadmap generation
+     */
+    ROADMAP,
+    
+    /**
+     * ATS score calculation
+     */
+    ATS_SCORE,
+    
+    /**
+     * AI content generation (general)
      */
     CONTENT_GENERATE,
+    
+    /**
+     * Document masking (PII redaction)
+     */
+    DOC_MASK,
+    
+    /**
+     * Document text extraction
+     */
+    DOC_EXTRACT,
+    
+    /**
+     * OCR processing
+     */
+    DOC_OCR,
+    
+    /**
+     * External API token usage
+     */
+    EXTERNAL_API,
     
     /**
      * Generic/other token usage
      */
     OTHER
 }
+

@@ -5,10 +5,12 @@ import com.app.civify.dto.document.CvParseResponse;
 import com.app.civify.dto.document.MaskRequest;
 import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.entity.User;
+import com.app.civify.entity.enums.TokenUsageType;
 import com.app.civify.service.cvlog.CvOperationLogService;
 import com.app.civify.service.document.CvParsingService;
 import com.app.civify.service.document.masking.MaskingService;
 import com.app.civify.service.document.pdf.PdfGenerationService;
+import com.app.civify.service.subscription.SubscriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +29,12 @@ public class ExternalCvService {
     private final MaskingService maskingService;
     private final PdfGenerationService pdfGenerationService;
     private final CvOperationLogService cvOperationLogService;
+    private final SubscriptionService subscriptionService;
     private final ObjectMapper objectMapper;
+
+    // Token costs for external API operations
+    private static final int TOKENS_EXTERNAL_MASK = 300;
+    private static final int TOKENS_EXTERNAL_PARSE = 200;
 
     public byte[] maskCv(MultipartFile file, String language, User user, HttpServletRequest httpRequest) {
         long startTime = System.currentTimeMillis();
@@ -80,6 +87,17 @@ public class ExternalCvService {
                     file.getOriginalFilename()
             );
 
+            // Charge tokens for external API mask operation
+            if (user != null) {
+                try {
+                    subscriptionService.chargeTokens(user.getId(), TOKENS_EXTERNAL_MASK, TokenUsageType.EXTERNAL_API,
+                            "External API: CV Mask - " + file.getOriginalFilename());
+                    log.info("Logged token usage for external mask API: userId={}, file={}", user.getId(), file.getOriginalFilename());
+                } catch (Exception e) {
+                    log.error("Failed to log token usage for external mask: {}", e.getMessage());
+                }
+            }
+
             return pdfBytes;
 
         } catch (Exception e) {
@@ -119,6 +137,17 @@ public class ExternalCvService {
                 file.getOriginalFilename(), language
         );
 
+        // Charge tokens for external API parse operation
+        if (user != null && response.isSuccess()) {
+            try {
+                subscriptionService.chargeTokens(user.getId(), TOKENS_EXTERNAL_PARSE, TokenUsageType.EXTERNAL_API,
+                        "External API: CV Parse - " + file.getOriginalFilename());
+                log.info("Logged token usage for external parse API: userId={}, file={}", user.getId(), file.getOriginalFilename());
+            } catch (Exception e) {
+                log.error("Failed to log token usage for external parse: {}", e.getMessage());
+            }
+        }
+
         return response;
     }
 
@@ -144,3 +173,4 @@ public class ExternalCvService {
         return xfHeader.split(",")[0].trim();
     }
 }
+
