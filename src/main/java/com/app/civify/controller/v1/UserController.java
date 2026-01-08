@@ -1,6 +1,7 @@
 package com.app.civify.controller.v1;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
+import com.app.civify.dto.user.DeleteAccountRequest;
 import com.app.civify.dto.user.ProfilePictureRequest;
 import com.app.civify.dto.user.ProfileUpdateRequest;
 import com.app.civify.dto.user.UserPreferenceDTO;
@@ -140,5 +141,23 @@ public class UserController {
         }
         return ResponseEntity.ok(userService.updateProfilePicture(userPrincipal.getId(), base64Image));
     }
-}
 
+    @Operation(
+            summary = "Delete current user account",
+            description = "Soft deletes the currently authenticated user's account. User must provide their password for confirmation. After deletion, the user will be logged out and cannot login again.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "204", description = "Account deleted successfully"),
+        @ApiResponse(responseCode = "400", description = "Invalid password",
+                content = @Content(mediaType = "application/json")),
+        @ApiResponse(responseCode = "401", description = "Unauthorized",
+                content = @Content(mediaType = "application/json"))
+    })
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> deleteMyAccount(@RequestBody DeleteAccountRequest request,
+                                                 @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        userService.deleteMyAccount(userPrincipal, request.getPassword());
+        return ResponseEntity.noContent().build();
+    }
+}

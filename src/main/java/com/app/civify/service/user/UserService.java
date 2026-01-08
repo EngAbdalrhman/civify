@@ -25,4 +25,6 @@ public interface UserService {
     long countTotalUsers();
 
     UserDto updateProfilePicture(Long userId, String base64Image);
+
+    void deleteMyAccount(UserPrincipal userPrincipal, String password);
 }
