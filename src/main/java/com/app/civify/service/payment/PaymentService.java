@@ -1,6 +1,8 @@
 package com.app.civify.service.payment;
 
 import com.app.civify.dto.payment.PaymentCreationResult;
+import jakarta.servlet.http.HttpServletRequest;
+
 import java.util.List;
 import java.util.Map;
 
@@ -66,4 +68,10 @@ public interface PaymentService {
      * @return List of enabled gateway names
      */
     List<String> getEnabledGateways();
+
+    /**
+     * Extract client IP address from HTTP request.
+     * Handles X-Forwarded-For header for proxied requests.
+     */
+    String extractClientIp(HttpServletRequest request);
 }

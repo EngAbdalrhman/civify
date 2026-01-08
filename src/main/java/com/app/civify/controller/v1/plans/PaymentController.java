@@ -4,10 +4,14 @@ import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.dto.payment.PaymentVerificationResponse;
 import com.app.civify.security.UserPrincipal;
-import com.app.civify.service.geo.GeoLocationResult;
-import com.app.civify.service.geo.GeoLocationService;
 import com.app.civify.service.payment.PaymentService;
 import com.app.civify.usecase.user.PaymentUseCase;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,13 +20,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
-
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
 @ApiV1Controller
 @RequestMapping("/payments")
@@ -33,7 +30,6 @@ public class PaymentController {
 
     private final PaymentUseCase paymentUseCase;
     private final PaymentService paymentService;
-    private final GeoLocationService geoLocationService;
 
     @Operation(
             summary = "Initiate payment",
@@ -41,12 +37,12 @@ public class PaymentController {
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Payment initiated successfully",
-                content = @Content(mediaType = "application/json")),
-        @ApiResponse(responseCode = "400", description = "Payment initiation failed",
-                content = @Content(mediaType = "application/json")),
-        @ApiResponse(responseCode = "401", description = "Unauthorized",
-                content = @Content(mediaType = "application/json"))
+            @ApiResponse(responseCode = "200", description = "Payment initiated successfully",
+                    content = @Content(mediaType = "application/json")),
+            @ApiResponse(responseCode = "400", description = "Payment initiation failed",
+                    content = @Content(mediaType = "application/json")),
+            @ApiResponse(responseCode = "401", description = "Unauthorized",
+                    content = @Content(mediaType = "application/json"))
     })
     @PostMapping("/initiate")
     public ResponseEntity<PaymentInitiationResponse> initiatePayment(
@@ -54,37 +50,16 @@ public class PaymentController {
             @RequestParam(required = false) String promoCode,
             @RequestParam(defaultValue = "false") boolean isAnnual,
             @RequestParam(required = false) String gateway,
-            @RequestParam(required = false) String currency, // TODO: Remove after testing phase
+            @RequestParam(required = false) String currency,
             HttpServletRequest request,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
         try {
             Long userId = userPrincipal.getId();
-            
-            // Auto-detect currency from IP if not provided
-            String detectedCurrency = currency;
-            if (detectedCurrency == null || detectedCurrency.isEmpty()) {
-                try {
-                    GeoLocationResult geoLocation = geoLocationService.getLocationFromRequest(request);
-                    if (geoLocation != null && geoLocation.isSuccess() && geoLocation.getCurrency() != null) {
-                        detectedCurrency = geoLocation.getCurrency();
-                        log.info("Auto-detected currency {} from {}IP for user {}", 
-                                 detectedCurrency, geoLocation.getCountryCode(), userId);
-                    } else {
-                        detectedCurrency = "EGP"; // Fallback to default
-                        log.warn("Geolocation failed for user {}, using default currency EGP", userId);
-                    }
-                } catch (Exception geoEx) {
-                    detectedCurrency = "EGP";
-                    log.error("Geolocation service error for user {}: {}, using default currency EGP", 
-                             userId, geoEx.getMessage());
-                }
-            } else {
-                log.info("Using explicit currency override: {} for user {}", currency, userId);
-            }
-            
-            PaymentInitiationResponse response = paymentUseCase.initiatePayment(
-                    userId, planId, isAnnual, promoCode, gateway, detectedCurrency);
+            String clientIp = paymentService.extractClientIp(request);
+
+            PaymentInitiationResponse response = paymentUseCase.initiatePaymentWithIp(
+                    userId, planId, isAnnual, promoCode, gateway, currency, clientIp);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -100,7 +75,7 @@ public class PaymentController {
             description = "Processes payment webhooks from payment gateways. This endpoint is public and called automatically by the gateway."
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Webhook processed successfully")
+            @ApiResponse(responseCode = "200", description = "Webhook processed successfully")
     })
     @PostMapping("/webhook/{gateway}")
     public ResponseEntity<String> handlePaymentWebhook(
@@ -137,12 +112,12 @@ public class PaymentController {
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Payment verification completed",
-                content = @Content(mediaType = "application/json")),
-        @ApiResponse(responseCode = "400", description = "Payment verification failed",
-                content = @Content(mediaType = "application/json")),
-        @ApiResponse(responseCode = "401", description = "Unauthorized",
-                content = @Content(mediaType = "application/json"))
+            @ApiResponse(responseCode = "200", description = "Payment verification completed",
+                    content = @Content(mediaType = "application/json")),
+            @ApiResponse(responseCode = "400", description = "Payment verification failed",
+                    content = @Content(mediaType = "application/json")),
+            @ApiResponse(responseCode = "401", description = "Unauthorized",
+                    content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/verify/{paymentId}")
     @com.app.civify.security.annotation.CivifyAuthorization(permission = "CV.CREATE")

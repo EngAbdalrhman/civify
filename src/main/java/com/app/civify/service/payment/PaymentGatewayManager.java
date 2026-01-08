@@ -113,9 +113,6 @@ public class PaymentGatewayManager {
     /**
      * Create payment using default gateway
      */
-    /**
-     * Create payment using default gateway
-     */
     public PaymentCreationResult createPayment(
             Long userId,
             double amount,

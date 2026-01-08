@@ -9,6 +9,7 @@ import com.app.civify.service.plans.TokenPackageService;
 import com.app.civify.service.subscription.SubscriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -114,6 +115,15 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     public List<String> getEnabledGateways() {
         return gatewayManager.getEnabledGateways();
+    }
+
+    @Override
+    public String extractClientIp(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 }
 

@@ -120,11 +120,28 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     @Override
     @Transactional
     public UserSubscription createSubscription(User user, Long planId, String promoCode, boolean isAnnual, String currency) {
+        Long userId = user.getId();
+        log.info("Creating subscription for user {} with plan {} in currency {}", userId, planId, currency);
+
         SubscriptionPlan plan = planRepository.findById(planId)
                 .orElseThrow(() -> new ResourceNotFoundException("subscription.plan.notfound"));
 
+        // ==================== BILLING RESTRICTIONS ====================
+        // Check if annual billing is allowed for this plan
+        if (isAnnual && Boolean.FALSE.equals(plan.getAllowAnnualBilling())) {
+            throw new BadRequestException("subscription.annual.notallowed");
+        }
+
+        // Check if renewal is allowed (for returning users)
+        Optional<UserSubscription> previousSub = subscriptionRepository
+                .findByUserIdAndPlanIdAndStatus(userId, planId, SubscriptionStatus.EXPIRED);
+        if (previousSub.isPresent() && Boolean.FALSE.equals(plan.getRenewalAllowed())) {
+            throw new BadRequestException("subscription.renewal.notallowed");
+        }
+        // =============================================================
+
         // Check for pending subscriptions
-        List<UserSubscription> pendingList = subscriptionRepository.findByUserIdAndStatus(user.getId(), SubscriptionStatus.PENDING);
+        List<UserSubscription> pendingList = subscriptionRepository.findByUserIdAndStatus(userId, SubscriptionStatus.PENDING);
         if (!pendingList.isEmpty()) {
             UserSubscription pending = pendingList.getFirst();
             // Check if it's stale (older than 5 minutes)
@@ -144,7 +161,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         // Block same-plan subscription (user already has active subscription for THIS plan)
         Optional<UserSubscription> activeSamePlan = subscriptionRepository
-                .findByUserIdAndPlanIdAndStatus(user.getId(), planId, SubscriptionStatus.ACTIVE);
+                .findByUserIdAndPlanIdAndStatus(userId, planId, SubscriptionStatus.ACTIVE);
         if (activeSamePlan.isPresent()) {
             throw new BadRequestException("subscription.active.exists");
         }
@@ -152,14 +169,14 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         // For free plan, check if user already has it
         if (FREE_PLAN_NAME.equalsIgnoreCase(plan.getName())) {
             Optional<UserSubscription> existingFree = subscriptionRepository
-                    .findByUserIdAndPlanName(user.getId(), FREE_PLAN_NAME);
+                    .findByUserIdAndPlanName(userId, FREE_PLAN_NAME);
             if (existingFree.isPresent()) {
                 throw new BadRequestException("subscription.free.exists");
             }
         }
 
         // Check if this is an upgrade (user has different active plan)
-        Optional<UserSubscription> currentActiveSub = getActiveSubscription(user.getId());
+        Optional<UserSubscription> currentActiveSub = getActiveSubscription(userId);
         LocalDateTime subscriptionStartDate = LocalDateTime.now();
         
         if (currentActiveSub.isPresent() && !currentActiveSub.get().getPlan().getId().equals(planId)) {
@@ -173,7 +190,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                 UserSubscription current = currentActiveSub.get();
                 current.setAutoRenew(false);
                 subscriptionRepository.save(current);
-                log.info("Queued upgrade for user {}. New plan starts after current expires on {}", user.getId(), subscriptionStartDate);
+                log.info("Queued upgrade for user {}. New plan starts after current expires on {}", userId, subscriptionStartDate);
             }
         }
 
@@ -186,6 +203,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         subscription.setStatus(SubscriptionStatus.PENDING);
         subscription.setCurrentCvCount(0);
         subscription.setCurrentCycleCount(1);
+        subscription.setCurrency(currency != null ? currency : "EGP");
 
         // Set usage reset date to first day of next month from start date
         LocalDateTime nextMonth = subscriptionStartDate.plusMonths(1).withDayOfMonth(1)
@@ -194,12 +212,12 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         // Validate and apply promo code if provided
         if (promoCode != null && !promoCode.isEmpty()) {
-            PromoCode promo = validateAndApplyPromoCode(user.getId(), planId, promoCode);
+            PromoCode promo = validateAndApplyPromoCode(userId, planId, promoCode);
             subscription.setPromoCode(promo);
         }
 
         UserSubscription saved = subscriptionRepository.save(subscription);
-        log.info("Subscription created with ID {} for user {}", saved.getId(), user.getId());
+        log.info("Subscription created with ID {} for user {} in currency {}", saved.getId(), userId, currency);
 
         return saved;
     }

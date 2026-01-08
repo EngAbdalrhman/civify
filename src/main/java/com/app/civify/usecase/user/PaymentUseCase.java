@@ -37,6 +37,21 @@ public interface PaymentUseCase {
     PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, String currency);
 
     /**
+     * Initiate a payment with automatic currency detection from client IP.
+     * This method encapsulates the currency detection business logic in the UseCase layer.
+     *
+     * @param userId    User ID initiating the payment
+     * @param planId    Plan ID to subscribe to
+     * @param isAnnual  Whether this is annual billing
+     * @param promoCode Optional promo code
+     * @param gateway   Optional payment gateway preference
+     * @param currency  Optional currency override (null = auto-detect from IP)
+     * @param clientIp  Client IP address for geolocation-based currency detection
+     * @return Payment initiation response with payment URL
+     */
+    PaymentInitiationResponse initiatePaymentWithIp(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, String currency, String clientIp);
+
+    /**
      * Verify payment and activate subscription if successful.
      * Orchestrates verification and activation in a single operation.
      *
