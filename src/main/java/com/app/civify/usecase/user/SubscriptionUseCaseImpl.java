@@ -120,8 +120,19 @@ public class SubscriptionUseCaseImpl extends CommonService implements Subscripti
     }
 
     @Override
-    public PriceCalculationResponse calculatePrice(Long userId, Long planId, boolean isAnnual, String promoCode) {
+    public PriceCalculationResponse calculateTotalPrice(Long userId, Long planId, boolean isAnnual, String promoCode) {
         return subscriptionService.calculateTotalPrice(userId, planId, isAnnual, promoCode);
+    }
+
+    @Override
+    public PriceCalculationResponse calculateTotalPrice(Long userId, Long planId, boolean isAnnual, String promoCode, String currency) {
+        return subscriptionService.calculateTotalPrice(userId, planId, isAnnual, promoCode, currency);
+    }
+
+
+    @Override
+    public com.app.civify.dto.payment.PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, String currency) {
+        return subscriptionService.initiatePayment(userId, planId, isAnnual, promoCode, gateway, currency);
     }
 
     private SubscriptionResponse mapToResponse(UserSubscription sub) {

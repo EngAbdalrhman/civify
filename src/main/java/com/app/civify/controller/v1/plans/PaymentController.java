@@ -4,8 +4,11 @@ import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.dto.payment.PaymentVerificationResponse;
 import com.app.civify.security.UserPrincipal;
+import com.app.civify.service.geo.GeoLocationResult;
+import com.app.civify.service.geo.GeoLocationService;
 import com.app.civify.service.payment.PaymentService;
 import com.app.civify.usecase.user.PaymentUseCase;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -30,10 +33,11 @@ public class PaymentController {
 
     private final PaymentUseCase paymentUseCase;
     private final PaymentService paymentService;
+    private final GeoLocationService geoLocationService;
 
     @Operation(
             summary = "Initiate payment",
-            description = "Initiates a payment process for a subscription plan using Paymob gateway.",
+            description = "Initiates a payment process for a subscription plan. Currency is auto-detected from user's IP address. Payment gateway is automatically selected based on currency support.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @ApiResponses(value = {
@@ -50,15 +54,41 @@ public class PaymentController {
             @RequestParam(required = false) String promoCode,
             @RequestParam(defaultValue = "false") boolean isAnnual,
             @RequestParam(required = false) String gateway,
+            @RequestParam(required = false) String currency, // TODO: Remove after testing phase
+            HttpServletRequest request,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
         try {
             Long userId = userPrincipal.getId();
-            PaymentInitiationResponse response = paymentUseCase.initiatePayment(userId, planId, isAnnual, promoCode, gateway);
+            
+            // Auto-detect currency from IP if not provided
+            String detectedCurrency = currency;
+            if (detectedCurrency == null || detectedCurrency.isEmpty()) {
+                try {
+                    GeoLocationResult geoLocation = geoLocationService.getLocationFromRequest(request);
+                    if (geoLocation != null && geoLocation.isSuccess() && geoLocation.getCurrency() != null) {
+                        detectedCurrency = geoLocation.getCurrency();
+                        log.info("Auto-detected currency {} from {}IP for user {}", 
+                                 detectedCurrency, geoLocation.getCountryCode(), userId);
+                    } else {
+                        detectedCurrency = "EGP"; // Fallback to default
+                        log.warn("Geolocation failed for user {}, using default currency EGP", userId);
+                    }
+                } catch (Exception geoEx) {
+                    detectedCurrency = "EGP";
+                    log.error("Geolocation service error for user {}: {}, using default currency EGP", 
+                             userId, geoEx.getMessage());
+                }
+            } else {
+                log.info("Using explicit currency override: {} for user {}", currency, userId);
+            }
+            
+            PaymentInitiationResponse response = paymentUseCase.initiatePayment(
+                    userId, planId, isAnnual, promoCode, gateway, detectedCurrency);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("Error initiating payment: {}", e.getMessage());
+            log.error("Error initiating payment: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(PaymentInitiationResponse.builder()
                     .message(e.getMessage())
                     .build());

@@ -20,7 +20,11 @@ public interface SubscriptionUseCase {
      * Calculate subscription price with promo validation.
      * Used for checkout page - validates promo applicability and user usage.
      */
-    PriceCalculationResponse calculatePrice(Long userId, Long planId, boolean isAnnual, String promoCode);
+    PriceCalculationResponse calculateTotalPrice(Long userId, Long planId, boolean isAnnual, String promoCode);
+
+    PriceCalculationResponse calculateTotalPrice(Long userId, Long planId, boolean isAnnual, String promoCode, String currency);
+
+    com.app.civify.dto.payment.PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, String currency);
 
     SubscriptionResponse getActiveSubscription(Long userId);
 

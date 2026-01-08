@@ -7,4 +7,5 @@ public class SubscriptionRequest {
     private Long planId;
     private String promoCode;
     private boolean isAnnual;
+    private String currency;
 }

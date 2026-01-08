@@ -3,21 +3,30 @@ package com.app.civify.service.payment;
 import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * Strategy interface for payment gateway implementations
+ * Payment gateway interface for unified payment processing
  */
 public interface PaymentGateway {
+
+    /**
+     * Get the set of currencies supported by this payment gateway
+     *
+     * @return Set of ISO 4217 currency codes (e.g., "EGP", "USD", "EUR")
+     */
+    Set<String> getSupportedCurrencies();
 
     /**
      * Create a payment transaction
      *
      * @param userId User ID
      * @param amount Amount in the gateway's currency
+     * @param currency Currency code (e.g. "USD", "EGP")
      * @param metadata Additional metadata for the payment
      * @return PaymentCreationResult containing key and URL
      */
-    PaymentCreationResult createPayment(Long userId, double amount, Map<String, Object> metadata);
+    PaymentCreationResult createPayment(Long userId, double amount, String currency, Map<String, Object> metadata);
 
     /**
      * Verify a payment transaction

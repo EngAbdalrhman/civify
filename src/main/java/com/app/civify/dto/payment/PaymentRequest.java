@@ -14,4 +14,5 @@ public class PaymentRequest {
     private String promoCode;
     private boolean isAnnual;
     private String gateway; // Optional: specify payment gateway (defaults to "paymob")
+    private String currency; // Currency code (e.g. "USD", "EGP")
 }

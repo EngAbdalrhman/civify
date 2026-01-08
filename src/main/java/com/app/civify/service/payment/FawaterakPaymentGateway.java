@@ -65,14 +65,20 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     }
 
     @Override
+    public java.util.Set<String> getSupportedCurrencies() {
+        // Fawaterak currently only supports EGP
+        return java.util.Set.of("EGP");
+    }
+
+    @Override
     @Transactional
-    public PaymentCreationResult createPayment(Long userId, double amount, Map<String, Object> metadata) {
+    public PaymentCreationResult createPayment(Long userId, double amount, String currency, Map<String, Object> metadata) {
         if (!isEnabled()) {
             throw new RuntimeException("Fawaterak gateway is not configured properly.");
         }
 
         try {
-            log.info("Creating Fawaterak payment for user {} with amount {} EGP", userId, amount);
+            log.info("Creating Fawaterak payment for user {} with amount {} {}", userId, amount, currency);
 
             // Prepare payload
             Map<String, Object> cartItem = new HashMap<>();
@@ -86,7 +92,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
             Map<String, Object> payloadMap = new HashMap<>();
             payloadMap.put("payment_method_id", 2); // 2 for credit card, 3
             payloadMap.put("cartTotal", amount);
-            payloadMap.put("currency", "EGP");
+            payloadMap.put("currency", currency != null ? currency : "EGP");
             payloadMap.put("customer", buildCustomerData(metadata));
             payloadMap.put("redirectionUrls", buildRedirectionUrls());
             payloadMap.put("cartItems", cartItems);

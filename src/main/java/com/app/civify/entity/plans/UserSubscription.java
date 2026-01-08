@@ -65,6 +65,14 @@ public class UserSubscription extends BaseEntity {
     @JoinColumn(name = "promo_code_id")
     private PromoCode promoCode;
 
+    /**
+     * Currency used for this subscription (e.g. EGP, USD).
+     * Critical for ensuring renewals happen in the same currency.
+     */
+    @Column(length = 10)
+    @ColumnDefault("'EGP'")
+    private String currency = "EGP";
+
     private String paymentTransactionId;
 
     /**

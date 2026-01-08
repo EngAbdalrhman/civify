@@ -45,21 +45,25 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     public PaymentCreationResult createPayment(Long userId, double amount, String gateway) {
         log.info("Creating payment for user {} with amount {} using gateway {}", userId, amount, gateway);
-        return gatewayManager.createPayment(gateway, userId, amount, null);
+        return gatewayManager.createPayment(gateway, userId, amount, null, null);
     }
 
     @Override
     public PaymentCreationResult createPayment(Long userId, double amount, Map<String, Object> metadata) {
         log.info("Creating payment for user {} with amount {} and metadata {}", userId, amount, metadata);
-        // Use default gateway or determine from config where 'default' is needed
-        // For now, assuming 'fawaterak' or 'paymob' is configured as default in manager or we pass null to let manager decide
-        return gatewayManager.createPayment(null, userId, amount, metadata);
+        return gatewayManager.createPayment(null, userId, amount, null, metadata);
     }
 
     @Override
     public PaymentCreationResult createPayment(Long userId, double amount, String gateway, Map<String, Object> metadata) {
         log.info("Creating payment for user {} with amount {} using gateway {} and metadata {}", userId, amount, gateway, metadata);
-        return gatewayManager.createPayment(gateway, userId, amount, metadata);
+        return gatewayManager.createPayment(gateway, userId, amount, null, metadata);
+    }
+
+    @Override
+    public PaymentCreationResult createPayment(Long userId, double amount, String currency, String gateway, Map<String, Object> metadata) {
+        log.info("Creating payment for user {} with amount {} {} using gateway {} and metadata {}", userId, amount, currency, gateway, metadata);
+        return gatewayManager.createPayment(gateway, userId, amount, currency, metadata);
     }
 
     @Override

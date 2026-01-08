@@ -38,6 +38,11 @@ public interface PaymentService {
     PaymentCreationResult createPayment(Long userId, double amount, String gateway, Map<String, Object> metadata);
 
     /**
+     * Create payment with currency
+     */
+    PaymentCreationResult createPayment(Long userId, double amount, String currency, String gateway, Map<String, Object> metadata);
+
+    /**
      * Verify a payment transaction
      *
      * @param paymentId Payment ID to verify

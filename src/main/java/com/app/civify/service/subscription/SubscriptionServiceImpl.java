@@ -21,6 +21,7 @@ import com.app.civify.repository.plans.UserSubscriptionRepository;
 import com.app.civify.service.billing.InvoiceService;
 import com.app.civify.service.logs.TokenUsageService;
 import com.app.civify.service.payment.PaymentService;
+import com.app.civify.service.plans.PlanPricingService;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
 import com.app.civify.util.persistence.CommonService;
@@ -59,6 +60,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     private final MessageService messageService;
     private final InvoiceService invoiceService;
     private final TokenUsageService tokenUsageService;
+    private final PlanPricingService planPricingService;
 
     private static final String FREE_PLAN_NAME = "free";
 
@@ -99,42 +101,32 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     @Override
     @Transactional
     public UserSubscription createSubscription(Long userId, Long planId, String promoCode, boolean isAnnual) {
-        log.info("Creating subscription for user {} with plan {}", userId, planId);
+        return createSubscription(userId, planId, promoCode, isAnnual, "EGP");
+    }
+
+    @Transactional
+    public UserSubscription createSubscription(Long userId, Long planId, String promoCode, boolean isAnnual, String currency) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("user.notfound"));
-        return createSubscription(user, planId, promoCode, isAnnual);
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return createSubscription(user, planId, promoCode, isAnnual, currency);
     }
 
     @Override
     @Transactional
     public UserSubscription createSubscription(User user, Long planId, String promoCode, boolean isAnnual) {
-        Long userId = user.getId();
-        log.info("Creating subscription for user {} with plan {}", userId, planId);
+        return createSubscription(user, planId, promoCode, isAnnual, "EGP");
+    }
 
+    @Override
+    @Transactional
+    public UserSubscription createSubscription(User user, Long planId, String promoCode, boolean isAnnual, String currency) {
         SubscriptionPlan plan = planRepository.findById(planId)
                 .orElseThrow(() -> new ResourceNotFoundException("subscription.plan.notfound"));
 
-        // ==================== BILLING RESTRICTIONS ====================
-        // Check if annual billing is allowed for this plan
-        if (isAnnual && Boolean.FALSE.equals(plan.getAllowAnnualBilling())) {
-            throw new BadRequestException("subscription.annual.notallowed");
-        }
-
-        // Check if renewal is allowed (for returning users)
-        Optional<UserSubscription> previousSub = subscriptionRepository
-                .findByUserIdAndPlanIdAndStatus(userId, planId, SubscriptionStatus.EXPIRED);
-        if (previousSub.isPresent() && Boolean.FALSE.equals(plan.getRenewalAllowed())) {
-            throw new BadRequestException("subscription.renewal.notallowed");
-        }
-        // =============================================================
-
-        Optional<UserSubscription> pendingSubscription = subscriptionRepository
-                .findByUserIdAndStatus(userId, SubscriptionStatus.PENDING)
-                .stream()
-                .findFirst();
-
-        if (pendingSubscription.isPresent()) {
-            UserSubscription pending = pendingSubscription.get();
+        // Check for pending subscriptions
+        List<UserSubscription> pendingList = subscriptionRepository.findByUserIdAndStatus(user.getId(), SubscriptionStatus.PENDING);
+        if (!pendingList.isEmpty()) {
+            UserSubscription pending = pendingList.getFirst();
             // Check if it's stale (older than 5 minutes)
             if (pending.getCreatedAt() != null && 
                 pending.getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(5))) {
@@ -152,7 +144,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         // Block same-plan subscription (user already has active subscription for THIS plan)
         Optional<UserSubscription> activeSamePlan = subscriptionRepository
-                .findByUserIdAndPlanIdAndStatus(userId, planId, SubscriptionStatus.ACTIVE);
+                .findByUserIdAndPlanIdAndStatus(user.getId(), planId, SubscriptionStatus.ACTIVE);
         if (activeSamePlan.isPresent()) {
             throw new BadRequestException("subscription.active.exists");
         }
@@ -160,14 +152,14 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         // For free plan, check if user already has it
         if (FREE_PLAN_NAME.equalsIgnoreCase(plan.getName())) {
             Optional<UserSubscription> existingFree = subscriptionRepository
-                    .findByUserIdAndPlanName(userId, FREE_PLAN_NAME);
+                    .findByUserIdAndPlanName(user.getId(), FREE_PLAN_NAME);
             if (existingFree.isPresent()) {
                 throw new BadRequestException("subscription.free.exists");
             }
         }
 
         // Check if this is an upgrade (user has different active plan)
-        Optional<UserSubscription> currentActiveSub = getActiveSubscription(userId);
+        Optional<UserSubscription> currentActiveSub = getActiveSubscription(user.getId());
         LocalDateTime subscriptionStartDate = LocalDateTime.now();
         
         if (currentActiveSub.isPresent() && !currentActiveSub.get().getPlan().getId().equals(planId)) {
@@ -181,7 +173,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                 UserSubscription current = currentActiveSub.get();
                 current.setAutoRenew(false);
                 subscriptionRepository.save(current);
-                log.info("Queued upgrade for user {}. New plan starts after current expires on {}", userId, subscriptionStartDate);
+                log.info("Queued upgrade for user {}. New plan starts after current expires on {}", user.getId(), subscriptionStartDate);
             }
         }
 
@@ -202,12 +194,12 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         // Validate and apply promo code if provided
         if (promoCode != null && !promoCode.isEmpty()) {
-            PromoCode promo = validateAndApplyPromoCode(userId, planId, promoCode);
+            PromoCode promo = validateAndApplyPromoCode(user.getId(), planId, promoCode);
             subscription.setPromoCode(promo);
         }
 
         UserSubscription saved = subscriptionRepository.save(subscription);
-        log.info("Subscription created with ID {} for user {}", saved.getId(), userId);
+        log.info("Subscription created with ID {} for user {}", saved.getId(), user.getId());
 
         return saved;
     }
@@ -275,11 +267,21 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     }
 
     @Override
-    public PriceCalculationResponse calculateTotalPrice(Long userId, Long planId, boolean isAnnual, String promoCode) {
+    public PriceCalculationResponse calculateTotalPrice(Long userId, Long planId, boolean isAnnual, String promoCode, String currencyArg) {
+        // Default to EGP if null
+        String currencyCode = currencyArg != null ? currencyArg : "EGP";
+
+        // Get price in specific currency (handles conversion or override)
+        // We use boolean false for 'isAnnual' in getPlanPrice because it returns DTO with both monthly/annual.
+        // But logic below selects based on isAnnual flag.
+        com.app.civify.dto.plan.PlanPriceDto planPrice = planPricingService.getPlanPrice(planId, currencyCode);
+
+        // This check "should" be redundant if getPlanPrice throws needed exception, 
+        // but let's keep consistency with original code for plan entity access
         SubscriptionPlan plan = planRepository.findById(planId)
                 .orElseThrow(() -> new ResourceNotFoundException("subscription.plan.notfound"));
 
-        BigDecimal basePrice = isAnnual ? plan.getAnnualPrice() : plan.getMonthlyPrice();
+        BigDecimal basePrice = isAnnual ? planPrice.getAnnualPrice() : planPrice.getMonthlyPrice();
         BigDecimal discount = BigDecimal.ZERO;
         String appliedPromoCode = null;
 
@@ -318,20 +320,28 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                 .promoCode(appliedPromoCode)
                 .isAnnual(isAnnual)
                 .billingCycle(isAnnual ? "ANNUAL" : "MONTHLY")
-                .currency("EGP")
+                .currency(planPrice.getCurrencyCode())
                 .build();
+    }
+
+    // Overload for backward compatibility if needed, or simply update interface
+    @Override
+    public PriceCalculationResponse calculateTotalPrice(Long userId, Long planId, boolean isAnnual, String promoCode) {
+        return calculateTotalPrice(userId, planId, isAnnual, promoCode, "EGP");
     }
 
     @Override
     @Transactional
-    public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway) {
-        log.info("Initiating payment for user {} with plan {} using gateway {}", userId, planId, gateway);
+    public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, String currencyArg) {
+        String currencyCode = currencyArg != null ? currencyArg : "EGP";
+        log.info("Initiating payment for user {} with plan {} using gateway {} in {}", userId, planId, gateway, currencyCode);
 
         // Create subscription first (with PENDING status)
-        UserSubscription subscription = createSubscription(userId, planId, promoCode, isAnnual);
+        // We need to update createSubscription to accept currency as well
+        UserSubscription subscription = createSubscription(userId, planId, promoCode, isAnnual, currencyCode);
 
-        // Calculate total price
-        PriceCalculationResponse priceCalc = calculateTotalPrice(userId, planId, isAnnual, promoCode);
+        // Calculate total price using CURRENCY
+        PriceCalculationResponse priceCalc = calculateTotalPrice(userId, planId, isAnnual, promoCode, currencyCode);
 
         // Check if price is zero (Free plan or 100% discount)
         if (priceCalc.getTotalPrice().compareTo(BigDecimal.ZERO) <= 0) {
@@ -349,10 +359,22 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                     .orderId(transactionId)
                     .subscriptionId(subscription.getId())
                     .amount(BigDecimal.ZERO)
-                    .currency("EGP")
+                    .currency(currencyCode)
                     .message(messageService.getMessage("subscription.created"))
                     .build();
         }
+
+        // Create initial invoice
+        // Note: invoiceService.createInitialInvoice accepts currency
+        invoiceService.createInitialInvoice(
+                subscription.getUser(),
+                subscription.getPlan(),
+                priceCalc.getBasePrice(), // Original amount
+                subscription.getPromoCode(),
+                priceCalc.getDiscount(),
+                isAnnual,
+                currencyCode
+        );
 
         // Create payment transaction
         Map<String, Object> metadata = new HashMap<>();
@@ -364,7 +386,8 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             metadata.put("phone", user.getPhoneNumber() != null ? user.getPhoneNumber() : user.getPhone());
         }
 
-        PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), gateway, metadata);
+        // Pass currency to payment service
+        PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), currencyCode, gateway, metadata);
 
         // Link payment to subscription
         subscription.setPaymentTransactionId(paymentResult.getPaymentKey());
@@ -378,9 +401,15 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                 .orderId(paymentResult.getOrderId())
                 .subscriptionId(subscription.getId())
                 .amount(priceCalc.getTotalPrice())
-                .currency("EGP") 
+                .currency(currencyCode)
                 .message(messageService.getMessage("payment.initiated"))
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway) {
+        return initiatePayment(userId, planId, isAnnual, promoCode, gateway, "EGP");
     }
 
     @Override

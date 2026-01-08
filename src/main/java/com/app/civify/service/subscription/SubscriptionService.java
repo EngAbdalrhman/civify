@@ -27,10 +27,14 @@ public interface SubscriptionService {
     // Subscription management
     UserSubscription createSubscription(Long userId, Long planId, String promoCode, boolean isAnnual);
 
+    UserSubscription createSubscription(Long userId, Long planId, String promoCode, boolean isAnnual, String currency);
+
     /**
      * Create subscription using User entity directly (avoids extra DB fetch).
      */
     UserSubscription createSubscription(User user, Long planId, String promoCode, boolean isAnnual);
+
+    UserSubscription createSubscription(User user, Long planId, String promoCode, boolean isAnnual, String currency);
 
     Optional<UserSubscription> getActiveSubscription(Long userId);
 
@@ -41,7 +45,11 @@ public interface SubscriptionService {
     // Payment and checkout
     PriceCalculationResponse calculateTotalPrice(Long userId, Long planId, boolean isAnnual, String promoCode);
 
+    PriceCalculationResponse calculateTotalPrice(Long userId, Long planId, boolean isAnnual, String promoCode, String currency);
+
     PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway);
+
+    PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, String currency);
 
     // Usage tracking
     boolean canUserUseFeature(Long userId, String feature); // CV, WATERMARK

@@ -3,7 +3,9 @@ package com.app.civify.controller.v1.plans;
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.plan.PlansWithCurrencyResponse;
 import com.app.civify.dto.plan.SimplePlanDTO;
+import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.dto.subscription.PriceCalculationResponse;
+import com.app.civify.dto.subscription.SubscriptionRequest;
 import com.app.civify.dto.subscription.SubscriptionResponse;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.security.annotation.CivifyAuthorization;
@@ -99,11 +101,19 @@ public class SubscriptionController {
             @RequestParam Long planId,
             @RequestParam(defaultValue = "false") boolean isAnnual,
             @RequestParam(required = false) String promoCode,
+            @RequestParam(required = false) String currency,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
-        Long userId = userPrincipal.getId();
-        PriceCalculationResponse response = subscriptionUseCase.calculatePrice(userId, planId, isAnnual, promoCode);
+
+        PriceCalculationResponse response = subscriptionUseCase.calculateTotalPrice(
+                userPrincipal.getId(),
+                planId,
+                isAnnual,
+                promoCode,
+                currency
+        );
         return ResponseEntity.ok(CommonResponse.success(response));
     }
+
 
     @Operation(
             summary = "Get my active subscription",

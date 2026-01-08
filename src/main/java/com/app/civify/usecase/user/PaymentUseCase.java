@@ -24,6 +24,19 @@ public interface PaymentUseCase {
     PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway);
 
     /**
+     * Initiate a payment for a subscription plan with currency support
+     *
+     * @param userId    User ID initiating the payment
+     * @param planId    Plan ID to subscribe to
+     * @param isAnnual  Whether this is annual billing
+     * @param promoCode Optional promo code
+     * @param gateway   Optional payment gateway preference
+     * @param currency  Currency code (e.g., "EGP", "USD")
+     * @return Payment initiation response with payment URL
+     */
+    PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, String currency);
+
+    /**
      * Verify payment and activate subscription if successful.
      * Orchestrates verification and activation in a single operation.
      *

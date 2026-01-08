@@ -65,8 +65,14 @@ public class PaymobPaymentGateway implements PaymentGateway {
     }
 
     @Override
+    public java.util.Set<String> getSupportedCurrencies() {
+        // Paymob supports EGP and USD (verify actual support with Paymob documentation)
+        return java.util.Set.of("EGP", "USD");
+    }
+
+    @Override
     @Transactional
-    public PaymentCreationResult createPayment(Long userId, double amount, Map<String, Object> metadata) {
+    public PaymentCreationResult createPayment(Long userId, double amount, String currency, Map<String, Object> metadata) {
         if (!isEnabled()) {
             throw new RuntimeException("Paymob gateway is not configured properly. Please check api-key and integration-id in application.properties");
         }

@@ -10,7 +10,7 @@ import java.util.Map;
 public class NullPaymentGateway implements PaymentGateway {
 
     @Override
-    public PaymentCreationResult createPayment(Long userId, double amount, Map<String, Object> metadata) {
+    public PaymentCreationResult createPayment(Long userId, double amount, String currency, Map<String, Object> metadata) {
         log.warn("Attempted to create payment with NULL gateway");
         throw new IllegalStateException("Payment gateway is not available");
     }
@@ -40,5 +40,10 @@ public class NullPaymentGateway implements PaymentGateway {
     @Override
     public boolean isEnabled() {
         return false;
+    }
+
+    @Override
+    public java.util.Set<String> getSupportedCurrencies() {
+        return java.util.Collections.emptySet();
     }
 }
