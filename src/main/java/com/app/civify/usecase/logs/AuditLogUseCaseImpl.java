@@ -5,6 +5,7 @@ import com.app.civify.dto.audit.SubscriptionAuditDto;
 import com.app.civify.dto.token.TokenUsageDto;
 import com.app.civify.dto.token.TokenUsageSummaryDto;
 import com.app.civify.entity.User;
+import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.logs.BillingAuditService;
 import com.app.civify.service.logs.SubscriptionAuditService;
 import com.app.civify.service.logs.TokenUsageService;
@@ -26,13 +27,13 @@ public class AuditLogUseCaseImpl extends CommonService implements AuditLogUseCas
     private final BillingAuditService billingAuditService;
 
     @Override
-    public Page<TokenUsageDto> getMyTokenUsageHistory(User user, int page, int size) {
+    public Page<TokenUsageDto> getMyTokenUsageHistory(UserPrincipal user, int page, int size) {
         log.debug("UseCase: Getting token usage history for user: {}", user.getEmail());
         return tokenUsageService.getUserUsageHistory(user.getId(), page, size);
     }
 
     @Override
-    public TokenUsageSummaryDto getMyTokenUsageSummary(User user) {
+    public TokenUsageSummaryDto getMyTokenUsageSummary(UserPrincipal user) {
         log.debug("UseCase: Getting token usage summary for user: {}", user.getEmail());
         return tokenUsageService.getUserMonthlySummary(user.getId());
     }
@@ -43,11 +44,6 @@ public class AuditLogUseCaseImpl extends CommonService implements AuditLogUseCas
         return tokenUsageService.filterUsageLogs(inputData);
     }
 
-    @Override
-    public Page<TokenUsageDto> getUserTokenUsageHistory(Long userId, int page, int size) {
-        log.debug("UseCase: Admin getting token usage for user: {}", userId);
-        return tokenUsageService.getUserUsageHistory(userId, page, size);
-    }
 
     @Override
     public PagedResponse<SubscriptionAuditDto> filterSubscriptionAuditLogs(InputDataModel inputData) {
