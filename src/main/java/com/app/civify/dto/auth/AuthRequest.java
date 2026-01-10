@@ -7,6 +7,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(description = "Authentication request payload - provide either username OR email, not both")
 public class AuthRequest {
 
+    @Schema(description = "Full name of the user (for registration)", example = "John Doe")
+    private String name;
+
     @Schema(description = "Username for authentication (optional if email is provided)", example = "john_doe")
     private String username;
 
@@ -16,3 +19,4 @@ public class AuthRequest {
     @Schema(description = "Password for authentication", example = "SecurePassword123!", required = true)
     private String password;
 }
+

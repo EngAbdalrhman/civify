@@ -77,6 +77,7 @@ public class AuthServiceImpl implements AuthService {
         user.setUsername(req.getUsername());
         user.setEmail(req.getEmail());
         user.setPassword(passwordEncoder.encode(req.getPassword()));
+        user.setFirstName(req.getName()); // Set name from registration
         user.setGroup(defaultGroup);
 
         
