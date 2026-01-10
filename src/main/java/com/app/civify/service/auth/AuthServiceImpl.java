@@ -10,6 +10,7 @@ import com.app.civify.exception.BadRequestException;
 import com.app.civify.repository.security.GroupRepository;
 import com.app.civify.repository.UserRepository;
 import com.app.civify.service.bloomfilter.BloomFilterService;
+import com.app.civify.service.i18n.MessageService;
 import com.app.civify.service.subscription.SubscriptionService;
 
 import lombok.RequiredArgsConstructor;
@@ -38,7 +39,8 @@ public class AuthServiceImpl implements AuthService {
     private final EmailVerificationService emailVerificationService;
     private final SubscriptionService subscriptionService;
     private final BloomFilterService bloomFilterService;
-    private final com.app.civify.service.i18n.MessageService messageService;
+    private final PasswordValidationService passwordValidationService;
+    private final MessageService messageService;
 
     @Value("${email.verification.enabled:true}")
     private boolean emailVerificationEnabled;
@@ -63,6 +65,9 @@ public class AuthServiceImpl implements AuthService {
                 throw new BadRequestException("user.email.exists");
             }
         }
+
+        // Validate password complexity and check if pwned
+        passwordValidationService.validatePassword(req.getPassword());
 
         Group defaultGroup = groupRepository.findByIsDefaultTrue()
                 .orElseThrow(() -> new RuntimeException("Default group not found. Please run database migrations."));
