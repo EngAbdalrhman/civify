@@ -45,7 +45,7 @@ public class SecurityConfig {
 
     @Value("${payment.fawaterak.base-url}")
     private String paymentGateway;
-    
+
     @Value("${refresh.token.secure}")
     private Boolean secureToken;
 
@@ -129,14 +129,14 @@ public class SecurityConfig {
                         .failureHandler((request, response, exception) -> {
                             // Log the error for debugging
                             org.slf4j.LoggerFactory.getLogger(SecurityConfig.class)
-                                .error("OAuth2 login failed: {}", exception.getMessage(), exception);
-                            
+                                    .error("OAuth2 login failed: {}", exception.getMessage(), exception);
+
                             // Redirect to frontend callback with error parameter
-                            String errorMessage = exception.getMessage() != null 
-                                ? exception.getMessage() 
-                                : "OAuth login failed";
-                            String targetUrl = frontendUrl + "/auth/callback?error=" + 
-                                java.net.URLEncoder.encode(errorMessage, java.nio.charset.StandardCharsets.UTF_8);
+                            String errorMessage = exception.getMessage() != null
+                                    ? exception.getMessage()
+                                    : "OAuth login failed";
+                            String targetUrl = frontendUrl + "/auth/callback?error=" +
+                                    java.net.URLEncoder.encode(errorMessage, java.nio.charset.StandardCharsets.UTF_8);
                             response.sendRedirect(targetUrl);
                         })
                 );
@@ -149,7 +149,7 @@ public class SecurityConfig {
     @Bean
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
         org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
-        configuration.setAllowedOrigins(java.util.List.of(frontendUrl, paymentGateway));
+        configuration.setAllowedOrigins(java.util.List.of(frontendUrl, "http://localhost:3000", paymentGateway, "www.".concat(frontendUrl)));
         configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(java.util.List.of("*"));
         configuration.setExposedHeaders(java.util.List.of("Authorization", "Set-Cookie"));
