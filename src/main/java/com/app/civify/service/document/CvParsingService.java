@@ -42,6 +42,15 @@ public class CvParsingService {
     @Value("${ai.default.model:gemini-pro}")
     private String defaultModel;
 
+    /**
+     * Internal result holder for AI parsing that includes token usage.
+     */
+    private record ParseResult(ResumeData resumeData, int inputTokens, int outputTokens) {
+        boolean isSuccess() {
+            return resumeData != null;
+        }
+    }
+
     private static final String CV_PARSE_PROMPT = """
         Extract structured data from this CV in YAML format.
         
@@ -136,17 +145,19 @@ public class CvParsingService {
                 log.info("Guest user parsing CV - no token charging");
             }
 
-            ResumeData resumeData = parseTextWithAi(truncatedText, request.isPiiOnly());
+            ParseResult parseResult = parseTextWithAiTracked(truncatedText, request);
             long aiTime = System.currentTimeMillis() - aiStart;
             log.info("AI Parsing Time: {}ms", aiTime);
 
-            if (resumeData == null) {
+            if (!parseResult.isSuccess()) {
                 return CvParseResponse.builder()
                         .success(false)
                         .message("Failed to parse CV content with AI")
                         .processingTimeMs(System.currentTimeMillis() - startTime)
                         .build();
             }
+
+            ResumeData resumeData = parseResult.resumeData();
 
             // Step 3: Optionally save to database (only for authenticated users)
             String resumeId = null;
@@ -161,9 +172,17 @@ public class CvParsingService {
 //                }
 //            }
 
-            // Step 4: Charge tokens after successful parse
+            // Step 4: Charge actual tokens after successful parse
             if (userId != null) {
-                subscriptionService.chargeTokens(userId, estimatedTokens, TokenUsageType.CV_PARSE, "CV Upload Parsing");
+                int billableTokens = tokenizerService.calculateBillableTokens(
+                    parseResult.inputTokens(), parseResult.outputTokens());
+                String description = String.format("CV Parsing (in:%d, out:%d, billed:%d)",
+                    parseResult.inputTokens(), parseResult.outputTokens(), billableTokens);
+                
+                log.info("Charging tokens for CV parse: userId={}, input={}, output={}, billable={}",
+                    userId, parseResult.inputTokens(), parseResult.outputTokens(), billableTokens);
+                    
+                subscriptionService.chargeTokens(userId, billableTokens, TokenUsageType.CV_PARSE, description);
             }
 
             return CvParseResponse.builder()
@@ -357,6 +376,102 @@ public class CvParsingService {
         } catch (Exception e) {
             log.error("Error parsing CV with AI: {}", e.getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Parse text with AI and track actual token usage from Gemini response.
+     * Tracks tokens from both initial call and any retry calls.
+     */
+    private ParseResult parseTextWithAiTracked(String text, CvParseRequest request) {
+        int totalInputTokens = 0;
+        int totalOutputTokens = 0;
+        
+        try {
+            String promptTemplate;
+            boolean useCustomTemplate = request.getUserTemplate() != null && !request.getUserTemplate().isBlank();
+
+            if (useCustomTemplate) {
+                promptTemplate = """
+                    Extract structured data from this CV according to the provided User Template.
+                    
+                    User Template:
+                    %s
+                    
+                    Rules:
+                    1. Extract ALL relevant content matching the template keys.
+                    2. Maintain the structure of the User Template.
+                    3. Return valid JSON or YAML depending on what the template looks like (default to YAML if unsure).
+                    4. Strictly NO prose. Only the data.
+                    
+                    CV Text:
+                    %%s
+                    """.formatted(request.getUserTemplate());
+            } else {
+                promptTemplate = request.isPiiOnly() ? PII_PARSE_PROMPT : CV_PARSE_PROMPT;
+            }
+
+            String prompt = String.format(promptTemplate, wrapUserText(text));
+
+            // First AI call
+            String response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            
+            // Extract token usage from response
+            int[] tokens = tokenizerService.extractTokenUsage(response);
+            totalInputTokens += tokens[0];
+            totalOutputTokens += tokens[1];
+            log.debug("First AI call tokens - input: {}, output: {}", tokens[0], tokens[1]);
+
+            if (response == null || response.isEmpty()) {
+                log.error("Empty response from AI");
+                return new ParseResult(null, totalInputTokens, totalOutputTokens);
+            }
+
+            String parsedContent = tryParseContent(response, request.isPiiOnly());
+
+            // Retry if needed
+            if (parsedContent == null) {
+                log.warn("LLM output invalid, retrying with corrective prompt");
+                String repairPrompt = prompt
+                        + "\n\nOutput was not valid "
+                        + (request.isPiiOnly() ? "YAML" : "structured data")
+                        + ". Return STRICT structured data only, no prose, no markdown fences.";
+                        
+                String retryResponse = aiService.callModel(repairPrompt, defaultProvider, defaultModel);
+                
+                // Track retry tokens too
+                int[] retryTokens = tokenizerService.extractTokenUsage(retryResponse);
+                totalInputTokens += retryTokens[0];
+                totalOutputTokens += retryTokens[1];
+                log.debug("Retry AI call tokens - input: {}, output: {}", retryTokens[0], retryTokens[1]);
+                
+                parsedContent = tryParseContent(retryResponse, request.isPiiOnly());
+            }
+
+            if (parsedContent == null) {
+                return new ParseResult(null, totalInputTokens, totalOutputTokens);
+            }
+
+            // Parse as YAML or JSON
+            ResumeData resumeData = null;
+            try {
+                ObjectMapper yamlMapper = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
+                yamlMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                resumeData = yamlMapper.readValue(parsedContent, ResumeData.class);
+            } catch (Exception yamlEx) {
+                try {
+                    resumeData = objectMapper.readValue(parsedContent, ResumeData.class);
+                } catch (Exception jsonEx) {
+                    log.error("Parsing failed for both YAML and JSON: YAML={}, JSON={}", 
+                        yamlEx.getMessage(), jsonEx.getMessage());
+                }
+            }
+
+            return new ParseResult(resumeData, totalInputTokens, totalOutputTokens);
+
+        } catch (Exception e) {
+            log.error("Error parsing CV with AI: {}", e.getMessage());
+            return new ParseResult(null, totalInputTokens, totalOutputTokens);
         }
     }
 

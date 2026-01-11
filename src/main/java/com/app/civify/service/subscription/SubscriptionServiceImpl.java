@@ -4,6 +4,7 @@ import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.dto.subscription.PriceCalculationResponse;
 import com.app.civify.entity.User;
+import com.app.civify.entity.enums.FeatureType;
 import com.app.civify.entity.enums.PromoApplicabilityType;
 import com.app.civify.entity.enums.SubscriptionStatus;
 import com.app.civify.entity.enums.TokenUsageType;
@@ -481,6 +482,31 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         // Fetch wallet tokens efficiently
         int walletTokens = userRepository.findExtraTokensByUserId(userId).orElse(0); 
         return ((long) monthlyRemaining + walletTokens) >= tokensNeeded;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean hasFeatureAccess(Long userId, FeatureType featureType) {
+        Optional<UserSubscription> subscription = getActiveSubscription(userId);
+        
+        if (subscription.isEmpty()) {
+            log.debug("No active subscription for user {} - denying feature access {}", userId, featureType);
+            return false;
+        }
+        
+        SubscriptionPlan plan = subscription.get().getPlan();
+        
+        // Check if the plan has this feature enabled in its feature limits
+        boolean hasAccess = plan.getFeatureLimits().stream()
+            .filter(limit -> limit.getFeature() != null && limit.getFeature().getFeatureType() == featureType)
+            .findFirst()
+            .map(limit -> Boolean.TRUE.equals(limit.getEnabled()))
+            .orElse(false);
+        
+        log.debug("Feature access check: user={}, feature={}, plan={}, hasAccess={}", 
+            userId, featureType, plan.getName(), hasAccess);
+        
+        return hasAccess;
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.app.civify.service.subscription;
 import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.dto.subscription.PriceCalculationResponse;
 import com.app.civify.entity.User;
+import com.app.civify.entity.enums.FeatureType;
 import com.app.civify.entity.enums.TokenUsageType;
 import com.app.civify.entity.plans.SubscriptionPlan;
 import com.app.civify.entity.plans.UserSubscription;
@@ -68,6 +69,15 @@ public interface SubscriptionService {
      * @param description Optional description for the usage
      */
     void chargeTokens(Long userId, int tokensUsed, TokenUsageType usageType, String description);
+
+    /**
+     * Check if user's current subscription has a specific feature enabled.
+     * Used for plan-based access control (e.g., API access).
+     * @param userId User ID
+     * @param featureType Feature to check (e.g., API_ACCESS, WATERMARK_REMOVAL)
+     * @return true if the user's active subscription includes this feature
+     */
+    boolean hasFeatureAccess(Long userId, FeatureType featureType);
 
     // Subscription lifecycle
     void activateSubscription(String paymentTransactionId);

@@ -1,7 +1,10 @@
 package com.app.civify.security;
 
+import com.app.civify.entity.User;
+import com.app.civify.entity.enums.FeatureType;
 import com.app.civify.entity.security.ApiKey;
 import com.app.civify.service.ApiKeyService;
+import com.app.civify.service.subscription.SubscriptionService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,6 +25,7 @@ import java.io.IOException;
 public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
     private final ApiKeyService apiKeyService;
+    private final SubscriptionService subscriptionService;
     private static final String API_KEY_HEADER = "X-API-KEY";
 
     @Override
@@ -59,10 +63,25 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
-            log.info("ApiKeyFilter: Valid API Key for user: {}", apiKey.getUser().getEmail());
+            User user = apiKey.getUser();
+            log.info("ApiKeyFilter: Valid API Key for user: {}", user.getEmail());
+
+            // Check if user's subscription has API_ACCESS feature
+            if (!subscriptionService.hasFeatureAccess(user.getId(), FeatureType.API_ACCESS)) {
+                log.warn("ApiKeyFilter: User {} lacks API_ACCESS feature in their subscription", user.getEmail());
+                
+                apiKeyService.logUsage(user, apiKey, path, request.getMethod(), 
+                    HttpServletResponse.SC_FORBIDDEN, false, getClientIp(request), 
+                    "API access requires a subscription with API_ACCESS feature enabled");
+                
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\": \"API access requires a paid subscription with API access enabled\"}");
+                return;
+            }
 
             // Set authentication in context
-            UserPrincipal principal = new UserPrincipal(apiKey.getUser());
+            UserPrincipal principal = new UserPrincipal(user);
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                     principal, null, principal.getAuthorities());
             
