@@ -44,7 +44,7 @@ public class JwtUtil {
                 .setSubject(user.getUsername())
                 .claim("userId", user.getId())
                 .claim("email", user.getEmail())
-                .claim("group", groupName) // Changed from "role" to "group" with actual group name
+                .claim("group", groupName)
                 .claim("emailVerified", user.getIsEmailVerified())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + accessTokenExpiration))
