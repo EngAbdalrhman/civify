@@ -13,10 +13,12 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Enhanced AI service with multi-model and multi-provider support Features: -
- * Multiple AI providers (Gemini, OpenAI, etc.) - Automatic fallback to
+ * Multiple AI providers (Gemini, OpenAI, Vertex AI, etc.) - Automatic fallback to
  * secondary provider - Retry mechanism with exponential backoff -
  * Provider-specific error handling
  */
@@ -24,8 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class AiServiceImpl implements AiService {
 
-    private final GeminiAiClient geminiAiClient;
-    private final Map<String, AiProvider> providers = new ConcurrentHashMap<>();
+    private final Map<String, AiProvider> providers;
 
     @Value("${ai.default.provider:gemini}")
     private String defaultProvider;
@@ -39,35 +40,33 @@ public class AiServiceImpl implements AiService {
     @Value("${ai.fallback.model:gemini-pro}")
     private String fallbackModel;
 
-    // Constructor for Spring injection
-    public AiServiceImpl(GeminiAiClient geminiAiClient,
+    // Constructor for Spring injection of all available providers
+    public AiServiceImpl(List<AiProvider> aiProviders,
             @Value("${ai.default.provider:gemini}") String defaultProvider,
             @Value("${ai.default.model:gemini-pro}") String defaultModel,
             @Value("${ai.fallback.provider:}") String fallbackProvider,
             @Value("${ai.fallback.model:gemini-pro}") String fallbackModel) {
-        this.geminiAiClient = geminiAiClient;
+        
         this.defaultProvider = defaultProvider;
         this.defaultModel = defaultModel;
         this.fallbackProvider = fallbackProvider;
         this.fallbackModel = fallbackModel;
 
-        // Register providers
-        registerProvider("gemini", new GeminiProvider(geminiAiClient));
-        // Add more providers as they become available
-        // registerProvider("openai", new OpenAiProvider(openAiClient));
+        // Auto-discover and register providers
+        this.providers = aiProviders.stream()
+                .collect(Collectors.toMap(
+                    p -> p.getProviderName().toLowerCase(),
+                    Function.identity(),
+                    (existing, replacement) -> existing, 
+                    ConcurrentHashMap::new
+                ));
 
-        log.info("AI Service initialized with provider: {}, model: {}", defaultProvider, defaultModel);
+        log.info("AI Service initialized with providers: {}", providers.keySet());
+        log.info("Default provider: {}, model: {}", defaultProvider, defaultModel);
+        
         if (fallbackProvider != null && !fallbackProvider.isEmpty()) {
             log.info("Fallback provider configured: {}, model: {}", fallbackProvider, fallbackModel);
         }
-    }
-
-    /**
-     * Register an AI provider
-     */
-    public void registerProvider(String name, AiProvider provider) {
-        providers.put(name, provider);
-        log.info("Registered AI provider: {}", name);
     }
 
     @Override
@@ -106,6 +105,10 @@ public class AiServiceImpl implements AiService {
         if (aiProvider == null) {
             throw new IllegalArgumentException("Unsupported AI provider: " + provider
                     + ". Available providers: " + providers.keySet());
+        }
+        
+        if (!aiProvider.isAvailable()) {
+             throw new IllegalStateException("AI provider '" + provider + "' is not configured properly (missing API key/config).");
         }
 
         try {
@@ -214,98 +217,4 @@ public class AiServiceImpl implements AiService {
                 Return the tailored CV maintaining professional formatting.
                 """, jobDescription);
     }
-
-    // ==================== Provider Interface and Implementations ====================
-    /**
-     * Interface that all AI providers must implement
-     */
-    public interface AiProvider {
-
-        /**
-         * Call the AI model with given prompt
-         *
-         * @param prompt The prompt to send
-         * @param model The specific model to use
-         * @return AI response
-         */
-        String callModel(String prompt, String model);
-
-        /**
-         * Get provider name
-         */
-        default String getProviderName() {
-            return this.getClass().getSimpleName().replace("Provider", "");
-        }
-
-        /**
-         * Check if provider is available/configured
-         */
-        default boolean isAvailable() {
-            return true;
-        }
-    }
-
-    /**
-     * Gemini AI Provider implementation
-     */
-    public static class GeminiProvider implements AiProvider {
-
-        private final GeminiAiClient client;
-        private final ObjectMapper objectMapper = new ObjectMapper();
-
-        public GeminiProvider(GeminiAiClient client) {
-            this.client = client;
-        }
-
-        @Override
-        public String callModel(String prompt, String model) {
-            try {
-                // Build Gemini API request using proper JSON serialization
-                Map<String, Object> textPart = Map.of("text", prompt);
-                Map<String, Object> parts = Map.of("parts", List.of(textPart));
-                Map<String, Object> requestMap = Map.of("contents", List.of(parts));
-
-                String requestBody = objectMapper.writeValueAsString(requestMap);
-
-                return client.callModel(model, requestBody);
-
-            } catch (JsonProcessingException e) {
-                throw new RuntimeException("Failed to build Gemini request: " + e.getMessage(), e);
-            } catch (Exception e) {
-                throw new RuntimeException("Gemini API call failed: " + e.getMessage(), e);
-            }
-        }
-
-        @Override
-        public String getProviderName() {
-            return "Gemini";
-        }
-    }
-
-    // Template for adding more providers:
-    /*
-    public static class OpenAiProvider implements AiProvider {
-
-        private final OpenAiClient client;
-
-        public OpenAiProvider(OpenAiClient client) {
-            this.client = client;
-        }
-
-        @Override
-        public String callModel(String prompt, String model) {
-            // Implement OpenAI-specific logic
-            String requestBody = String.format(
-                    "{\"model\": \"%s\", \"messages\": [{\"role\": \"user\", \"content\": \"%s\"}]}",
-                    model, prompt.replace("\"", "\\\"")
-            );
-            return client.chat(requestBody);
-        }
-
-        @Override
-        public String getProviderName() {
-            return "OpenAI";
-        }
-    }
-     */
 }
