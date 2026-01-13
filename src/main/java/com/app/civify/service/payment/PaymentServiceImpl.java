@@ -68,6 +68,13 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
+    public PaymentCreationResult createPayment(Long userId, double amount, String currency, String gateway, String paymentMethod, Map<String, Object> metadata) {
+        log.info("Creating payment for user {} with amount {} {} using gateway {} paymentMethod {} and metadata {}", 
+                userId, amount, currency, gateway, paymentMethod, metadata);
+        return gatewayManager.createPayment(gateway, userId, amount, currency, paymentMethod, metadata);
+    }
+
+    @Override
     public boolean verifyPayment(String paymentId) {
         log.info("Verifying payment with ID {}", paymentId);
         return gatewayManager.verifyPayment(paymentId);

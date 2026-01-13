@@ -52,6 +52,8 @@ public interface SubscriptionService {
 
     PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, String currency);
 
+    PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, String currency, String paymentMethod);
+
     // Usage tracking
     boolean canUserUseFeature(Long userId, String feature); // CV, WATERMARK
 

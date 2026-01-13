@@ -352,8 +352,14 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     @Override
     @Transactional
     public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, String currencyArg) {
+        return initiatePayment(userId, planId, isAnnual, promoCode, gateway, currencyArg, null);
+    }
+
+    @Override
+    @Transactional
+    public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, String currencyArg, String paymentMethod) {
         String currencyCode = currencyArg != null ? currencyArg : "EGP";
-        log.info("Initiating payment for user {} with plan {} using gateway {} in {}", userId, planId, gateway, currencyCode);
+        log.info("Initiating payment for user {} with plan {} using gateway {} in {} with paymentMethod {}", userId, planId, gateway, currencyCode, paymentMethod);
 
         // Create subscription first (with PENDING status)
         // We need to update createSubscription to accept currency as well
@@ -405,8 +411,8 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             metadata.put("phone", user.getPhoneNumber() != null ? user.getPhoneNumber() : user.getPhone());
         }
 
-        // Pass currency to payment service
-        PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), currencyCode, gateway, metadata);
+        // Pass currency and payment method to payment service
+        PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), currencyCode, gateway, paymentMethod, metadata);
 
         // Link payment to subscription
         subscription.setPaymentTransactionId(paymentResult.getPaymentKey());
@@ -428,7 +434,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     @Override
     @Transactional
     public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway) {
-        return initiatePayment(userId, planId, isAnnual, promoCode, gateway, "EGP");
+        return initiatePayment(userId, planId, isAnnual, promoCode, gateway, "EGP", null);
     }
 
     @Override

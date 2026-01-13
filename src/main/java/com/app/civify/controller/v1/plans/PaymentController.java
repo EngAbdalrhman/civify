@@ -51,6 +51,7 @@ public class PaymentController {
             @RequestParam(defaultValue = "false") boolean isAnnual,
             @RequestParam(required = false) String gateway,
             @RequestParam(required = false) String currency,
+            @RequestParam(required = false) String paymentMethod,
             HttpServletRequest request,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
@@ -59,7 +60,7 @@ public class PaymentController {
             String clientIp = paymentService.extractClientIp(request);
 
             PaymentInitiationResponse response = paymentUseCase.initiatePaymentWithIp(
-                    userId, planId, isAnnual, promoCode, gateway, currency, clientIp);
+                    userId, planId, isAnnual, promoCode, gateway, currency, clientIp, paymentMethod);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {

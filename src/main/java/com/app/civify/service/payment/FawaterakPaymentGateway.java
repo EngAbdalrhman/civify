@@ -3,6 +3,7 @@ package com.app.civify.service.payment;
 import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.entity.enums.BillingAuditType;
+import com.app.civify.entity.enums.FawaterakPaymentMethod;
 import com.app.civify.entity.enums.PaymentStatus;
 import com.app.civify.entity.plans.PaymentTransaction;
 import com.app.civify.repository.plans.PaymentRepository;
@@ -22,10 +23,7 @@ import java.math.BigDecimal;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 
 @Component
@@ -54,6 +52,9 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     @Value("${payment.redirect.pending-url}")
     private String pendingUrl;
 
+    @Value("${payment.fawaterak.payment-method-id:2}")
+    private int paymentMethodId;
+
     @Override
     public String getGatewayName() {
         return "fawaterak";
@@ -65,19 +66,38 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     }
 
     @Override
-    public java.util.Set<String> getSupportedCurrencies() {
+    public Set<String> getSupportedCurrencies() {
         // Fawaterak currently only supports EGP
-        return java.util.Set.of("EGP");
+        return Set.of("EGP");
     }
 
     @Override
     @Transactional
     public PaymentCreationResult createPayment(Long userId, double amount, String currency, Map<String, Object> metadata) {
+        // Default to configured payment method if none specified
+        return createPayment(userId, amount, currency, null, metadata);
+    }
+
+    @Override
+    @Transactional
+    public PaymentCreationResult createPayment(Long userId, double amount, String currency, String paymentMethod, Map<String, Object> metadata) {
         if (!isEnabled()) {
             throw new RuntimeException("Fawaterak gateway is not configured properly.");
         }
 
         try {
+            // Determine payment method ID
+            int methodId;
+            if (paymentMethod != null && !paymentMethod.isEmpty()) {
+                FawaterakPaymentMethod method = 
+                    FawaterakPaymentMethod.fromString(paymentMethod);
+                methodId = method.getId();
+                log.info("Using payment method: {} (ID: {})", method.name(), methodId);
+            } else {
+                methodId = paymentMethodId; // Use configured default
+                log.info("Using default payment method ID: {}", methodId);
+            }
+
             log.info("Creating Fawaterak payment for user {} with amount {} {}", userId, amount, currency);
 
             // Prepare payload
@@ -90,7 +110,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
             cartItems.add(cartItem);
 
             Map<String, Object> payloadMap = new HashMap<>();
-            payloadMap.put("payment_method_id", 2); // 2 for credit card, 3
+            payloadMap.put("payment_method_id", methodId);
             payloadMap.put("cartTotal", amount);
             payloadMap.put("currency", currency != null ? currency : "EGP");
             payloadMap.put("customer", buildCustomerData(metadata));

@@ -36,12 +36,18 @@ public class PaymentUseCaseImpl implements PaymentUseCase {
     @Override
     public PaymentInitiationResponse initiatePaymentWithIp(Long userId, Long planId, boolean isAnnual, 
             String promoCode, String gateway, String currency, String clientIp) {
+        return initiatePaymentWithIp(userId, planId, isAnnual, promoCode, gateway, currency, clientIp, null);
+    }
+
+    @Override
+    public PaymentInitiationResponse initiatePaymentWithIp(Long userId, Long planId, boolean isAnnual, 
+            String promoCode, String gateway, String currency, String clientIp, String paymentMethod) {
         
         String detectedCurrency = detectCurrency(currency, clientIp, userId);
         
-        log.debug("Initiating payment for user {} with plan {} and detected currency {}", 
-                userId, planId, detectedCurrency);
-        return subscriptionService.initiatePayment(userId, planId, isAnnual, promoCode, gateway, detectedCurrency);
+        log.debug("Initiating payment for user {} with plan {}, currency {}, paymentMethod {}", 
+                userId, planId, detectedCurrency, paymentMethod);
+        return subscriptionService.initiatePayment(userId, planId, isAnnual, promoCode, gateway, detectedCurrency, paymentMethod);
     }
 
     /**

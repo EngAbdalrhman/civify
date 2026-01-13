@@ -45,6 +45,11 @@ public interface PaymentService {
     PaymentCreationResult createPayment(Long userId, double amount, String currency, String gateway, Map<String, Object> metadata);
 
     /**
+     * Create payment with currency and payment method
+     */
+    PaymentCreationResult createPayment(Long userId, double amount, String currency, String gateway, String paymentMethod, Map<String, Object> metadata);
+
+    /**
      * Verify a payment transaction
      *
      * @param paymentId Payment ID to verify

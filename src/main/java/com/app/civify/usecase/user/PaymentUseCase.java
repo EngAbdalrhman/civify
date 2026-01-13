@@ -52,6 +52,21 @@ public interface PaymentUseCase {
     PaymentInitiationResponse initiatePaymentWithIp(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, String currency, String clientIp);
 
     /**
+     * Initiate a payment with automatic currency detection and specific payment method.
+     *
+     * @param userId        User ID initiating the payment
+     * @param planId        Plan ID to subscribe to
+     * @param isAnnual      Whether this is annual billing
+     * @param promoCode     Optional promo code
+     * @param gateway       Optional payment gateway preference
+     * @param currency      Optional currency override (null = auto-detect from IP)
+     * @param clientIp      Client IP address for geolocation-based currency detection
+     * @param paymentMethod Payment method (e.g., "CARD", "FAWRY", "MOBILE_WALLET")
+     * @return Payment initiation response with payment URL
+     */
+    PaymentInitiationResponse initiatePaymentWithIp(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, String currency, String clientIp, String paymentMethod);
+
+    /**
      * Verify payment and activate subscription if successful.
      * Orchestrates verification and activation in a single operation.
      *

@@ -29,6 +29,21 @@ public interface PaymentGateway {
     PaymentCreationResult createPayment(Long userId, double amount, String currency, Map<String, Object> metadata);
 
     /**
+     * Create a payment transaction with specific payment method
+     *
+     * @param userId User ID
+     * @param amount Amount in the gateway's currency
+     * @param currency Currency code (e.g. "USD", "EGP")
+     * @param paymentMethod Payment method (e.g. "CARD", "FAWRY", "MOBILE_WALLET")
+     * @param metadata Additional metadata for the payment
+     * @return PaymentCreationResult containing key and URL
+     */
+    default PaymentCreationResult createPayment(Long userId, double amount, String currency, String paymentMethod, Map<String, Object> metadata) {
+        // Default implementation ignores paymentMethod - gateways can override
+        return createPayment(userId, amount, currency, metadata);
+    }
+
+    /**
      * Verify a payment transaction
      *
      * @param transactionId Transaction ID to verify

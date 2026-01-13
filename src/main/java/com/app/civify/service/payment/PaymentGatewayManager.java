@@ -140,6 +140,22 @@ public class PaymentGatewayManager {
     }
 
     /**
+     * Create payment using specific gateway with payment method
+     */
+    public PaymentCreationResult createPayment(
+            String gatewayName,
+            Long userId,
+            double amount,
+            String currency,
+            String paymentMethod,
+            Map<String, Object> metadata
+    ) {
+        return gatewayFactory
+                .get(gatewayName)
+                .createPayment(userId, amount, currency, paymentMethod, metadata);
+    }
+
+    /**
      * Verify payment using default gateway
      */
     public boolean verifyPayment(String transactionId) {
