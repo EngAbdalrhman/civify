@@ -70,28 +70,72 @@ public class TokenizerService {
 
     /**
      * Extract token usage from Gemini API response.
-     * Parses the usageMetadata field from the response JSON.
-     * @param geminiResponse Raw JSON response from Gemini API
-     * @return int array [inputTokens, outputTokens], returns [0, 0] if parsing fails
+     * First tries to parse usageMetadata from the response JSON.
+     * Falls back to counting the actual text content tokens for generic provider support.
+     * @param aiResponse Raw JSON response from AI provider
+     * @return int array [inputTokens, outputTokens], uses approximation if metadata not available
      */
-    public int[] extractTokenUsage(String geminiResponse) {
-        if (geminiResponse == null || geminiResponse.isEmpty()) {
+    public int[] extractTokenUsage(String aiResponse) {
+        if (aiResponse == null || aiResponse.isEmpty()) {
             return new int[] { 0, 0 };
         }
         
         try {
-            JsonNode root = objectMapper.readTree(geminiResponse);
+            JsonNode root = objectMapper.readTree(aiResponse);
+            
+            // Try Gemini-specific metadata first
             JsonNode usage = root.path("usageMetadata");
+            if (!usage.isMissingNode() && usage.has("promptTokenCount")) {
+                int inputTokens = usage.path("promptTokenCount").asInt(0);
+                int outputTokens = usage.path("candidatesTokenCount").asInt(0);
+                log.debug("Extracted token usage from Gemini metadata - input: {}, output: {}", inputTokens, outputTokens);
+                return new int[] { inputTokens, outputTokens };
+            }
             
-            int inputTokens = usage.path("promptTokenCount").asInt(0);
-            int outputTokens = usage.path("candidatesTokenCount").asInt(0);
+            // Try OpenAI-style metadata
+            JsonNode openAiUsage = root.path("usage");
+            if (!openAiUsage.isMissingNode() && openAiUsage.has("prompt_tokens")) {
+                int inputTokens = openAiUsage.path("prompt_tokens").asInt(0);
+                int outputTokens = openAiUsage.path("completion_tokens").asInt(0);
+                log.debug("Extracted token usage from OpenAI metadata - input: {}, output: {}", inputTokens, outputTokens);
+                return new int[] { inputTokens, outputTokens };
+            }
             
-            log.debug("Extracted token usage - input: {}, output: {}", inputTokens, outputTokens);
-            return new int[] { inputTokens, outputTokens };
+            // Fallback: Extract text content and count tokens using tokenizer
+            String textContent = extractTextContent(root);
+            if (textContent != null && !textContent.isEmpty()) {
+                int outputTokens = countTokens(textContent);
+                log.debug("Approximated output tokens from text content: {}", outputTokens);
+                // Input tokens unknown in fallback, return 0 for input
+                return new int[] { 0, outputTokens };
+            }
+            
+            log.warn("Could not extract token usage - no metadata or text content found");
+            return new int[] { 0, 0 };
+            
         } catch (Exception e) {
             log.warn("Failed to extract token usage from response: {}", e.getMessage());
             return new int[] { 0, 0 };
         }
+    }
+    
+    /**
+     * Extract text content from AI response for fallback token counting.
+     */
+    private String extractTextContent(JsonNode root) {
+        // Try Gemini format: candidates[0].content.parts[0].text
+        JsonNode geminiText = root.at("/candidates/0/content/parts/0/text");
+        if (!geminiText.isMissingNode()) {
+            return geminiText.asText();
+        }
+        
+        // Try OpenAI format: choices[0].message.content
+        JsonNode openAiText = root.at("/choices/0/message/content");
+        if (!openAiText.isMissingNode()) {
+            return openAiText.asText();
+        }
+        
+        return null;
     }
 
     /**

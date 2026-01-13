@@ -816,7 +816,9 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             existingPlan.setCvLimit(updatedPlan.getCvLimit());
         }
 
-
+        if (updatedPlan.getTokenLimit() != null) {
+            existingPlan.setTokenLimit(updatedPlan.getTokenLimit());
+        }
 
         if (updatedPlan.getWatermark() != null) {
             existingPlan.setWatermark(updatedPlan.getWatermark());

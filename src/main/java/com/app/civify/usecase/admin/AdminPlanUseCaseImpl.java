@@ -73,6 +73,7 @@ public class AdminPlanUseCaseImpl extends CommonService implements AdminPlanUseC
         plan.setDescription(request.getDescription());
         plan.setDetails(request.getDetails());
         plan.setCvLimit(request.getCvLimit());
+        plan.setTokenLimit(request.getTokenLimit());
         plan.setWatermark(request.getWatermark());
         plan.setMonthlyPrice(request.getMonthlyPrice());
         plan.setAnnualPrice(request.getAnnualPrice());
@@ -117,6 +118,7 @@ public class AdminPlanUseCaseImpl extends CommonService implements AdminPlanUseC
         if (request.getDescription() != null) updatedPlan.setDescription(request.getDescription());
         if (request.getDetails() != null) updatedPlan.setDetails(request.getDetails());
         if (request.getCvLimit() != null) updatedPlan.setCvLimit(request.getCvLimit());
+        if (request.getTokenLimit() != null) updatedPlan.setTokenLimit(request.getTokenLimit());
         if (request.getWatermark() != null) updatedPlan.setWatermark(request.getWatermark());
         if (request.getMonthlyPrice() != null) updatedPlan.setMonthlyPrice(request.getMonthlyPrice());
         if (request.getAnnualPrice() != null) updatedPlan.setAnnualPrice(request.getAnnualPrice());
