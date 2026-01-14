@@ -1,10 +1,17 @@
 package com.app.civify.dto.resume;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -61,26 +68,26 @@ public class ResumeData implements Serializable {
         private String date; // e.g., "2020 - Present"
         private String description; // HTML or Markdown content
         private String location;
-        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = StringListDeserializer.class)
+        @JsonDeserialize(using = StringListDeserializer.class)
         private List<String> tags = new ArrayList<>(); // For skills or keywords
         private boolean isVisible = true;
     }
 
-    public static class StringListDeserializer extends com.fasterxml.jackson.databind.JsonDeserializer<List<String>> {
+    public static class StringListDeserializer extends JsonDeserializer<List<String>> {
         @Override
-        public List<String> deserialize(com.fasterxml.jackson.core.JsonParser p, com.fasterxml.jackson.databind.DeserializationContext ctxt)
-                throws java.io.IOException, com.fasterxml.jackson.core.JsonProcessingException {
+        public List<String> deserialize(JsonParser p, DeserializationContext ctxt)
+                throws IOException {
             List<String> result = new ArrayList<>();
             // Check if current token is start of array
             if (p.isExpectedStartArrayToken()) {
-                 com.fasterxml.jackson.core.JsonToken token;
-                 while ((token = p.nextToken()) != com.fasterxml.jackson.core.JsonToken.END_ARRAY) {
-                     if (token == com.fasterxml.jackson.core.JsonToken.VALUE_STRING) {
+                 JsonToken token;
+                 while ((token = p.nextToken()) != JsonToken.END_ARRAY) {
+                     if (token == JsonToken.VALUE_STRING) {
                          result.add(p.getText());
-                     } else if (token == com.fasterxml.jackson.core.JsonToken.START_OBJECT) {
+                     } else if (token == JsonToken.START_OBJECT) {
                          // Convert object to string representation - e.g. "Key: Value"
                          // This is a simple fallback to avoid crash
-                         com.fasterxml.jackson.databind.JsonNode node = p.getCodec().readTree(p);
+                         JsonNode node = p.getCodec().readTree(p);
                          result.add(node.toString()); 
                      } else {
                          // Try to get text value of any other primitive (number, boolean)
@@ -91,12 +98,12 @@ public class ResumeData implements Serializable {
             } else {
                 // Single value or object?
                 // If it's a single string, wrap in list
-                if (p.hasToken(com.fasterxml.jackson.core.JsonToken.VALUE_STRING)) {
+                if (p.hasToken(JsonToken.VALUE_STRING)) {
                     result.add(p.getText());
                 } else {
                     // unexpected token, return empty list or throw? Returning empty is safer for AI response
                     // Actually, if it's completely wrong type, maybe we consume and ignore or use toString
-                     com.fasterxml.jackson.databind.JsonNode node = p.getCodec().readTree(p);
+                     JsonNode node = p.getCodec().readTree(p);
                      if (node != null && !node.isNull()) {
                          result.add(node.toString());
                      }
