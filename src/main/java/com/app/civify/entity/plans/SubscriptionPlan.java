@@ -48,6 +48,9 @@ public class SubscriptionPlan extends BaseEntity {
     @Column(nullable = false)
     private Boolean active = true;
 
+    @Column(nullable = false, length = 3)
+    private String currency = "EGP";
+
     // ==================== BILLING RESTRICTIONS ====================
     /**
      * Whether annual billing is allowed for this plan.

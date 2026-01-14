@@ -32,6 +32,7 @@ public class PlanCreateRequest {
     private Boolean dashboard;
     private BigDecimal monthlyPrice;
     private BigDecimal annualPrice;
+    private String currency;
     
     @Builder.Default
     @NotNull(message = "Active status is required")

@@ -31,6 +31,7 @@ public class PlanMapper {
                 .watermark(plan.getWatermark())
                 .monthlyPrice(plan.getMonthlyPrice())
                 .annualPrice(plan.getAnnualPrice())
+                .currency(plan.getCurrency())
                 .active(plan.getActive())
                 .createdAt(plan.getCreatedAt())
                 .updatedAt(plan.getUpdatedAt())

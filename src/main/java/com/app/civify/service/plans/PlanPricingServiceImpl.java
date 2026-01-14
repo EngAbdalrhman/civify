@@ -61,10 +61,13 @@ public class PlanPricingServiceImpl implements PlanPricingService {
                     .build();
         }
 
-        // No override - convert from USD (base prices are in USD)
-        BigDecimal monthlyConverted = currencyService.convertFromUsd(plan.getMonthlyPrice(), currencyCode);
-        BigDecimal annualConverted = currencyService.convertFromUsd(plan.getAnnualPrice(), currencyCode);
+        // No override - convert from Plan Base Currency (e.g., EGP) to Target Currency (e.g., USD or SA)
+        String baseCurrency = plan.getCurrency() != null ? plan.getCurrency() : "USD";
+        
+        BigDecimal monthlyConverted = currencyService.convert(plan.getMonthlyPrice(), baseCurrency, currencyCode);
+        BigDecimal annualConverted = currencyService.convert(plan.getAnnualPrice(), baseCurrency, currencyCode);
 
+        // Apply discount if exists logic (placeholder if needed) or just return
         return PlanPriceDto.builder()
                 .planId(planId)
                 .planName(plan.getName())

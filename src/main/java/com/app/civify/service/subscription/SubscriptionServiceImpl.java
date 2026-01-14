@@ -145,19 +145,11 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         List<UserSubscription> pendingList = subscriptionRepository.findByUserIdAndStatus(userId, SubscriptionStatus.PENDING);
         if (!pendingList.isEmpty()) {
             UserSubscription pending = pendingList.getFirst();
-            // Check if it's stale (older than 5 minutes)
-            if (pending.getCreatedAt() != null && 
-                pending.getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(5))) {
-                
-                log.info("Found stale pending subscription {} created at {}. Marking as CANCELLED.", 
-                        pending.getId(), pending.getCreatedAt());
-                
-                pending.setStatus(SubscriptionStatus.CANCELLED);
-                subscriptionRepository.save(pending);
-                // Allow proceeding to create new one
-            } else {
-                throw new BadRequestException("subscription.pending.exists");
-            }
+            // Automatically cancel any existing pending subscription to allow the new transaction to proceed
+            // This improves UX by preventing "Pending Transaction Exists" errors if users retry
+            log.info("Found existing pending subscription {}. Cancelling it to proceed with new request.", pending.getId());
+            pending.setStatus(SubscriptionStatus.CANCELLED);
+            subscriptionRepository.save(pending);
         }
 
         // Block same-plan subscription (user already has active subscription for THIS plan)

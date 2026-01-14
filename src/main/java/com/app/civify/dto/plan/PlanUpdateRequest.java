@@ -28,6 +28,7 @@ public class PlanUpdateRequest {
     private Boolean dashboard;
     private BigDecimal monthlyPrice;
     private BigDecimal annualPrice;
+    private String currency;
     
     private Boolean active;
     

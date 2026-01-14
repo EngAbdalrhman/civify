@@ -77,6 +77,8 @@ public class AdminPlanUseCaseImpl extends CommonService implements AdminPlanUseC
         plan.setWatermark(request.getWatermark());
         plan.setMonthlyPrice(request.getMonthlyPrice());
         plan.setAnnualPrice(request.getAnnualPrice());
+        // Set base currency (default to EGP if null)
+        plan.setCurrency(request.getCurrency() != null ? request.getCurrency() : "EGP");
         plan.setActive(request.getActive());
 
         // Billing restrictions
@@ -122,6 +124,7 @@ public class AdminPlanUseCaseImpl extends CommonService implements AdminPlanUseC
         if (request.getWatermark() != null) updatedPlan.setWatermark(request.getWatermark());
         if (request.getMonthlyPrice() != null) updatedPlan.setMonthlyPrice(request.getMonthlyPrice());
         if (request.getAnnualPrice() != null) updatedPlan.setAnnualPrice(request.getAnnualPrice());
+        if (request.getCurrency() != null) updatedPlan.setCurrency(request.getCurrency());
         if (request.getActive() != null) updatedPlan.setActive(request.getActive());
         
         // Billing restrictions

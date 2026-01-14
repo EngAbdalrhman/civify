@@ -32,6 +32,7 @@ public class PlanDetailResponse {
     private Boolean dashboard;
     private BigDecimal monthlyPrice;
     private BigDecimal annualPrice;
+    private String currency;
     
     private Boolean active;
     private LocalDateTime createdAt;
