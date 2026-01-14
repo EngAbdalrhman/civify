@@ -78,7 +78,7 @@ public class CvParsingService {
                 date: string
                 description: string
                 location: string
-                tags: [string]
+                tags: [string] # Flat list of strings only
         metadata:
           language: code
         
@@ -235,7 +235,7 @@ public class CvParsingService {
                 date: string
                 description: string
                 location: string
-                tags: [string]
+                tags: [string] # Flat list of strings only
         metadata:
           language: code
         
