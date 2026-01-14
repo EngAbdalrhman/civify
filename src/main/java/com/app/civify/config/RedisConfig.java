@@ -24,8 +24,13 @@ public class RedisConfig {
         objectMapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
         objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         
-        // This is important for polymorphic type handling if needed (though often GenericJackson2JsonRedisSerializer handles it)
-        // objectMapper.activateDefaultTyping(objectMapper.getPolymorphicTypeValidator(), com.fasterxml.jackson.databind.ObjectMapper.DefaultTyping.NON_FINAL);
+        // Enable default typing to store type information in Redis
+        // This resolves ClassCastException when deserializing generic Objects (like cached maps vs DTOs)
+        objectMapper.activateDefaultTyping(
+            objectMapper.getPolymorphicTypeValidator(), 
+            com.fasterxml.jackson.databind.ObjectMapper.DefaultTyping.NON_FINAL,
+            com.fasterxml.jackson.annotation.JsonTypeInfo.As.PROPERTY
+        );
 
         GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(objectMapper);
 
