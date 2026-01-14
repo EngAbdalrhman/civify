@@ -19,6 +19,16 @@ public class RedisConfig {
 
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
+        // Configure ObjectMapper
+        com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        objectMapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+        objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        
+        // This is important for polymorphic type handling if needed (though often GenericJackson2JsonRedisSerializer handles it)
+        // objectMapper.activateDefaultTyping(objectMapper.getPolymorphicTypeValidator(), com.fasterxml.jackson.databind.ObjectMapper.DefaultTyping.NON_FINAL);
+
+        GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(objectMapper);
+
         // Default configuration
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofHours(1)) // Default TTL: 1 hour
@@ -27,7 +37,7 @@ public class RedisConfig {
                                 .fromSerializer(new StringRedisSerializer()))
                 .serializeValuesWith(
                         org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair
-                                .fromSerializer(new GenericJackson2JsonRedisSerializer()));
+                                .fromSerializer(serializer));
 
         // Custom cache configurations with specific TTLs
         Map<String, RedisCacheConfiguration> cacheConfigurations = new HashMap<>();
