@@ -480,12 +480,10 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         if (tokenInfoOpt.isEmpty()) {
             // No active subscription - charge from wallet only
             int walletTokens = userRepository.findExtraTokensByUserId(userId).orElse(0);
-            if (walletTokens < tokensUsed) {
-                throw new BadRequestException(messageService.getMessage("token.insufficient") + " (Wallet balance: " + walletTokens + ")");
-            }
-            userRepository.updateExtraTokens(userId, walletTokens - tokensUsed);
+            
+            userRepository.updateExtraTokens(userId, Math.max(0, walletTokens - tokensUsed));
             fromWallet = tokensUsed;
-            log.info("Charged {} tokens from wallet for user {} (no active subscription)", tokensUsed, userId);
+            log.info("Charged {} tokens from wallet for user {} (no active subscription). Balance floored at 0.", tokensUsed, userId);
         } else {
             var info = tokenInfoOpt.get();
             int currentUsage = info.getCurrentTokenUsage() != null ? info.getCurrentTokenUsage() : 0;
@@ -505,11 +503,8 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             if (remainingToCharge > 0) {
                 int walletTokens = userRepository.findExtraTokensByUserId(userId).orElse(0);
                 
-                if (walletTokens < remainingToCharge) {
-                    throw new BadRequestException(messageService.getMessage("token.insufficient") + " (Wallet balance: " + walletTokens + ")");
-                }
-                
-                userRepository.updateExtraTokens(userId, walletTokens - remainingToCharge);
+                // Allow negative balance (deficit) -> Requested change: min 0
+                userRepository.updateExtraTokens(userId, Math.max(0, walletTokens - remainingToCharge));
                 fromWallet = remainingToCharge;
             }
         }
