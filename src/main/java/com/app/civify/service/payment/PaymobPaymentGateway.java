@@ -220,7 +220,14 @@ public class PaymobPaymentGateway implements PaymentGateway {
                 result.setMessage("Payment failed");
             }
             
-            // Log billing audit
+            // Log billing audit - convert params to JSON for proper storage
+            String payloadJson = null;
+            try {
+                payloadJson = objectMapper.writeValueAsString(params);
+            } catch (Exception jsonEx) {
+                log.warn("Failed to serialize params to JSON: {}", jsonEx.getMessage());
+            }
+            
             billingAuditService.logWebhook(
                 getGatewayName(),
                 transaction.getUserId(),
@@ -230,7 +237,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
                 isSuccess ? "success" : "failed",
                 "redirect",
                 result.getMessage(),
-                params.toString(),
+                payloadJson,
                 null,
                 isSuccess ? BillingAuditType.WEBHOOK_SUCCESS : BillingAuditType.WEBHOOK_FAILED
             );
