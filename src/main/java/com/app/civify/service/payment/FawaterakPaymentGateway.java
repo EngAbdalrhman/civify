@@ -10,6 +10,7 @@ import com.app.civify.service.logs.BillingAuditService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +32,7 @@ import java.util.Map;
 
 @Component
 @Slf4j
+@RequiredArgsConstructor
 public class FawaterakPaymentGateway implements PaymentGateway {
 
     private final FawaterakClient fawaterakClient;
@@ -42,19 +44,6 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     @Lazy
     @Autowired
     private PaymentFulfillmentService fulfillmentService;
-
-    @Autowired
-    public FawaterakPaymentGateway(FawaterakClient fawaterakClient, 
-                                    PaymentRepository paymentRepository, 
-                                    ObjectMapper objectMapper,
-                                    com.app.civify.service.notification.NotificationService notificationService,
-                                    BillingAuditService billingAuditService) {
-        this.fawaterakClient = fawaterakClient;
-        this.paymentRepository = paymentRepository;
-        this.objectMapper = objectMapper;
-        this.notificationService = notificationService;
-        this.billingAuditService = billingAuditService;
-    }
 
     @Value("${payment.fawaterak.api-key:}")
     private String apiKey;

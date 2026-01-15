@@ -13,6 +13,7 @@ import com.app.civify.service.logs.BillingAuditService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,6 +38,7 @@ import java.util.Map;
  */
 @Component
 @Slf4j
+@RequiredArgsConstructor
 public class PaymobPaymentGateway implements PaymentGateway {
 
     private final PaymobClient paymobClient;
@@ -47,17 +49,6 @@ public class PaymobPaymentGateway implements PaymentGateway {
     @Lazy
     @Autowired
     private PaymentFulfillmentService fulfillmentService;
-
-    @Autowired
-    public PaymobPaymentGateway(PaymobClient paymobClient, 
-                                 PaymentRepository paymentRepository, 
-                                 ObjectMapper objectMapper,
-                                 BillingAuditService billingAuditService) {
-        this.paymobClient = paymobClient;
-        this.paymentRepository = paymentRepository;
-        this.objectMapper = objectMapper;
-        this.billingAuditService = billingAuditService;
-    }
 
     @Value("${payment.paymob.api-key}")
     private String apiKey;

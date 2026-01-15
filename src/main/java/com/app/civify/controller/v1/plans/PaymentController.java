@@ -4,10 +4,13 @@ import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.dto.payment.PaymentVerificationResponse;
 import com.app.civify.security.UserPrincipal;
+import com.app.civify.security.annotation.CivifyAuthorization;
 import com.app.civify.service.payment.PaymentService;
 import com.app.civify.usecase.user.PaymentUseCase;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -33,10 +36,10 @@ public class PaymentController {
     private final PaymentUseCase paymentUseCase;
     private final PaymentService paymentService;
 
-    @org.springframework.beans.factory.annotation.Value("${payment.redirect.success-url:/app/dashboard}")
+    @Value("${payment.redirect.success-url:/payment/success}")
     private String successRedirectUrl;
 
-    @org.springframework.beans.factory.annotation.Value("${payment.redirect.fail-url:/app/dashboard?error=payment_failed}")
+    @Value("${payment.redirect.fail-url:/payment/failure}")
     private String failRedirectUrl;
 
     @Operation(
@@ -114,7 +117,7 @@ public class PaymentController {
     public void handlePaymentRedirect(
             @PathVariable String gateway,
             @RequestParam Map<String, String> params,
-            jakarta.servlet.http.HttpServletResponse response) throws IOException {
+            HttpServletResponse response) throws IOException {
         try {
             log.info("Received payment redirect for gateway {}", gateway);
             paymentService.handlePaymentRedirect(gateway, params);
@@ -152,7 +155,7 @@ public class PaymentController {
                 content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/verify/{paymentId}")
-    @com.app.civify.security.annotation.CivifyAuthorization(permission = "CV.CREATE")
+    @CivifyAuthorization(permission = "CV.CREATE")
     public ResponseEntity<PaymentVerificationResponse> verifyPayment(@PathVariable String paymentId) {
         try {
             PaymentVerificationResponse response = paymentUseCase.verifyAndActivatePayment(paymentId);
