@@ -319,29 +319,33 @@ public class FawaterakPaymentGateway implements PaymentGateway {
             log.info("💾 Transaction state updated: {} -> {} for invoice {}",
                     previousStatus, transaction.getStatus(), invoiceId);
 
-            // Log billing audit
-            String paymentMethodValue = callbackData.has("payment_method") 
-                    ? callbackData.get("payment_method").asText() : null;
-            BillingAuditType auditType = result.isSuccess() 
-                    ? BillingAuditType.WEBHOOK_SUCCESS 
-                    : BillingAuditType.WEBHOOK_FAILED;
-            billingAuditService.logWebhook(
-                getGatewayName(),
-                transaction.getUserId(),
-                null, // invoiceId - we don't have our invoice ID here
-                transaction.getPaymentKey(),
-                invoiceId,
-                status,
-                paymentMethodValue,
-                result.getMessage(),
-                rawPayload,
-                null,
-                auditType
-            );
-
-            // Fulfill the payment if successful
+            // Fulfill the payment if successful (do this BEFORE audit logging)
             if (result.isSuccess()) {
                 fulfillmentService.fulfillPayment(invoiceId);
+            }
+
+            // Log billing audit (non-critical - catch exceptions to prevent rollback)
+            try {
+                String paymentMethodValue = callbackData.has("payment_method") 
+                        ? callbackData.get("payment_method").asText() : null;
+                BillingAuditType auditType = result.isSuccess() 
+                        ? BillingAuditType.WEBHOOK_SUCCESS 
+                        : BillingAuditType.WEBHOOK_FAILED;
+                billingAuditService.logWebhook(
+                    getGatewayName(),
+                    transaction.getUserId(),
+                    null, // invoiceId - we don't have our invoice ID here
+                    transaction.getPaymentKey(),
+                    invoiceId,
+                    status,
+                    paymentMethodValue,
+                    result.getMessage(),
+                    rawPayload,
+                    null,
+                    auditType
+                );
+            } catch (Exception auditEx) {
+                log.warn("Failed to log billing audit for Fawaterak callback (non-critical): {}", auditEx.getMessage());
             }
 
             return result;

@@ -220,27 +220,25 @@ public class PaymobPaymentGateway implements PaymentGateway {
                 result.setMessage("Payment failed");
             }
             
-            // Log billing audit - convert params to JSON for proper storage
-            String payloadJson = null;
+            // Log billing audit - convert params to JSON for proper storage (non-critical)
             try {
-                payloadJson = objectMapper.writeValueAsString(params);
-            } catch (Exception jsonEx) {
-                log.warn("Failed to serialize params to JSON: {}", jsonEx.getMessage());
+                String payloadJson = objectMapper.writeValueAsString(params);
+                billingAuditService.logWebhook(
+                    getGatewayName(),
+                    transaction.getUserId(),
+                    null,
+                    transaction.getPaymentKey(),
+                    orderId,
+                    isSuccess ? "success" : "failed",
+                    "redirect",
+                    result.getMessage(),
+                    payloadJson,
+                    null,
+                    isSuccess ? BillingAuditType.WEBHOOK_SUCCESS : BillingAuditType.WEBHOOK_FAILED
+                );
+            } catch (Exception auditEx) {
+                log.warn("Failed to log billing audit for redirect (non-critical): {}", auditEx.getMessage());
             }
-            
-            billingAuditService.logWebhook(
-                getGatewayName(),
-                transaction.getUserId(),
-                null,
-                transaction.getPaymentKey(),
-                orderId,
-                isSuccess ? "success" : "failed",
-                "redirect",
-                result.getMessage(),
-                payloadJson,
-                null,
-                isSuccess ? BillingAuditType.WEBHOOK_SUCCESS : BillingAuditType.WEBHOOK_FAILED
-            );
             
             return result;
 
@@ -336,24 +334,28 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
             paymentRepository.save(transaction);
 
-            // Log billing audit
-            billingAuditService.logWebhook(
-                getGatewayName(),
-                transaction.getUserId(),
-                null,
-                transaction.getPaymentKey(),
-                orderId,
-                isSuccessful ? "success" : "failed",
-                "callback",
-                result.getMessage(),
-                rawPayload,
-                null,
-                isSuccessful ? BillingAuditType.WEBHOOK_SUCCESS : BillingAuditType.WEBHOOK_FAILED
-            );
-
-            // Fulfill the payment if successful
+            // Fulfill the payment if successful (do this BEFORE audit logging so it doesn't get rolled back)
             if (isSuccessful) {
                 fulfillmentService.fulfillPayment(orderId);
+            }
+
+            // Log billing audit (non-critical - catch exceptions to prevent rollback)
+            try {
+                billingAuditService.logWebhook(
+                    getGatewayName(),
+                    transaction.getUserId(),
+                    null,
+                    transaction.getPaymentKey(),
+                    orderId,
+                    isSuccessful ? "success" : "failed",
+                    "callback",
+                    result.getMessage(),
+                    rawPayload,
+                    null,
+                    isSuccessful ? BillingAuditType.WEBHOOK_SUCCESS : BillingAuditType.WEBHOOK_FAILED
+                );
+            } catch (Exception auditEx) {
+                log.warn("Failed to log billing audit for callback (non-critical): {}", auditEx.getMessage());
             }
             
             return result;
