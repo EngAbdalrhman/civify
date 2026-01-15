@@ -2,7 +2,7 @@ name: Deploy Stg-Parsing to Dokploy
 
 on:
   push:
-    branches: [ "Stg-parsing" ]
+    branches: [ "Staging" ]
   workflow_dispatch:
 
 env:
