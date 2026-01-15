@@ -23,6 +23,7 @@ public class PaymentTransaction extends BaseEntity {
 
     private String orderId;
 
+    @Column(columnDefinition = "TEXT")
     private String paymentKey;
 
     @Enumerated(EnumType.STRING)
