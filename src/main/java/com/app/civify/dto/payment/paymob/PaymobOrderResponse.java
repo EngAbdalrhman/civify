@@ -1,9 +1,11 @@
 package com.app.civify.dto.payment.paymob;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class PaymobOrderResponse {
     private Long id;
     
@@ -13,7 +15,7 @@ public class PaymobOrderResponse {
     @JsonProperty("delivery_needed")
     private Boolean deliveryNeeded;
     
-    private String merchant;
+    private PaymobMerchantDto merchant;
     
     private String collector;
     
