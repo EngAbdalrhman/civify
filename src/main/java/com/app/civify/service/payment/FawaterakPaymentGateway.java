@@ -10,9 +10,10 @@ import com.app.civify.service.logs.BillingAuditService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +30,6 @@ import java.util.Map;
 
 
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class FawaterakPaymentGateway implements PaymentGateway {
 
@@ -38,6 +38,23 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     private final ObjectMapper objectMapper;
     private final com.app.civify.service.notification.NotificationService notificationService;
     private final BillingAuditService billingAuditService;
+
+    @Lazy
+    @Autowired
+    private PaymentFulfillmentService fulfillmentService;
+
+    @Autowired
+    public FawaterakPaymentGateway(FawaterakClient fawaterakClient, 
+                                    PaymentRepository paymentRepository, 
+                                    ObjectMapper objectMapper,
+                                    com.app.civify.service.notification.NotificationService notificationService,
+                                    BillingAuditService billingAuditService) {
+        this.fawaterakClient = fawaterakClient;
+        this.paymentRepository = paymentRepository;
+        this.objectMapper = objectMapper;
+        this.notificationService = notificationService;
+        this.billingAuditService = billingAuditService;
+    }
 
     @Value("${payment.fawaterak.api-key:}")
     private String apiKey;
@@ -332,6 +349,11 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                 null,
                 auditType
             );
+
+            // Fulfill the payment if successful
+            if (result.isSuccess()) {
+                fulfillmentService.fulfillPayment(invoiceId);
+            }
 
             return result;
 

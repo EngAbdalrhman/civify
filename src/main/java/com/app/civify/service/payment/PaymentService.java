@@ -56,6 +56,11 @@ public interface PaymentService {
     void handlePaymentCallback(String gateway, String orderId, String rawPayload, Map<String, String> headers);
 
     /**
+     * Handle payment redirect (GET request from browser)
+     */
+    void handlePaymentRedirect(String gateway, Map<String, String> params);
+
+    /**
      * Get list of enabled gateways
      *
      * @return List of enabled gateway names

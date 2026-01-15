@@ -12,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -30,6 +32,12 @@ public class PaymentController {
 
     private final PaymentUseCase paymentUseCase;
     private final PaymentService paymentService;
+
+    @org.springframework.beans.factory.annotation.Value("${payment.redirect.success-url:/app/dashboard}")
+    private String successRedirectUrl;
+
+    @org.springframework.beans.factory.annotation.Value("${payment.redirect.fail-url:/app/dashboard?error=payment_failed}")
+    private String failRedirectUrl;
 
     @Operation(
             summary = "Initiate payment",
@@ -76,17 +84,46 @@ public class PaymentController {
     public ResponseEntity<String> handlePaymentWebhook(
             @PathVariable String gateway,
             @RequestBody String payload,
-            @RequestHeader Map<String, String> headers) {
+            @RequestHeader Map<String, String> headers,
+            @RequestParam Map<String, String> queryParams) {
         try {
             log.info("Received payment webhook for gateway {}", gateway);
             log.debug("Payload: {}", payload);
 
-            paymentService.handlePaymentCallback(gateway, null, payload, headers);
+            // Create mutable map combining headers and query params
+            // Paymob sends HMAC in query params, so we merge them
+            Map<String, String> combinedHeaders = new HashMap<>(headers);
+            if (queryParams != null && !queryParams.isEmpty()) {
+                combinedHeaders.putAll(queryParams);
+            }
+
+            paymentService.handlePaymentCallback(gateway, null, payload, combinedHeaders);
 
             return ResponseEntity.ok("Webhook processed successfully");
         } catch (Exception e) {
             log.error("Error processing payment webhook: {}", e.getMessage());
             return ResponseEntity.ok("Webhook received");
+        }
+    }
+
+    @Operation(
+        summary = "Handle payment redirect (GET)",
+        description = "Handles browser redirects from payment gateways."
+    )
+    @GetMapping("/webhook/{gateway}")
+    public void handlePaymentRedirect(
+            @PathVariable String gateway,
+            @RequestParam Map<String, String> params,
+            jakarta.servlet.http.HttpServletResponse response) throws IOException {
+        try {
+            log.info("Received payment redirect for gateway {}", gateway);
+            paymentService.handlePaymentRedirect(gateway, params);
+            
+            // Redirect to configured success URL
+            response.sendRedirect(successRedirectUrl); 
+        } catch (Exception e) {
+            log.error("Error processing payment redirect: {}", e.getMessage());
+            response.sendRedirect(failRedirectUrl);
         }
     }
 
