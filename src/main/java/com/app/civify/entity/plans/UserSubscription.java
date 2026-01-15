@@ -65,6 +65,7 @@ public class UserSubscription extends BaseEntity {
     @JoinColumn(name = "promo_code_id")
     private PromoCode promoCode;
 
+    @Column(columnDefinition = "TEXT")
     private String paymentTransactionId;
 
     /**
