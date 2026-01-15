@@ -102,6 +102,18 @@ public class PaymentGatewayManager {
     }
 
     /**
+     * Handle redirect using specific gateway
+     */
+    public PaymentCallbackResult handleRedirect(
+            String gatewayName,
+            Map<String, String> params
+    ) {
+        return gatewayFactory
+                .get(gatewayName)
+                .handleRedirect(params);
+    }
+
+    /**
      * Get list of enabled gateways
      */
     public List<String> getEnabledGateways() {

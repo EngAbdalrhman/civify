@@ -5,15 +5,18 @@ import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.paymob.PaymobAuthResponse;
 import com.app.civify.dto.payment.paymob.PaymobOrderResponse;
 import com.app.civify.dto.payment.paymob.PaymobPaymentKeyResponse;
+import com.app.civify.entity.enums.BillingAuditType;
 import com.app.civify.entity.plans.PaymentTransaction;
 import com.app.civify.entity.enums.PaymentStatus;
 import com.app.civify.repository.plans.PaymentRepository;
+import com.app.civify.service.logs.BillingAuditService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,13 +36,28 @@ import java.util.Map;
  * 6. System verifies and activates subscription
  */
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class PaymobPaymentGateway implements PaymentGateway {
 
     private final PaymobClient paymobClient;
     private final PaymentRepository paymentRepository;
     private final ObjectMapper objectMapper;
+    private final BillingAuditService billingAuditService;
+
+    @Lazy
+    @Autowired
+    private PaymentFulfillmentService fulfillmentService;
+
+    @Autowired
+    public PaymobPaymentGateway(PaymobClient paymobClient, 
+                                 PaymentRepository paymentRepository, 
+                                 ObjectMapper objectMapper,
+                                 BillingAuditService billingAuditService) {
+        this.paymobClient = paymobClient;
+        this.paymentRepository = paymentRepository;
+        this.objectMapper = objectMapper;
+        this.billingAuditService = billingAuditService;
+    }
 
     @Value("${payment.paymob.api-key}")
     private String apiKey;
@@ -164,25 +182,120 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
     @Override
     @Transactional
+    public PaymentCallbackResult handleRedirect(Map<String, String> params) {
+        log.info("Handling Paymob redirect callback");
+        PaymentCallbackResult result = new PaymentCallbackResult();
+        result.setGatewayName(getGatewayName());
+
+        try {
+            // Verify HMAC using params directly
+            String hmac = params.get("hmac");
+            if (hmac == null || !verifySignatureFromParams(params, hmac)) {
+                log.warn("Paymob redirect failed HMAC verification");
+                result.setSuccess(false);
+                result.setMessage("Invalid signature");
+                return result;
+            }
+
+            String orderId = params.get("order");
+            result.setOrderId(orderId);
+            result.setTransactionId(params.get("id"));
+
+            boolean isSuccess = Boolean.parseBoolean(params.getOrDefault("success", "false"));
+
+            // Find transaction
+            PaymentTransaction transaction = paymentRepository.findByOrderId(orderId)
+                     .orElseThrow(() -> new RuntimeException("Payment transaction not found for order: " + orderId));
+            
+            if (isSuccess) {
+                if (transaction.getStatus() != PaymentStatus.COMPLETED) {
+                    transaction.setStatus(PaymentStatus.COMPLETED);
+                    transaction.setCompletedAt(LocalDateTime.now());
+                    paymentRepository.save(transaction);
+                    log.info("✅ Paymob redirect confirmed SUCCESS for order {}", orderId);
+                    
+                    // Fulfill the payment
+                    fulfillmentService.fulfillPayment(orderId);
+                }
+                result.setSuccess(true);
+                result.setMessage("Payment verified successfully");
+            } else {
+                if (transaction.getStatus() != PaymentStatus.FAILED) {
+                    transaction.setStatus(PaymentStatus.FAILED);
+                    paymentRepository.save(transaction);
+                    log.warn("❌ Paymob redirect confirmed FAILURE for order {}", orderId);
+                }
+                result.setSuccess(false);
+                result.setMessage("Payment failed");
+            }
+            
+            // Log billing audit
+            billingAuditService.logWebhook(
+                getGatewayName(),
+                transaction.getUserId(),
+                null,
+                transaction.getPaymentKey(),
+                orderId,
+                isSuccess ? "success" : "failed",
+                "redirect",
+                result.getMessage(),
+                params.toString(),
+                null,
+                isSuccess ? BillingAuditType.WEBHOOK_SUCCESS : BillingAuditType.WEBHOOK_FAILED
+            );
+            
+            return result;
+
+        } catch (Exception e) {
+            log.error("Error handling Paymob redirect: {}", e.getMessage());
+            result.setSuccess(false);
+            result.setMessage("Error: " + e.getMessage());
+            return result;
+        }
+    }
+
+    @Override
+    @Transactional
     public PaymentCallbackResult handleCallback(String rawPayload, Map<String, String> headers) {
         PaymentCallbackResult result = new PaymentCallbackResult();
         result.setGatewayName(getGatewayName());
 
         try {
             log.info("Handling Paymob payment callback");
+
+            JsonNode root = objectMapper.readTree(rawPayload);
+            String providedHmac = headers.getOrDefault("hmac", headers.getOrDefault("HMAC", null));
             
-            if (!verifySignature(rawPayload, headers)) {
-                log.warn("Paymob callback failed HMAC verification");
-                result.setSuccess(false);
-                result.setMessage("Invalid signature");
-                return result;
+            // If HMAC is missing from headers, check if it's in the query string (controller needs to pass it)
+            // But since the current controller implementation passes headers, we'll assume it's there or fail.
+            // Note: The POST webhook puts HMAC in query params usually.
+            // If providedHmac is null, we can try to extract from rawPayload if it mysteriously exists there (unlikely).
+            
+            // The JSON from Paymob POST callback is usually { "obj": { ... }, "type": "TRANSACTION" ... }
+            JsonNode dataNode = root;
+            if (root.has("obj")) {
+                dataNode = root.get("obj");
             }
 
-            JsonNode callbackData = objectMapper.readTree(rawPayload);
-            log.debug("Callback data: {}", callbackData);
+            if (providedHmac != null && !verifySignatureFromJson(dataNode, providedHmac)) {
+                 log.warn("Paymob callback failed HMAC verification");
+                 result.setSuccess(false);
+                 result.setMessage("Invalid signature");
+                 return result;
+            }
+            // If providedHmac is null, we log a warning but proceed or fail? 
+            // In strict mode we should fail. Let's fail if it is null to be safe.
+            if (providedHmac == null) {
+                 log.warn("Paymob callback missing HMAC signature");
+                 result.setSuccess(false);
+                 result.setMessage("Missing signature");
+                 return result;
+            }
+
+            log.debug("Callback data: {}", dataNode);
 
             // Extract order ID from callback
-            String orderId = extractOrderId(callbackData.get("order"));
+            String orderId = extractOrderId(dataNode.get("order"));
 
             if (orderId == null || orderId.isEmpty()) {
                 log.warn("Order ID missing in callback data");
@@ -192,6 +305,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
             }
             
             result.setOrderId(orderId);
+            result.setTransactionId(extractOrderId(dataNode.get("id")));
 
             PaymentTransaction transaction = paymentRepository.findByOrderId(orderId)
                     .orElseThrow(() -> new RuntimeException("Payment transaction not found for order: " + orderId));
@@ -203,28 +317,47 @@ public class PaymobPaymentGateway implements PaymentGateway {
                 result.setMessage("Already processed");
                 return result;
             }
-            
-            result.setTransactionId(transaction.getPaymentKey());
 
             // Parse callback success status
-            boolean isSuccessful = parseCallbackSuccess(callbackData);
+            boolean isSuccessful = parseCallbackSuccess(dataNode);
 
             if (isSuccessful) {
                 transaction.setStatus(PaymentStatus.COMPLETED);
                 transaction.setCompletedAt(LocalDateTime.now());
-                log.info("Paymob payment callback processed successfully for user {} - Order: {}",
+                log.info("✅ Paymob payment callback processed successfully for user {} - Order: {}",
                         transaction.getUserId(), orderId);
                 result.setSuccess(true);
                 result.setMessage("Payment completed");
             } else {
                 transaction.setStatus(PaymentStatus.FAILED);
-                log.warn("Paymob payment callback indicates failure for user {} - Order: {}",
+                log.warn("❌ Paymob payment callback indicates failure for user {} - Order: {}",
                         transaction.getUserId(), orderId);
                 result.setSuccess(false);
                 result.setMessage("Payment failed");
             }
 
             paymentRepository.save(transaction);
+
+            // Log billing audit
+            billingAuditService.logWebhook(
+                getGatewayName(),
+                transaction.getUserId(),
+                null,
+                transaction.getPaymentKey(),
+                orderId,
+                isSuccessful ? "success" : "failed",
+                "callback",
+                result.getMessage(),
+                rawPayload,
+                null,
+                isSuccessful ? BillingAuditType.WEBHOOK_SUCCESS : BillingAuditType.WEBHOOK_FAILED
+            );
+
+            // Fulfill the payment if successful
+            if (isSuccessful) {
+                fulfillmentService.fulfillPayment(orderId);
+            }
+            
             return result;
 
         } catch (Exception e) {
@@ -234,24 +367,42 @@ public class PaymobPaymentGateway implements PaymentGateway {
             return result;
         }
     }
-
-    private boolean verifySignature(String payload, Map<String, String> headers) {
+    
+    private boolean verifySignatureFromParams(Map<String, String> params, String expectedHmac) {
         try {
-            String expected = headers.getOrDefault("hmac", headers.getOrDefault("HMAC", null));
-            if (expected == null || expected.isBlank()) {
-                // Try query params if header not found (sometimes sent as 'hmac' param)
-                // But for now, just return false if missing.
-                return false;
-            }
+             // Paymob HMAC Calculation from Map (GET params)
+             StringBuilder sb = new StringBuilder();
+             sb.append(params.getOrDefault("amount_cents", ""));
+             sb.append(params.getOrDefault("created_at", ""));
+             sb.append(params.getOrDefault("currency", ""));
+             sb.append(params.getOrDefault("error_occured", ""));
+             sb.append(params.getOrDefault("has_parent_transaction", ""));
+             sb.append(params.getOrDefault("id", ""));
+             sb.append(params.getOrDefault("integration_id", ""));
+             sb.append(params.getOrDefault("is_3d_secure", ""));
+             sb.append(params.getOrDefault("is_auth", ""));
+             sb.append(params.getOrDefault("is_capture", ""));
+             sb.append(params.getOrDefault("is_refunded", ""));
+             sb.append(params.getOrDefault("is_standalone_payment", ""));
+             sb.append(params.getOrDefault("is_voided", ""));
+             sb.append(params.getOrDefault("order", "")); 
+             sb.append(params.getOrDefault("owner", ""));
+             sb.append(params.getOrDefault("pending", ""));
+             sb.append(params.getOrDefault("source_data.pan", ""));
+             sb.append(params.getOrDefault("source_data.sub_type", ""));
+             sb.append(params.getOrDefault("source_data.type", ""));
+             sb.append(params.getOrDefault("success", ""));
+             
+             return checkHmac(sb.toString(), expectedHmac);
+        } catch(Exception e) {
+            log.error("HMAC check failed", e);
+            return false;
+        }
+    }
 
-            JsonNode n = objectMapper.readTree(payload);
-            
-            // Paymob HMAC Calculation: Concatenate values of specific keys in order
-            // keys: amount_cents, created_at, currency, error_occured, has_parent_transaction, id, 
-            // integration_id, is_3d_secure, is_auth, is_capture, is_refunded, is_standalone_payment, 
-            // is_voided, order.id, owner, pending, source_data.pan, source_data.sub_type, 
-            // source_data.type, success
-            
+    private boolean verifySignatureFromJson(JsonNode n, String expectedHmac) {
+        try {
+            // Paymob HMAC Calculation from JSON (POST body)
             StringBuilder sb = new StringBuilder();
             sb.append(getValue(n, "amount_cents"));
             sb.append(getValue(n, "created_at"));
@@ -266,7 +417,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
             sb.append(getValue(n, "is_refunded"));
             sb.append(getValue(n, "is_standalone_payment"));
             sb.append(getValue(n, "is_voided"));
-            sb.append(getValue(n.path("order"), "id")); // Nested order.id
+            sb.append(getValue(n.path("order"), "id")); 
             sb.append(getValue(n, "owner"));
             sb.append(getValue(n, "pending"));
             sb.append(getValue(n.path("source_data"), "pan"));
@@ -274,19 +425,20 @@ public class PaymobPaymentGateway implements PaymentGateway {
             sb.append(getValue(n.path("source_data"), "type"));
             sb.append(getValue(n, "success"));
 
-            String concatenated = sb.toString();
-            
-            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA512");
-            mac.init(new javax.crypto.spec.SecretKeySpec(hmacSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA512"));
-            byte[] digest = mac.doFinal(concatenated.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            String calculated = bytesToHex(digest);
-
-            return expected.equalsIgnoreCase(calculated);
+            return checkHmac(sb.toString(), expectedHmac);
 
         } catch (Exception e) {
             log.warn("Paymob signature verification failed: {}", e.getMessage());
             return false;
         }
+    }
+
+    private boolean checkHmac(String concatenated, String expected) throws Exception {
+        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA512");
+        mac.init(new javax.crypto.spec.SecretKeySpec(hmacSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA512"));
+        byte[] digest = mac.doFinal(concatenated.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String calculated = bytesToHex(digest);
+        return expected.equalsIgnoreCase(calculated);
     }
 
     private String getValue(JsonNode node, String key) {

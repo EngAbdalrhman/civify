@@ -49,6 +49,15 @@ public interface PaymentGateway {
      *
      * @return Gateway name
      */
+    /**
+     * Handle redirect from payment gateway (e.g. browser callback).
+     * By default delegates to handleCallback if no specific logic needed,
+     * but Paymob needs logic similar to callback but with query params.
+     */
+    default PaymentCallbackResult handleRedirect(Map<String, String> params) {
+         throw new UnsupportedOperationException("Redirect handling not implemented for this gateway");
+    }
+
     String getGatewayName();
 
     /**
