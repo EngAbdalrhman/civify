@@ -52,6 +52,9 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
     @Value("${payment.paymob.hmac-secret:}")
     private String hmacSecret;
+    
+    @Value("${payment.gateway.paymob.enabled:false}")
+    private boolean enabled;
 
     @Override
     public String getGatewayName() {
@@ -60,8 +63,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
     @Override
     public boolean isEnabled() {
-        return apiKey != null && !apiKey.isEmpty() && !apiKey.contains("your_paymob_api_key_here")
-                && integrationId != null && !integrationId.isEmpty() && !integrationId.contains("your_integration_id_here");
+        return enabled;
     }
 
     @Override

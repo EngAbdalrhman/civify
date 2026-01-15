@@ -17,7 +17,7 @@ public class PaymentGatewayFactory {
     private final Map<String, PaymentGateway> gateways;
     private final PaymentGateway nullGateway = new NullPaymentGateway();
 
-    @Value("${payment.default.gateway:fawaterak}")
+    @Value("${payment.gateway.default:fawaterak}")
     private String defaultGateway;
 
     public PaymentGatewayFactory(
