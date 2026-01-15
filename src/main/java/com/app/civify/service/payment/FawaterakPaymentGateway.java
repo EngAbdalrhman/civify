@@ -54,6 +54,9 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     @Value("${payment.redirect.pending-url}")
     private String pendingUrl;
 
+    @Value("${payment.gateway.fawaterak.enabled:true}")
+    private boolean enabled;
+
     @Override
     public String getGatewayName() {
         return "fawaterak";
@@ -61,7 +64,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
 
     @Override
     public boolean isEnabled() {
-        return apiKey != null && !apiKey.isEmpty();
+        return enabled;
     }
 
     @Override
