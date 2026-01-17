@@ -3,7 +3,6 @@ package com.app.civify.service.notification.pubsub;
 import com.app.civify.repository.NotificationRepository;
 import com.app.civify.service.notification.SseNotificationDeliveryService;
 import com.app.civify.service.notification.dto.NotificationMessage;
-import com.app.civify.service.notification.webpush.WebPushService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.cloud.spring.pubsub.support.BasicAcknowledgeablePubsubMessage;
 import com.google.cloud.spring.pubsub.support.GcpPubSubHeaders;
@@ -14,8 +13,7 @@ import org.springframework.messaging.Message;
 import org.springframework.stereotype.Component;
 
 /**
- * Listens to Google Cloud Pub/Sub subscription and delivers notifications
- * via SSE (real-time) and Web Push (offline).
+ * Listens to Google Cloud Pub/Sub subscription and delivers notifications via SSE.
  */
 @Component
 @RequiredArgsConstructor
@@ -23,7 +21,6 @@ import org.springframework.stereotype.Component;
 public class PubSubNotificationListener {
 
     private final SseNotificationDeliveryService sseDeliveryService;
-    private final WebPushService webPushService;
     private final NotificationRepository notificationRepository;
     private final ObjectMapper objectMapper;
 
@@ -41,11 +38,6 @@ public class PubSubNotificationListener {
 
             // Deliver via SSE to connected clients
             sseDeliveryService.deliver(notifMessage);
-
-            // Send Web Push for user-specific notifications if user is not connected via SSE
-            if (notifMessage.getUserId() != null && !sseDeliveryService.hasActiveConnection(notifMessage.getUserId())) {
-                webPushService.sendPushNotification(notifMessage.getUserId(), notifMessage);
-            }
 
             // Mark as delivered in database
             markAsDelivered(notifMessage.getId());
