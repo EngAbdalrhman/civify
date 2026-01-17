@@ -4,7 +4,7 @@ import com.app.civify.entity.Notification;
 import com.app.civify.entity.User;
 import com.app.civify.repository.NotificationRepository;
 import com.app.civify.security.UserPrincipal;
-import com.app.civify.service.notification.PostgresNotificationListener;
+import com.app.civify.service.notification.SseNotificationDeliveryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -22,7 +22,7 @@ import java.util.Map;
 @Slf4j
 public class NotificationUseCaseImpl implements NotificationUseCase {
 
-    private final PostgresNotificationListener listener;
+    private final SseNotificationDeliveryService sseDeliveryService;
     private final NotificationRepository notificationRepository;
 
     @Override
@@ -50,9 +50,9 @@ public class NotificationUseCaseImpl implements NotificationUseCase {
         }
 
         try {
-            // Register connection with listener
-            listener.registerUserConnection(user.getId(), emitter);
-            listener.registerBroadcastConnection(emitter); // Also receive broadcasts
+            // Register connection with SSE delivery service
+            sseDeliveryService.registerUserConnection(user.getId(), emitter);
+            sseDeliveryService.registerBroadcastConnection(emitter); // Also receive broadcasts
 
             // Send any undelivered notifications immediately
             sendMissedNotifications(user.getId(), emitter);
