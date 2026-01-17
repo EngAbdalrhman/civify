@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -121,7 +122,19 @@ public class PaymentController {
         
         // Determine redirect URL based on payment params directly (uses gateway-specific logic)
         boolean paymentSuccess = paymentService.isRedirectSuccess(gateway, params);
-        String redirectUrl = paymentSuccess ? successRedirectUrl : failRedirectUrl;
+        String baseRedirectUrl = paymentSuccess ? successRedirectUrl : failRedirectUrl;
+        
+        // Build the final URL with query parameters
+        // We must forward the gateway params so the frontend can parse them (e.g. transaction ID)
+        // We also add the 'gateway' param so frontend knows which logic to use
+        UriComponentsBuilder uriBuilder = 
+            UriComponentsBuilder.fromUriString(baseRedirectUrl)
+            .queryParam("gateway", gateway);
+            
+        // Add all existing params
+        params.forEach(uriBuilder::queryParam);
+        
+        String finalRedirectUrl = uriBuilder.build().toUriString();
         
         try {
             log.info("Received payment redirect for gateway {}", gateway);
@@ -134,7 +147,7 @@ public class PaymentController {
                     paymentSuccess ? "SUCCESS" : "FAILED", e.getMessage());
         }
         
-        response.sendRedirect(redirectUrl);
+        response.sendRedirect(finalRedirectUrl);
     }
 
     @Operation(
