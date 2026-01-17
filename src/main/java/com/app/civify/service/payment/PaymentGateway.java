@@ -58,6 +58,15 @@ public interface PaymentGateway {
          throw new UnsupportedOperationException("Redirect handling not implemented for this gateway");
     }
 
+    /**
+     * Check if the redirect parameters indicate a successful payment.
+     * This is used by the controller to determine where to redirect the user,
+     * independently of the backend processing result.
+     */
+    default boolean isRedirectSuccess(Map<String, String> params) {
+        return false;
+    }
+
     String getGatewayName();
 
     /**

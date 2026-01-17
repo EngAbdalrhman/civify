@@ -251,6 +251,12 @@ public class PaymobPaymentGateway implements PaymentGateway {
     }
 
     @Override
+    public boolean isRedirectSuccess(Map<String, String> params) {
+        if (params == null) return false;
+        return Boolean.parseBoolean(params.getOrDefault("success", "false"));
+    }
+
+    @Override
     @Transactional
     public PaymentCallbackResult handleCallback(String rawPayload, Map<String, String> headers) {
         PaymentCallbackResult result = new PaymentCallbackResult();

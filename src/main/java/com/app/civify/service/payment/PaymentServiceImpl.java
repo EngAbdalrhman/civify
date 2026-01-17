@@ -75,6 +75,11 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
+    public boolean isRedirectSuccess(String gateway, Map<String, String> params) {
+        return gatewayManager.isRedirectSuccess(gateway, params);
+    }
+
+    @Override
     public List<String> getEnabledGateways() {
         return gatewayManager.getEnabledGateways();
     }

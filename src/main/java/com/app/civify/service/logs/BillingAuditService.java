@@ -31,17 +31,27 @@ public class BillingAuditService extends CommonService {
                            String gatewayInvoiceId, String gatewayStatus, String paymentMethod,
                            String result, String webhookPayload, String ipAddress,
                            BillingAuditType auditType) {
+        // Truncate fields to prevent DB errors (fail-safe)
+        String safePayload = webhookPayload;
+        if (safePayload != null && safePayload.length() > 50000) { // arbitrary safe limit for TEXT
+             safePayload = safePayload.substring(0, 50000) + "...(truncated)";
+        }
+        String safeTxId = transactionId;
+        if (safeTxId != null && safeTxId.length() > 255) {
+             safeTxId = safeTxId.substring(0, 255);
+        }
+        
         BillingAuditLog logEntry = BillingAuditLog.builder()
                 .userId(userId)
                 .auditType(auditType)
                 .invoiceId(invoiceId)
-                .transactionId(transactionId)
+                .transactionId(safeTxId)
                 .gateway(gateway)
                 .gatewayInvoiceId(gatewayInvoiceId)
                 .gatewayStatus(gatewayStatus)
                 .paymentMethod(paymentMethod)
                 .result(result)
-                .webhookPayload(webhookPayload)
+                .webhookPayload(safePayload)
                 .ipAddress(ipAddress)
                 .build();
 

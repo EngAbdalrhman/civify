@@ -118,16 +118,23 @@ public class PaymentController {
             @PathVariable String gateway,
             @RequestParam Map<String, String> params,
             HttpServletResponse response) throws IOException {
+        
+        // Determine redirect URL based on payment params directly (uses gateway-specific logic)
+        boolean paymentSuccess = paymentService.isRedirectSuccess(gateway, params);
+        String redirectUrl = paymentSuccess ? successRedirectUrl : failRedirectUrl;
+        
         try {
             log.info("Received payment redirect for gateway {}", gateway);
             paymentService.handlePaymentRedirect(gateway, params);
-            
-            // Redirect to configured success URL
-            response.sendRedirect(successRedirectUrl); 
+            // Processing succeeded - redirect already determined by payment params
         } catch (Exception e) {
-            log.error("Error processing payment redirect: {}", e.getMessage());
-            response.sendRedirect(failRedirectUrl);
+            // Log the error but don't change redirect decision
+            // The payment outcome is determined by gateway params, not our processing
+            log.error("Error processing payment redirect (payment status from gateway: {}): {}", 
+                    paymentSuccess ? "SUCCESS" : "FAILED", e.getMessage());
         }
+        
+        response.sendRedirect(redirectUrl);
     }
 
     @Operation(
