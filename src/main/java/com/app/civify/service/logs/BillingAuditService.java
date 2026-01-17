@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -22,8 +23,10 @@ public class BillingAuditService extends CommonService {
 
     /**
      * Log a webhook event from payment gateway.
+     * Uses REQUIRES_NEW to run in its own transaction, preventing audit failures
+     * from rolling back the parent payment transaction.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = Exception.class)
     public void logWebhook(String gateway, Long userId, Long invoiceId, String transactionId,
                            String gatewayInvoiceId, String gatewayStatus, String paymentMethod,
                            String result, String webhookPayload, String ipAddress,
