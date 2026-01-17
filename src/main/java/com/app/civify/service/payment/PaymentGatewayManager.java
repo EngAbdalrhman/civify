@@ -114,6 +114,15 @@ public class PaymentGatewayManager {
     }
 
     /**
+     * Check if redirect params indicate success
+     */
+    public boolean isRedirectSuccess(String gatewayName, Map<String, String> params) {
+        return gatewayFactory
+                .get(gatewayName)
+                .isRedirectSuccess(params);
+    }
+
+    /**
      * Get list of enabled gateways
      */
     public List<String> getEnabledGateways() {

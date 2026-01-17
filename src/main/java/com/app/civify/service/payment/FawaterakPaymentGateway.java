@@ -559,4 +559,15 @@ public class FawaterakPaymentGateway implements PaymentGateway {
         urls.put("pendingUrl", pendingUrl);
         return urls;
     }
+
+    @Override
+    public boolean isRedirectSuccess(Map<String, String> params) {
+        if (params == null) return false;
+        // Fawaterak might send status in 'invoice_status' or 'payment_status' or 'status'
+        String status = params.getOrDefault("invoice_status", 
+                       params.getOrDefault("payment_status", 
+                       params.getOrDefault("status", ""))).toLowerCase();
+        
+        return "paid".equals(status) || "success".equals(status) || "successful".equals(status) || "completed".equals(status);
+    }
 }

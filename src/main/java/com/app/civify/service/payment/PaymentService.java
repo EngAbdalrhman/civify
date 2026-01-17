@@ -61,6 +61,11 @@ public interface PaymentService {
     void handlePaymentRedirect(String gateway, Map<String, String> params);
 
     /**
+     * Check if payment redirect parameters indicate success
+     */
+    boolean isRedirectSuccess(String gateway, Map<String, String> params);
+
+    /**
      * Get list of enabled gateways
      *
      * @return List of enabled gateway names
