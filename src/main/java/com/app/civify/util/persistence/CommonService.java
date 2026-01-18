@@ -71,6 +71,7 @@ public class CommonService {
      */
     public <T> Specification<T> createSpecificationFromInputData(InputDataModel inputData) {
         return (root, query, criteriaBuilder) -> {
+            query.distinct(true);
             List<Predicate> allPredicates = new ArrayList<>();
 
             // Add predicates from direct filters (always AND between them)
