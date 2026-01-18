@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-@ConditionalOnProperty(value = "spring.cloud.gcp.pubsub.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "notification.provider", havingValue = "pubsub")
 public class PubSubNotificationListener {
 
     private final SseNotificationDeliveryService sseDeliveryService;
