@@ -5,8 +5,6 @@ import com.app.civify.entity.User;
 import com.app.civify.entity.enums.NotificationType;
 import com.app.civify.repository.NotificationRepository;
 import com.app.civify.repository.UserRepository;
-import com.app.civify.service.notification.dto.NotificationMessage;
-import com.app.civify.service.notification.pubsub.PubSubNotificationPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -18,25 +16,24 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Notification service using Google Pub/Sub as message queue.
+ * Notification service using PostgreSQL as message queue.
  * 
  * HOW IT WORKS:
  * 
  * 1. Admin sends broadcast:
  *    notificationService.sendToAll("Maintenance", "System down at 10 PM", "INFO")
  *    → Saves to DB with user_id = NULL
- *    → Publishes to Pub/Sub topic
- *    → PubSubNotificationListener receives → pushes to ALL connected SSE clients
+ *    → PostgreSQL TRIGGER fires → pg_notify('new_notification', json)
+ *    → PostgresNotificationListener receives → pushes to ALL connected SSE clients
  * 
  * 2. System sends to user:
- *    notificationService.sendToUser(userId, "Payment Success", "Premium activated", "SUCCESS")
+ *    notificationService.sendToUser(userId, "Payment Success", "Premium activated",  "SUCCESS")
  *    → Saves to DB with specific user_id
- *    → Publishes to Pub/Sub topic
- *    → PubSubNotificationListener receives → pushes to THAT user's SSE connection + Web Push
+ *    → PostgreSQL TRIGGER fires → pg_notify('new_notification', json)
+ *    → PostgresNotificationListener receives → pushes to THAT user's SSE connection
  * 
  * 3. DEDUPLICATION:
- *    Use idempotencyKey to prevent duplicates
- *    notificationService.sendToUser(userId, title, message, "SUCCESS", "payment_123_success")
+ *    Use idempotencyKey to prevent duplicatesnotificationService.sendToUser(userId, title, message, "SUCCESS", "payment_123_success")
  *    → Checks if idempotencyKey exists → skip if already sent
  */
 @Service
@@ -46,7 +43,6 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
-    private final PubSubNotificationPublisher pubSubPublisher;
 
     /**
      * Send notification to ALL users (broadcast).
@@ -68,9 +64,9 @@ public class NotificationServiceImpl implements NotificationService {
 
             notificationRepository.save(notification);
             log.info("✅ Broadcast notification saved: id={}", notification.getId());
-
-            // Publish to Pub/Sub for real-time delivery
-            publishToPubSub(notification);
+            
+            // PostgreSQL TRIGGER automatically fires pg_notify()
+            // PostgresNotificationListener will pick it up and push via SSE
 
         } catch (Exception e) {
             log.error("❌ Failed to create broadcast notification", e);
@@ -93,7 +89,6 @@ public class NotificationServiceImpl implements NotificationService {
      * 
      * @param idempotencyKey Unique key to prevent duplicates (e.g., "payment_order_123_success")
      */
-    @Override
     @Transactional
     public void sendToUser(Long userId, String title, String message, NotificationType type,
                           String idempotencyKey, Map<String, Object> metadata) {
@@ -126,29 +121,11 @@ public class NotificationServiceImpl implements NotificationService {
             notificationRepository.save(notification);
             log.info("✅ User notification saved: id={}, userId={}", notification.getId(), userId);
 
-            // Publish to Pub/Sub for real-time delivery
-            publishToPubSub(notification);
+            // PostgreSQL TRIGGER automatically fires pg_notify()
 
         } catch (Exception e) {
             log.error("❌ Failed to create notification for user {}", userId, e);
         }
-    }
-
-    /**
-     * Publish notification to Pub/Sub for real-time delivery
-     */
-    private void publishToPubSub(Notification notification) {
-        NotificationMessage message = NotificationMessage.builder()
-                .id(notification.getId())
-                .userId(notification.getUser() != null ? notification.getUser().getId() : null)
-                .title(notification.getTitle())
-                .message(notification.getMessage())
-                .type(notification.getType().name())
-                .createdAt(notification.getCreatedAt().toString())
-                .metadata(notification.getMetadata())
-                .build();
-
-        pubSubPublisher.publish(message);
     }
 
     /**

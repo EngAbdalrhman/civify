@@ -342,24 +342,6 @@
             <version>1.0.0</version>
         </dependency>
 
-        <!-- Google Cloud Pub/Sub for notifications -->
-        <dependency>
-            <groupId>com.google.cloud</groupId>
-            <artifactId>spring-cloud-gcp-starter-pubsub</artifactId>
-        </dependency>
-
-        <!-- Web Push (VAPID) for browser push notifications -->
-        <dependency>
-            <groupId>nl.martijndwars</groupId>
-            <artifactId>web-push</artifactId>
-            <version>5.1.1</version>
-        </dependency>
-        <dependency>
-            <groupId>org.bouncycastle</groupId>
-            <artifactId>bcprov-jdk18on</artifactId>
-            <version>1.77</version>
-        </dependency>
-
 		<!-- =======================
 		     DATABASE
 		     ======================= -->
@@ -475,15 +457,6 @@
 				<groupId>org.springframework.ai</groupId>
 				<artifactId>spring-ai-bom</artifactId>
 				<version>${spring-ai.version}</version>
-				<type>pom</type>
-				<scope>import</scope>
-			</dependency>
-
-			<!-- Spring Cloud GCP BOM -->
-			<dependency>
-				<groupId>com.google.cloud</groupId>
-				<artifactId>spring-cloud-gcp-dependencies</artifactId>
-				<version>5.8.0</version>
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>

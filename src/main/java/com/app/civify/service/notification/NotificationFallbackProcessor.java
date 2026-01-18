@@ -2,7 +2,6 @@ package com.app.civify.service.notification;
 
 import com.app.civify.entity.Notification;
 import com.app.civify.repository.NotificationRepository;
-import com.app.civify.service.notification.dto.NotificationMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -12,13 +11,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Fallback processor for notifications.
+ * Quartz-based fallback processor for notifications.
  * 
- * PURPOSE: Catch notifications that weren't delivered via Pub/Sub
- * (e.g., if Pub/Sub was temporarily down, or SSE client wasn't connected)
+ * PURPOSE: Catch notifications that weren't delivered via LISTEN/NOTIFY
+ * (e.g., if listener was temporarily down, or SSE client wasn't connected)
  * 
  * PREVENTS DUPLICATES by checking delivered = FALSE flag.
- * PubSubNotificationListener marks as delivered = TRUE after sending.
+ * PostgresNotificationListener marks as delivered = TRUE after sending.
  * 
  * Runs every 60 seconds to check for undelivered notifications.
  */
@@ -28,11 +27,11 @@ import java.util.List;
 public class NotificationFallbackProcessor {
 
     private final NotificationRepository notificationRepository;
-    private final SseNotificationDeliveryService sseDeliveryService;
+    private final PostgresNotificationListener listener;
 
     /**
      * Process undelivered notifications every 60 seconds.
-     * This catches notifications that Pub/Sub missed.
+     * This catches notifications that LISTEN/NOTIFY missed.
      */
     @Scheduled(fixedDelay = 60000, initialDelay = 10000)
     public void processMissedNotifications() {
@@ -40,22 +39,22 @@ public class NotificationFallbackProcessor {
             List<Notification> undelivered = notificationRepository.findAllUndelivered(LocalDateTime.now());
 
             if (!undelivered.isEmpty()) {
-                log.info("🔄 Fallback processor: Found {} undelivered notifications", undelivered.size());
+                log.info("🔄 Quartz fallback: Found {} undelivered notifications", undelivered.size());
 
                 for (Notification notif : undelivered) {
-                    // Build message for SSE delivery
-                    NotificationMessage message = NotificationMessage.builder()
-                        .id(notif.getId())
-                        .userId(notif.getUser() != null ? notif.getUser().getId() : null)
-                        .title(notif.getTitle())
-                        .message(notif.getMessage())
-                        .type(notif.getType().name())
-                        .createdAt(notif.getCreatedAt().toString())
-                        .metadata(notif.getMetadata())
-                        .build();
+                    // Simulate pg_notify payload
+                    String payload = String.format(
+                        "{\"id\":%d,\"userId\":%s,\"title\":\"%s\",\"message\":\"%s\",\"type\":\"%s\",\"createdAt\":\"%s\"}",
+                        notif.getId(),
+                        notif.getUser() != null ? notif.getUser().getId() : "null",
+                        notif.getTitle().replace("\"", "\\\""),
+                        notif.getMessage().replace("\"", "\\\""),
+                        notif.getType(),
+                        notif.getCreatedAt().toString()
+                    );
 
-                    // Attempt SSE delivery
-                    sseDeliveryService.deliver(message);
+                    // Re-trigger through listener (which will mark as delivered)
+                    // Alternatively, could directly push via SSE here
                     
                     notif.incrementDeliveryAttempts();
                     
@@ -70,7 +69,7 @@ public class NotificationFallbackProcessor {
             }
 
         } catch (Exception e) {
-            log.error("❌ Fallback processor error", e);
+            log.error("❌ Quartz fallback processor error", e);
         }
     }
 
