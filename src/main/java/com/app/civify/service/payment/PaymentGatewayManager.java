@@ -2,15 +2,13 @@ package com.app.civify.service.payment;
 
 import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
-import jakarta.annotation.PostConstruct;
+import com.app.civify.dto.payment.PaymentMethods;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Manages multiple payment gateways using strategy pattern
@@ -58,11 +56,12 @@ public class PaymentGatewayManager {
     public PaymentCreationResult createPayment(
             Long userId,
             double amount,
+            PaymentMethods method,
             Map<String, Object> metadata
     ) {
         return gatewayFactory
                 .getDefault()
-                .createPayment(userId, amount, metadata);
+                .createPayment(userId, amount, method, metadata);
     }
 
     /**
@@ -72,11 +71,12 @@ public class PaymentGatewayManager {
             String gatewayName,
             Long userId,
             double amount,
+            PaymentMethods method,
             Map<String, Object> metadata
     ) {
         return gatewayFactory
                 .get(gatewayName)
-                .createPayment(userId, amount, metadata);
+                .createPayment(userId, amount, method, metadata);
     }
 
     /**
