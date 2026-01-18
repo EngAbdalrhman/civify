@@ -1,11 +1,13 @@
 package com.app.civify.service.notification.pubsub;
 
+import com.app.civify.service.notification.NotificationPublisher;
 import com.app.civify.service.notification.dto.NotificationMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.cloud.spring.pubsub.core.PubSubTemplate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -14,7 +16,8 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class PubSubNotificationPublisher {
+@ConditionalOnProperty(name = "notification.provider", havingValue = "pubsub")
+public class PubSubNotificationPublisher implements NotificationPublisher {
 
     private final PubSubTemplate pubSubTemplate;
     private final ObjectMapper objectMapper;
@@ -25,6 +28,7 @@ public class PubSubNotificationPublisher {
     /**
      * Publish notification to Pub/Sub topic
      */
+    @Override
     public void publish(NotificationMessage message) {
         try {
             String payload = objectMapper.writeValueAsString(message);
