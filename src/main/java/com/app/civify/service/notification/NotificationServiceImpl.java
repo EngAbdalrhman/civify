@@ -46,7 +46,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
-    private final PubSubNotificationPublisher pubSubPublisher;
+    private final NotificationPublisher notificationPublisher;
 
     /**
      * Send notification to ALL users (broadcast).
@@ -148,7 +148,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .metadata(notification.getMetadata())
                 .build();
 
-        pubSubPublisher.publish(message);
+        notificationPublisher.publish(message);
     }
 
     /**
