@@ -28,7 +28,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Component
 @Slf4j
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "notification.provider", havingValue = "postgres", matchIfMissing = true)
+@ConditionalOnProperty(value = "spring.cloud.gcp.pubsub.enabled", havingValue = "false", matchIfMissing = true)
 public class PostgresNotificationListener {
 
     private final DataSource dataSource;
