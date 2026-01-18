@@ -8,19 +8,16 @@ import com.google.cloud.spring.pubsub.support.BasicAcknowledgeablePubsubMessage;
 import com.google.cloud.spring.pubsub.support.GcpPubSubHeaders;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.messaging.Message;
 import org.springframework.stereotype.Component;
 
 /**
  * Listens to Google Cloud Pub/Sub subscription and delivers notifications via SSE.
- * Only active when notification.provider=pubsub
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
-@ConditionalOnProperty(name = "notification.provider", havingValue = "pubsub")
 public class PubSubNotificationListener {
 
     private final SseNotificationDeliveryService sseDeliveryService;
