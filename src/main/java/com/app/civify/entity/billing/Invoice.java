@@ -1,5 +1,6 @@
 package com.app.civify.entity.billing;
 
+import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.entity.User;
 import com.app.civify.entity.enums.InvoiceStatus;
 import com.app.civify.entity.plans.PromoCode;
@@ -75,6 +76,10 @@ public class Invoice extends BaseEntity {
 
     @Column(length = 1000)
     private String paymentUrl;
+
+    @Column
+    @Enumerated(EnumType.STRING)
+    private PaymentMethods paymentMethod;
 
     @Column(length = 255)
     private String paymentTransactionId;

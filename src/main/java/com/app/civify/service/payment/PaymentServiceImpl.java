@@ -24,24 +24,6 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentGatewayManager gatewayManager;
 
     @Override
-    public PaymentCreationResult createPayment(Long userId, double amount, String gateway) {
-        log.info("Creating payment for user {} with amount {} using gateway {}", userId, amount, gateway);
-        return gatewayManager.createPayment(gateway, userId, amount, null, null);
-    }
-
-    @Override
-    public PaymentCreationResult createPayment(Long userId, double amount, Map<String, Object> metadata) {
-        log.info("Creating payment for user {} with amount {} and metadata {}", userId, amount, metadata);
-        return gatewayManager.createPayment(null, userId, amount, null, metadata);
-    }
-
-    @Override
-    public PaymentCreationResult createPayment(Long userId, double amount, String gateway, Map<String, Object> metadata) {
-        log.info("Creating payment for user {} with amount {} using gateway {} and metadata {}", userId, amount, gateway, metadata);
-        return gatewayManager.createPayment(gateway, userId, amount, null, metadata);
-    }
-
-    @Override
     public PaymentCreationResult createPayment(Long userId, double amount, String gateway, PaymentMethods method, Map<String, Object> metadata) {
         log.info("Creating payment for user {} with amount {} using gateway {} and metadata {}", userId, amount, gateway, metadata);
         return gatewayManager.createPayment(gateway, userId, amount, method, metadata);

@@ -1,6 +1,7 @@
 package com.app.civify.service.billing;
 
 import com.app.civify.dto.payment.PaymentCreationResult;
+import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.entity.User;
 import com.app.civify.entity.billing.Invoice;
 import com.app.civify.entity.enums.InvoiceStatus;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -94,7 +96,7 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional
-    public Invoice processPayment(UUID invoiceUuid, String gateway) {
+    public Invoice processPayment(UUID invoiceUuid, String gateway, PaymentMethods method) {
         Invoice invoice = invoiceRepository.findByUuid(invoiceUuid)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found: " + invoiceUuid));
 
@@ -105,10 +107,13 @@ public class InvoiceServiceImpl implements InvoiceService {
         PaymentCreationResult result = paymentService.createPayment(
                 invoice.getUser().getId(),
                 invoice.getFinalAmount().doubleValue(),
-                gateway
+                gateway,
+                method,
+                Map.of() // TODO fix metadata
         );
 
         invoice.setGateway(gateway);
+        invoice.setPaymentMethod(method);
         invoice.setPaymentUrl(result.getPaymentUrl());
         invoice.setPaymentTransactionId(result.getPaymentKey());
 
