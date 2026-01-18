@@ -646,19 +646,17 @@ public class PaymobPaymentGateway implements PaymentGateway {
     public Long getPaymentMethod(PaymentMethods paymentMethod){
         switch (paymentMethod){
             case CARD -> {
-                // TODO: Replace with your actual Paymob Card Integration ID provided by Paymob Dashboard
-                return 12345L; 
+                return 5033333L;
             }
             case WALLET -> {
-                // TODO: Replace with your actual Paymob Wallet Integration ID provided by Paymob Dashboard
-                return 67890L;
+                return 5033334L;
             }
             case FAWRY -> {
-                // TODO: Replace with your actual Paymob Fawry Integration ID provided by Paymob Dashboard
                 return 11111L;
             }
             default -> {
                  // Fallback or error
+                // TODO make generic config table
                  return -1L;
             }
         }
