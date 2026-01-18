@@ -1,6 +1,7 @@
 package com.app.civify.usecase.user;
 
 import com.app.civify.dto.payment.PaymentInitiationResponse;
+import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.dto.payment.PaymentVerificationResponse;
 import com.app.civify.service.payment.PaymentService;
 import com.app.civify.service.subscription.SubscriptionService;
@@ -19,9 +20,9 @@ public class PaymentUseCaseImpl implements PaymentUseCase {
     private final SubscriptionService subscriptionService;
 
     @Override
-    public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway) {
+    public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, PaymentMethods method) {
         log.debug("Initiating payment for user {} with plan {}", userId, planId);
-        return subscriptionService.initiatePayment(userId, planId, isAnnual, promoCode, gateway);
+        return subscriptionService.initiatePayment(userId, planId, isAnnual, promoCode, gateway, method);
     }
 
     @Override

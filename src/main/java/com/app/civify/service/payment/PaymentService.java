@@ -1,6 +1,8 @@
 package com.app.civify.service.payment;
 
 import com.app.civify.dto.payment.PaymentCreationResult;
+import com.app.civify.dto.payment.PaymentMethods;
+
 import java.util.List;
 import java.util.Map;
 
@@ -36,6 +38,18 @@ public interface PaymentService {
      * @return PaymentCreationResult
      */
     PaymentCreationResult createPayment(Long userId, double amount, String gateway, Map<String, Object> metadata);
+
+    /**
+     * Create a payment transaction with gateway and metadata
+     *
+     * @param userId User ID
+     * @param amount Amount
+     * @param gateway Gateway name
+     * @param metadata Metadata
+     * @param method payment Method
+     * @return PaymentCreationResult
+     */
+    PaymentCreationResult createPayment(Long userId, double amount, String gateway, PaymentMethods method, Map<String, Object> metadata);
 
     /**
      * Verify a payment transaction

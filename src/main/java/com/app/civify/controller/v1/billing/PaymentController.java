@@ -1,7 +1,8 @@
-package com.app.civify.controller.v1.plans;
+package com.app.civify.controller.v1.billing;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.payment.PaymentInitiationResponse;
+import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.dto.payment.PaymentVerificationResponse;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.security.annotation.CivifyAuthorization;
@@ -62,11 +63,12 @@ public class PaymentController {
             @RequestParam(required = false) String promoCode,
             @RequestParam(defaultValue = "false") boolean isAnnual,
             @RequestParam(required = false) String gateway,
+            @RequestParam(required = false) PaymentMethods method,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
         try {
             Long userId = userPrincipal.getId();
-            PaymentInitiationResponse response = paymentUseCase.initiatePayment(userId, planId, isAnnual, promoCode, gateway);
+            PaymentInitiationResponse response = paymentUseCase.initiatePayment(userId, planId, isAnnual, promoCode, gateway, method);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {

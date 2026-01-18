@@ -2,6 +2,7 @@ package com.app.civify.service.subscription;
 
 import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.PaymentInitiationResponse;
+import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.dto.subscription.PriceCalculationResponse;
 import com.app.civify.entity.User;
 import com.app.civify.entity.enums.PromoApplicabilityType;
@@ -324,7 +325,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
     @Override
     @Transactional
-    public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway) {
+    public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, PaymentMethods method) {
         log.info("Initiating payment for user {} with plan {} using gateway {}", userId, planId, gateway);
 
         // Create subscription first (with PENDING status)
@@ -364,7 +365,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             metadata.put("phone", user.getPhoneNumber() != null ? user.getPhoneNumber() : user.getPhone());
         }
 
-        PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), gateway, metadata);
+        PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), gateway, method, metadata);
 
         // Link payment to subscription
         subscription.setPaymentTransactionId(paymentResult.getPaymentKey());

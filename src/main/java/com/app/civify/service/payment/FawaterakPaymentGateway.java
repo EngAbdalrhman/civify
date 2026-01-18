@@ -2,11 +2,13 @@ package com.app.civify.service.payment;
 
 import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
+import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.entity.enums.BillingAuditType;
 import com.app.civify.entity.enums.PaymentStatus;
 import com.app.civify.entity.plans.PaymentTransaction;
 import com.app.civify.repository.plans.PaymentRepository;
 import com.app.civify.service.logs.BillingAuditService;
+import com.app.civify.service.notification.NotificationService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -38,7 +40,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     private final FawaterakClient fawaterakClient;
     private final PaymentRepository paymentRepository;
     private final ObjectMapper objectMapper;
-    private final com.app.civify.service.notification.NotificationService notificationService;
+    private final NotificationService notificationService;
     private final BillingAuditService billingAuditService;
 
     @Lazy
@@ -75,7 +77,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
 
     @Override
     @Transactional
-    public PaymentCreationResult createPayment(Long userId, double amount, Map<String, Object> metadata) {
+    public PaymentCreationResult createPayment(Long userId, double amount, PaymentMethods method, Map<String, Object> metadata) {
         if (!isEnabled()) {
             throw new RuntimeException("Fawaterak gateway is not configured properly.");
         }
@@ -93,7 +95,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
             cartItems.add(cartItem);
 
             Map<String, Object> payloadMap = new HashMap<>();
-            payloadMap.put("payment_method_id", 2); // 2 for credit card, 3
+            payloadMap.put("payment_method_id", getPaymentMethod(method));
             payloadMap.put("cartTotal", amount);
             payloadMap.put("currency", "EGP");
             payloadMap.put("customer", buildCustomerData(metadata));
@@ -569,5 +571,18 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                        params.getOrDefault("status", ""))).toLowerCase();
         
         return "paid".equals(status) || "success".equals(status) || "successful".equals(status) || "completed".equals(status);
+    }
+
+    @Override
+    public Long getPaymentMethod(PaymentMethods paymentMethod){
+        switch (paymentMethod){
+            case CARD -> {
+                return 2L;
+            }
+            case WALLET -> {
+                return 3L;
+            }
+        }
+        return -1L;
     }
 }

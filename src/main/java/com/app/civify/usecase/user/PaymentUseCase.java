@@ -1,6 +1,7 @@
 package com.app.civify.usecase.user;
 
 import com.app.civify.dto.payment.PaymentInitiationResponse;
+import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.dto.payment.PaymentVerificationResponse;
 
 import java.util.List;
@@ -21,7 +22,7 @@ public interface PaymentUseCase {
      * @param gateway   Optional payment gateway preference
      * @return Payment initiation response with payment URL
      */
-    PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway);
+    PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, PaymentMethods method);
 
     /**
      * Verify payment and activate subscription if successful.

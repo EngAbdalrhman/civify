@@ -2,6 +2,8 @@ package com.app.civify.service.payment;
 
 import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
+import com.app.civify.dto.payment.PaymentMethods;
+
 import java.util.Map;
 
 /**
@@ -17,7 +19,7 @@ public interface PaymentGateway {
      * @param metadata Additional metadata for the payment
      * @return PaymentCreationResult containing key and URL
      */
-    PaymentCreationResult createPayment(Long userId, double amount, Map<String, Object> metadata);
+    PaymentCreationResult createPayment(Long userId, double amount, PaymentMethods method, Map<String, Object> metadata);
 
     /**
      * Verify a payment transaction
@@ -75,4 +77,6 @@ public interface PaymentGateway {
      * @return true if enabled
      */
     boolean isEnabled();
+
+    Long getPaymentMethod(PaymentMethods paymentMethods);
 }

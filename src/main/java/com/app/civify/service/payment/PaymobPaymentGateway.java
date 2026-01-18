@@ -2,6 +2,7 @@ package com.app.civify.service.payment;
 
 import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
+import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.dto.payment.paymob.PaymobAuthResponse;
 import com.app.civify.dto.payment.paymob.PaymobOrderResponse;
 import com.app.civify.dto.payment.paymob.PaymobPaymentKeyResponse;
@@ -21,7 +22,10 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Map;
 
@@ -77,7 +81,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
     @Override
     @Transactional
-    public PaymentCreationResult createPayment(Long userId, double amount, Map<String, Object> metadata) {
+    public PaymentCreationResult createPayment(Long userId, double amount, PaymentMethods method, Map<String, Object> metadata) {
         if (!isEnabled()) {
             throw new RuntimeException("Paymob gateway is not configured properly. Please check api-key and integration-id in application.properties");
         }
@@ -440,9 +444,9 @@ public class PaymobPaymentGateway implements PaymentGateway {
     }
 
     private boolean checkHmac(String concatenated, String expected) throws Exception {
-        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA512");
-        mac.init(new javax.crypto.spec.SecretKeySpec(hmacSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA512"));
-        byte[] digest = mac.doFinal(concatenated.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        Mac mac = Mac.getInstance("HmacSHA512");
+        mac.init(new SecretKeySpec(hmacSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA512"));
+        byte[] digest = mac.doFinal(concatenated.getBytes(StandardCharsets.UTF_8));
         String calculated = bytesToHex(digest);
         return expected.equalsIgnoreCase(calculated);
     }
@@ -638,5 +642,16 @@ public class PaymobPaymentGateway implements PaymentGateway {
         return null;
     }
 
-
+    @Override
+    public Long getPaymentMethod(PaymentMethods paymentMethod){
+        switch (paymentMethod){
+            case CARD -> {
+                return 2L;
+            }
+            case WALLET -> {
+                return 3L;
+            }
+        }
+        return -1L;
+    }
 }
