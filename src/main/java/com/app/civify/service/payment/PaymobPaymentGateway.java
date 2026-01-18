@@ -57,8 +57,6 @@ public class PaymobPaymentGateway implements PaymentGateway {
     @Value("${payment.paymob.api-key}")
     private String apiKey;
 
-    @Value("${payment.paymob.integration-id}")
-    private String integrationId;
 
     @Value("${payment.paymob.iframe-id:}")
     private String iframeId;
@@ -98,7 +96,9 @@ public class PaymobPaymentGateway implements PaymentGateway {
             log.debug("Paymob order created with ID: {}", orderId);
 
             // Step 3: Create payment key
-            String paymentKey = createPaymentKey(authToken, orderId, amount, metadata);
+            // Use the specific integration ID for the selected method
+            Long integrationId = getPaymentMethod(method);
+            String paymentKey = createPaymentKey(authToken, orderId, amount, integrationId.toString(), metadata);
             log.debug("Paymob payment key generated");
 
             // Step 4: Save transaction record
@@ -520,7 +520,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
     /**
      * Create payment key for the order
      */
-    private String createPaymentKey(String authToken, String orderId, double amount, Map<String, Object> metadata) {
+    private String createPaymentKey(String authToken, String orderId, double amount, String integrationId, Map<String, Object> metadata) {
         try {
             int amountCents = (int) (amount * 100);
 
@@ -646,12 +646,21 @@ public class PaymobPaymentGateway implements PaymentGateway {
     public Long getPaymentMethod(PaymentMethods paymentMethod){
         switch (paymentMethod){
             case CARD -> {
-                return 2L;
+                // TODO: Replace with your actual Paymob Card Integration ID provided by Paymob Dashboard
+                return 12345L; 
             }
             case WALLET -> {
-                return 3L;
+                // TODO: Replace with your actual Paymob Wallet Integration ID provided by Paymob Dashboard
+                return 67890L;
+            }
+            case FAWRY -> {
+                // TODO: Replace with your actual Paymob Fawry Integration ID provided by Paymob Dashboard
+                return 11111L;
+            }
+            default -> {
+                 // Fallback or error
+                 return -1L;
             }
         }
-        return -1L;
     }
 }
