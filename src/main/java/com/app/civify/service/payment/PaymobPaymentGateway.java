@@ -644,6 +644,10 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
     @Override
     public Long getPaymentMethod(PaymentMethods paymentMethod){
+        if (paymentMethod == null) {
+            log.warn("Payment method passed to Paymob is NULL. Defaulting to CARD integration ID.");
+            return 5033333L; // Default to CARD ID
+        }
         switch (paymentMethod){
             case CARD -> {
                 return 5033333L;
@@ -655,7 +659,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
                 return 11111L;
             }
             default -> {
-                 // Fallback or error
+                log.warn("Unknown payment method: {}. Returning default/error ID.", paymentMethod);
                 // TODO make generic config table
                  return -1L;
             }

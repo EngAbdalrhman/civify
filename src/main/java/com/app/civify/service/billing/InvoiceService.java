@@ -1,5 +1,6 @@
 package com.app.civify.service.billing;
 
+import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.entity.User;
 import com.app.civify.entity.billing.Invoice;
 import com.app.civify.entity.plans.PromoCode;
@@ -31,7 +32,7 @@ public interface InvoiceService {
      * Generate payment link for an invoice.
      * Called when user selects gateway on checkout page.
      */
-    Invoice processPayment(UUID invoiceUuid, String gateway);
+    Invoice processPayment(UUID invoiceUuid, String gateway, PaymentMethods method);
 
     /**
      * Mark invoice as paid. Called by webhook after verifying success.

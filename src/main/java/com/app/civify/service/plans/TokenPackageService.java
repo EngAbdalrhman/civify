@@ -232,7 +232,8 @@ public class TokenPackageService {
 
         log.info("Initiating token purchase for user {} - Package: {} - Amount: {}", userId, tokenPackage.getName(), finalPrice);
 
-        PaymentCreationResult paymentResult = paymentService.createPayment(userId, finalPrice.doubleValue(), metadata);
+        // TODO fix payment gateway and method
+        PaymentCreationResult paymentResult = paymentService.createPayment(userId, finalPrice.doubleValue(), null, null, metadata);
         
         // Link purchase to payment transaction
         purchase.setPaymentTransactionId(paymentResult.getPaymentKey());

@@ -9,37 +9,6 @@ import java.util.Map;
 public interface PaymentService {
 
     /**
-     * Create a payment transaction
-     *
-     * @param userId User ID
-     * @param amount Amount
-     * @param gateway Gateway name (optional)
-     * @return PaymentCreationResult containing key and URL
-     */
-    PaymentCreationResult createPayment(Long userId, double amount, String gateway);
-
-    /**
-     * Create a payment transaction with metadata
-     *
-     * @param userId User ID
-     * @param amount Amount
-     * @param metadata Metadata (e.g. type=TOKEN_TOPUP)
-     * @return PaymentCreationResult
-     */
-    PaymentCreationResult createPayment(Long userId, double amount, Map<String, Object> metadata);
-
-    /**
-     * Create a payment transaction with gateway and metadata
-     *
-     * @param userId User ID
-     * @param amount Amount
-     * @param gateway Gateway name
-     * @param metadata Metadata
-     * @return PaymentCreationResult
-     */
-    PaymentCreationResult createPayment(Long userId, double amount, String gateway, Map<String, Object> metadata);
-
-    /**
      * Create a payment transaction with gateway and metadata
      *
      * @param userId User ID
