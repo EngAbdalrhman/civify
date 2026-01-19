@@ -2,6 +2,7 @@ package com.app.civify.controller.v1.plans;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.payment.PaymentCreationResult;
+import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.dto.token.TokenBalanceResponse;
 import com.app.civify.entity.plans.TokenPackage;
 import com.app.civify.security.UserPrincipal;
@@ -59,9 +60,11 @@ public class TokenPackageController {
             @Parameter(description = "ID of the package to purchase")
             @PathVariable Long packageId,
             @RequestParam(required = false) String promoCode,
+            @RequestParam(required = false) String gateway,
+            @RequestParam(required = false, defaultValue = "CARD") PaymentMethods method,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
         Long userId = userPrincipal.getId();
-        return ResponseEntity.ok(tokenPackageService.purchasePackage(userId, packageId, promoCode));
+        return ResponseEntity.ok(tokenPackageService.purchasePackage(userId, packageId, promoCode, gateway, method));
     }
 
     @Operation(

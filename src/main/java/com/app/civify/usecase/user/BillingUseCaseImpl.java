@@ -1,6 +1,7 @@
 package com.app.civify.usecase.user;
 
 import com.app.civify.dto.billing.InvoiceDto;
+import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.entity.billing.Invoice;
 import com.app.civify.exception.ResourceNotFoundException;
 import com.app.civify.service.billing.InvoiceService;
@@ -35,10 +36,11 @@ public class BillingUseCaseImpl implements BillingUseCase {
         return toDto(invoice);
     }
 
+
     @Override
-    public InvoiceDto processPayment(UUID uuid, String gateway) {
-        log.debug("Processing payment for invoice {} via {}", uuid, gateway);
-        Invoice invoice = invoiceService.processPayment(uuid, gateway);
+    public InvoiceDto processPayment(UUID uuid, String gateway, PaymentMethods method) {
+        log.debug("Processing payment for invoice {} via {} and method {}", uuid, gateway, method);
+        Invoice invoice = invoiceService.processPayment(uuid, gateway, method);
         return toDto(invoice);
     }
 

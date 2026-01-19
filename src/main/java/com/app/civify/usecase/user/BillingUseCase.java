@@ -1,6 +1,7 @@
 package com.app.civify.usecase.user;
 
 import com.app.civify.dto.billing.InvoiceDto;
+import com.app.civify.dto.payment.PaymentMethods;
 
 import java.util.List;
 import java.util.UUID;
@@ -24,5 +25,5 @@ public interface BillingUseCase {
     /**
      * Generate payment link for an invoice
      */
-    InvoiceDto processPayment(UUID uuid, String gateway);
+    InvoiceDto processPayment(UUID uuid, String gateway, PaymentMethods method);
 }
