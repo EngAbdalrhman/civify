@@ -1,6 +1,7 @@
 package com.app.civify.service.plans;
 
 import com.app.civify.dto.payment.PaymentCreationResult;
+import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.dto.token.TokenBalanceResponse;
 import com.app.civify.entity.User;
 import com.app.civify.entity.enums.AuditAction;
@@ -171,7 +172,7 @@ public class TokenPackageService {
     }
 
     @Transactional
-    public PaymentCreationResult purchasePackage(Long userId, Long packageId, String promoCode) {
+    public PaymentCreationResult purchasePackage(Long userId, Long packageId, String promoCode, String gateway, PaymentMethods methods) {
         TokenPackage tokenPackage = tokenPackageRepository.findById(packageId)
                 .orElseThrow(() -> new RuntimeException("token.package.notfound"));
 
@@ -232,8 +233,7 @@ public class TokenPackageService {
 
         log.info("Initiating token purchase for user {} - Package: {} - Amount: {}", userId, tokenPackage.getName(), finalPrice);
 
-        // TODO fix payment gateway and method
-        PaymentCreationResult paymentResult = paymentService.createPayment(userId, finalPrice.doubleValue(), null, null, metadata);
+        PaymentCreationResult paymentResult = paymentService.createPayment(userId, finalPrice.doubleValue(), gateway, methods, metadata);
         
         // Link purchase to payment transaction
         purchase.setPaymentTransactionId(paymentResult.getPaymentKey());

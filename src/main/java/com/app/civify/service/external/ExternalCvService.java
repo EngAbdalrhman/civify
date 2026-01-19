@@ -32,7 +32,7 @@ public class ExternalCvService {
     private final SubscriptionService subscriptionService;
     private final ObjectMapper objectMapper;
 
-    // Token costs for external API operations
+    // TODO fix Token costs for external API operations
     private static final int TOKENS_EXTERNAL_MASK = 300;
     private static final int TOKENS_EXTERNAL_PARSE = 200;
 
