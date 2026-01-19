@@ -2,6 +2,7 @@ package com.app.civify.controller.v1.billing;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.billing.InvoiceDto;
+import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.usecase.user.BillingUseCase;
 import io.swagger.v3.oas.annotations.Operation;
@@ -41,7 +42,8 @@ public class BillingController {
     @Operation(summary = "Generate payment link for invoice")
     public ResponseEntity<InvoiceDto> processPayment(
             @PathVariable UUID uuid,
-            @RequestParam String gateway) {
-        return ResponseEntity.ok(billingUseCase.processPayment(uuid, gateway));
+            @RequestParam String gateway,
+            @RequestParam(required = false, defaultValue = "CARD") PaymentMethods method) {
+        return ResponseEntity.ok(billingUseCase.processPayment(uuid, gateway, method));
     }
 }

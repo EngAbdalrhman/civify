@@ -351,7 +351,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                     .subscriptionId(subscription.getId())
                     .amount(BigDecimal.ZERO)
                     .currency("EGP")
-                    .message(messageService.getMessage("subscription.created"))
+                    .message(messageService.getMessage("subscription.created")) // TODO Fix FE Translation
                     .build();
         }
 

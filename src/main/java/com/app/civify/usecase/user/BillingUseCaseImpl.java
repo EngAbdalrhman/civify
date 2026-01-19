@@ -36,10 +36,6 @@ public class BillingUseCaseImpl implements BillingUseCase {
         return toDto(invoice);
     }
 
-    @Override
-    public InvoiceDto processPayment(UUID uuid, String gateway) {
-        return processPayment(uuid, gateway, PaymentMethods.CARD);
-    }
 
     @Override
     public InvoiceDto processPayment(UUID uuid, String gateway, PaymentMethods method) {

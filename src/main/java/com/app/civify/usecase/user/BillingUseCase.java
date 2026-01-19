@@ -25,7 +25,5 @@ public interface BillingUseCase {
     /**
      * Generate payment link for an invoice
      */
-
-    InvoiceDto processPayment(UUID uuid, String gateway);
     InvoiceDto processPayment(UUID uuid, String gateway, PaymentMethods method);
 }
