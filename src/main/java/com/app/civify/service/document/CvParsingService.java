@@ -5,6 +5,7 @@ import com.app.civify.dto.document.CvParseResponse;
 import com.app.civify.dto.document.ProcessedDocument;
 import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.entity.enums.TokenUsageType;
+import com.app.civify.exception.BadRequestException;
 import com.app.civify.service.ResumeService;
 import com.app.civify.service.ai.AiService;
 import com.app.civify.service.ai.TokenizerService;
@@ -83,17 +84,13 @@ public class CvParsingService {
         """;
 
     /**
-     * Parse a CV file and extract structured data.
-     */
-    public CvParseResponse parseCv(MultipartFile file, CvParseRequest request) {
-        return parseCv(file, request, null);
-    }
-
-    /**
      * Parse a CV file and extract structured data with user context.
      */
     public CvParseResponse parseCv(MultipartFile file, CvParseRequest request, Long userId) {
         long startTime = System.currentTimeMillis();
+
+        if (userId == null)
+            throw new BadRequestException("user.notfound");
 
         try {
             // Step 1: Process document to extract text

@@ -49,7 +49,7 @@ public class ExternalCvService {
                     .piiOnly(true) // Optimization: Only extract PII for masking
                     .build();
 
-            var parseResponse = cvParsingService.parseCv(file, parseRequest, null);
+            var parseResponse = cvParsingService.parseCv(file, parseRequest, user.getId());
             long parseTime = System.currentTimeMillis() - parseStart;
 
             if (!parseResponse.isSuccess() || parseResponse.getResumeData() == null) {
@@ -88,14 +88,12 @@ public class ExternalCvService {
             );
 
             // Charge tokens for external API mask operation
-            if (user != null) {
-                try {
-                    subscriptionService.chargeTokens(user.getId(), TOKENS_EXTERNAL_MASK, TokenUsageType.EXTERNAL_API,
-                            "External API: CV Mask - " + file.getOriginalFilename());
-                    log.info("Logged token usage for external mask API: userId={}, file={}", user.getId(), file.getOriginalFilename());
-                } catch (Exception e) {
-                    log.error("Failed to log token usage for external mask: {}", e.getMessage());
-                }
+            try {
+                subscriptionService.chargeTokens(user.getId(), TOKENS_EXTERNAL_MASK, TokenUsageType.EXTERNAL_API,
+                        "External API: CV Mask - " + file.getOriginalFilename());
+                log.info("Logged token usage for external mask API: userId={}, file={}", user.getId(), file.getOriginalFilename());
+            } catch (Exception e) {
+                log.error("Failed to log token usage for external mask: {}", e.getMessage());
             }
 
             return pdfBytes;
@@ -125,7 +123,7 @@ public class ExternalCvService {
                 .userTemplate(userTemplate)
                 .build();
 
-        CvParseResponse response = cvParsingService.parseCv(file, request, null);
+        CvParseResponse response = cvParsingService.parseCv(file, request, user.getId());
 
         long processingTime = System.currentTimeMillis() - startTime;
 
@@ -138,7 +136,7 @@ public class ExternalCvService {
         );
 
         // Charge tokens for external API parse operation
-        if (user != null && response.isSuccess()) {
+        if (response.isSuccess()) {
             try {
                 subscriptionService.chargeTokens(user.getId(), TOKENS_EXTERNAL_PARSE, TokenUsageType.EXTERNAL_API,
                         "External API: CV Parse - " + file.getOriginalFilename());
