@@ -23,9 +23,6 @@ public class JwtUtil {
 
     @Value("${jwt.secret}")
     private String secret;
-    // @Value("${jwt.access-token-expiration}")
-    private final long accessTokenExpiration = JwtConstants.ACCESS_TOKEN_EXPIRATION_MINUTES * 60 * 1000; // Convert minutes to milliseconds
-
 
     private Key getSigningKey() {
         byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
@@ -47,7 +44,7 @@ public class JwtUtil {
                 .claim("group", groupName)
                 .claim("emailVerified", user.getIsEmailVerified())
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + accessTokenExpiration))
+                .setExpiration(new Date(System.currentTimeMillis() + JwtConstants.ACCESS_TOKEN_COOKIE_MAX_AGE * 1000L))
                 .signWith(getSigningKey())
                 .compact();
     }
