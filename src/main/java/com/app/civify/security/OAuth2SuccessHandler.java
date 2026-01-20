@@ -103,7 +103,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         Cookie refreshCookie = new Cookie(JwtConstants.REFRESH_TOKEN_COOKIE_NAME, tokens.getRefreshToken());
         refreshCookie.setHttpOnly(true);
         refreshCookie.setSecure(false); // Set to true in production with HTTPS
-        refreshCookie.setPath(JwtConstants.REFRESH_TOKEN_COOKIE_PATH);
+        refreshCookie.setPath(JwtConstants.TOKEN_COOKIE_PATH);
         refreshCookie.setMaxAge(JwtConstants.REFRESH_TOKEN_COOKIE_MAX_AGE);
         response.addCookie(refreshCookie);
 

@@ -20,6 +20,9 @@ public class JwtConstants {
 
     // Refresh token cookie settings
     public static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
-    public static final String REFRESH_TOKEN_COOKIE_PATH = "/"; // Allow cookie for all paths
+    public static final String ACCESS_TOKEN_COOKIE_NAME = "accessToken";
+
+    public static final String TOKEN_COOKIE_PATH = "/"; // Allow cookie for all paths
+    public static final int ACCESS_TOKEN_COOKIE_MAX_AGE = 15 * 60;
     public static final int REFRESH_TOKEN_COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days in seconds
 }
