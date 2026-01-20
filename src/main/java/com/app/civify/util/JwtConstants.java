@@ -10,7 +10,7 @@ public class JwtConstants {
     }
 
     // Access token expiration: 15 minutes (in minutes)
-    public static final long ACCESS_TOKEN_EXPIRATION_MINUTES = 15;
+    public static final long ACCESS_TOKEN_EXPIRATION_MINUTES = 1;
 
     // Refresh token expiration: 30 days (in minutes)
     public static final long REFRESH_TOKEN_EXPIRATION_MINUTES = 30 * 24 * 60;
