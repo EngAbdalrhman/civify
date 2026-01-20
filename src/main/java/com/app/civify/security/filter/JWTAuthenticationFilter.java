@@ -73,7 +73,7 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
                 response.setHeader("Authorization", "Bearer " + token);
 
                 Cookie accessCookie = new Cookie(JwtConstants.ACCESS_TOKEN_COOKIE_NAME, token);
-                accessCookie.setHttpOnly(true);
+                accessCookie.setHttpOnly(false);
                 accessCookie.setSecure(secureToken);
                 accessCookie.setPath(JwtConstants.TOKEN_COOKIE_PATH);
                 accessCookie.setMaxAge(JwtConstants.ACCESS_TOKEN_COOKIE_MAX_AGE);
