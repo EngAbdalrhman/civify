@@ -3,11 +3,8 @@ package com.app.civify.service;
 import com.app.civify.entity.NewsletterSubscriber;
 import com.app.civify.repository.NewsletterRepository;
 import com.app.civify.util.EmailService;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
-import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
