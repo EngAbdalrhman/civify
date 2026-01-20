@@ -23,6 +23,6 @@ public class JwtConstants {
     public static final String ACCESS_TOKEN_COOKIE_NAME = "accessToken";
 
     public static final String TOKEN_COOKIE_PATH = "/"; // Allow cookie for all paths
-    public static final int ACCESS_TOKEN_COOKIE_MAX_AGE = 15 * 60;
+    public static final int ACCESS_TOKEN_COOKIE_MAX_AGE = Math.toIntExact(ACCESS_TOKEN_EXPIRATION_MINUTES * 60);
     public static final int REFRESH_TOKEN_COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days in seconds
 }
