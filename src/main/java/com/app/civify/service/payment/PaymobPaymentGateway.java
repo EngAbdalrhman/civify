@@ -57,7 +57,6 @@ public class PaymobPaymentGateway implements PaymentGateway {
     @Value("${payment.paymob.api-key}")
     private String apiKey;
 
-
     @Value("${payment.paymob.iframe-id:}")
     private String iframeId;
 
