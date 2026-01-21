@@ -115,7 +115,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setGateway(gateway);
         invoice.setPaymentMethod(method);
         invoice.setPaymentUrl(result.getPaymentUrl());
-        invoice.setPaymentTransactionId(result.getPaymentKey());
+        invoice.setPaymentTransactionId(result.getOrderId());
 
         Invoice saved = invoiceRepository.save(invoice);
         log.info("Generated payment link for invoice {} via {} - URL: {}", 
@@ -180,7 +180,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                     <p>Please complete your payment to continue enjoying Civify services:</p>
                     
                     <p style="text-align: center; margin: 25px 0;">
-                        <a href="%s" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Pay Now</a>
+                        <a href="%s" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;" clicktracking="off">Pay Now</a>
                     </p>
                     
                     <p>Thank you for being a valued customer!</p>

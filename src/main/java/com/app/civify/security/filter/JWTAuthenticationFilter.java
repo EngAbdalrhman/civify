@@ -37,8 +37,8 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
-            HttpServletResponse response,
-            FilterChain filterChain) throws ServletException, IOException {
+                                    @NotNull HttpServletResponse response,
+                                    @NotNull FilterChain filterChain) throws ServletException, IOException {
 
         if (!request.getServletPath().equals(JwtConstants.GENERATE_TOKEN_ENDPOINT)) {
             filterChain.doFilter(request, response);
@@ -72,13 +72,21 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
                 String token = jwtUtil.generateToken(authResult.getName(), JwtConstants.ACCESS_TOKEN_EXPIRATION_MINUTES);
                 response.setHeader("Authorization", "Bearer " + token);
 
+                Cookie accessCookie = new Cookie(JwtConstants.ACCESS_TOKEN_COOKIE_NAME, token);
+                accessCookie.setHttpOnly(false);
+                accessCookie.setSecure(secureToken);
+                accessCookie.setPath(JwtConstants.TOKEN_COOKIE_PATH);
+                accessCookie.setMaxAge(JwtConstants.ACCESS_TOKEN_COOKIE_MAX_AGE);
+                response.addCookie(accessCookie);
+
+                // create refresh Token
                 String refreshToken = jwtUtil.generateToken(authResult.getName(), JwtConstants.REFRESH_TOKEN_EXPIRATION_MINUTES);
 
                 // Set Refresh Token in HttpOnly Cookie
                 Cookie refreshCookie = new Cookie(JwtConstants.REFRESH_TOKEN_COOKIE_NAME, refreshToken);
                 refreshCookie.setHttpOnly(true); // prevent javascript from accessing it
                 refreshCookie.setSecure(secureToken); // Set to false for development (HTTP), true for production (HTTPS)
-                refreshCookie.setPath(JwtConstants.REFRESH_TOKEN_COOKIE_PATH);
+                refreshCookie.setPath(JwtConstants.TOKEN_COOKIE_PATH);
                 refreshCookie.setMaxAge(JwtConstants.REFRESH_TOKEN_COOKIE_MAX_AGE);
                 response.addCookie(refreshCookie);
             }

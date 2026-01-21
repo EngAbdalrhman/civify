@@ -89,6 +89,15 @@ public class PaymentGatewayManager {
     }
 
     /**
+     * Verify payment using specific gateway
+     */
+    public boolean verifyPayment(String gatewayName, String transactionId) {
+        return gatewayFactory
+                .get(gatewayName)
+                .verifyPayment(transactionId);
+    }
+
+    /**
      * Handle callback using specific gateway
      */
     public PaymentCallbackResult handleCallback(

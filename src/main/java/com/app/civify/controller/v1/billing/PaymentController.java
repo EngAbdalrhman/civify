@@ -178,9 +178,11 @@ public class PaymentController {
     })
     @GetMapping("/verify/{paymentId}")
     @CivifyAuthorization(permission = "CV.CREATE")
-    public ResponseEntity<PaymentVerificationResponse> verifyPayment(@PathVariable String paymentId) {
+    public ResponseEntity<PaymentVerificationResponse> verifyPayment(
+            @PathVariable String paymentId,
+            @RequestParam(required = false) String gateway) {
         try {
-            PaymentVerificationResponse response = paymentUseCase.verifyAndActivatePayment(paymentId);
+            PaymentVerificationResponse response = paymentUseCase.verifyAndActivatePayment(paymentId, gateway);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error verifying payment: {}", e.getMessage());

@@ -8,13 +8,12 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.Date;
-import java.util.Set;
-import java.util.UUID;
+
+import static com.app.civify.util.JwtConstants.REFRESH_TOKEN_COOKIE_MAX_AGE;
 
 /**
  * Enhanced token service with security improvements: - JWT access tokens via
@@ -33,12 +32,6 @@ public class TokenService {
 
     private final JwtUtil jwtUtil;
     private final CacheService cacheService;
-
-    @Value("${jwt.refresh-token-expiration:2592000000}") // 30 days default
-    private long refreshTokenExpiration;
-
-    @Value("${jwt.access-token-expiration:9000000}") // 150 minutes default
-    private long accessTokenExpiration;
 
     private static final String REFRESH_TOKEN_PREFIX = "refresh:";
     private static final String ACCESS_TOKEN_BLACKLIST_PREFIX = "blacklist:access:";
@@ -63,7 +56,7 @@ public class TokenService {
      * Generate new JWT refresh token (stateless but blacklisted)
      */
     private String generateRefreshToken(User user) {
-        String token = jwtUtil.generateRefreshToken(user, refreshTokenExpiration);
+        String token = jwtUtil.generateRefreshToken(user, REFRESH_TOKEN_COOKIE_MAX_AGE);
         // We don't strictly need to store it for validation (it's a JWT),
         // but we can track it for "logout all" if needed.
         // For now, we rely on JWT signature + blacklist check.

@@ -3,6 +3,7 @@ package com.app.civify.usecase.user;
 import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.dto.payment.PaymentVerificationResponse;
+import com.app.civify.repository.billing.InvoiceRepository;
 import com.app.civify.service.payment.PaymentService;
 import com.app.civify.service.subscription.SubscriptionService;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ public class PaymentUseCaseImpl implements PaymentUseCase {
 
     private final PaymentService paymentService;
     private final SubscriptionService subscriptionService;
+    private final InvoiceRepository invoiceRepository;
 
     @Override
     public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, PaymentMethods method) {
@@ -26,10 +28,34 @@ public class PaymentUseCaseImpl implements PaymentUseCase {
     }
 
     @Override
-    public PaymentVerificationResponse verifyAndActivatePayment(String paymentId) {
+    public PaymentVerificationResponse verifyAndActivatePayment(String paymentId, String gateway) {
         log.debug("Verifying and activating payment: {}", paymentId);
 
-        boolean isVerified = paymentService.verifyPayment(paymentId);
+        if (gateway == null || gateway.isEmpty()) {
+            var invoiceOpt = invoiceRepository.findByPaymentTransactionId(paymentId);
+            if (invoiceOpt.isPresent()) {
+                gateway = invoiceOpt.get().getGateway();
+                log.info("Found invoice {} for paymentId {}, using gateway: {}", invoiceOpt.get().getUuid(), paymentId, gateway);
+            } else {
+                log.error("Invoice not found for paymentId: {} and no gateway provided. Cannot verify payment.", paymentId);
+                return PaymentVerificationResponse.builder()
+                        .verified(false)
+                        .message("Payment verification failed: Transaction not found and gateway not specified")
+                        .build();
+            }
+        } else {
+            log.info("Using provided gateway for verification: {}", gateway);
+        }
+
+        if (gateway == null || gateway.isEmpty()) {
+             log.error("Gateway could not be determined for paymentId: {}. Verification aborted.", paymentId);
+             return PaymentVerificationResponse.builder()
+                    .verified(false)
+                    .message("Payment verification failed: Gateway could not be determined")
+                    .build();
+        }
+
+        boolean isVerified = paymentService.verifyPayment(gateway, paymentId);
 
         if (isVerified) {
             subscriptionService.activateSubscription(paymentId);

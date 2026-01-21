@@ -31,8 +31,14 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     public boolean verifyPayment(String paymentId) {
-        log.info("Verifying payment with ID {}", paymentId);
+        log.info("Verifying payment with ID {} using default gateway", paymentId);
         return gatewayManager.verifyPayment(paymentId);
+    }
+
+    @Override
+    public boolean verifyPayment(String gateway, String paymentId) {
+        log.info("Verifying payment with ID {} using gateway {}", paymentId, gateway);
+        return gatewayManager.verifyPayment(gateway, paymentId);
     }
 
     @Override

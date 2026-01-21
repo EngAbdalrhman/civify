@@ -39,6 +39,7 @@ public class AuthServiceImpl implements AuthService {
     private final SubscriptionService subscriptionService;
     private final BloomFilterService bloomFilterService;
     private final com.app.civify.service.i18n.MessageService messageService;
+    private final DisposableEmailValidator disposableEmailValidator;
 
     @Value("${email.verification.enabled:true}")
     private boolean emailVerificationEnabled;
@@ -50,6 +51,12 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public AuthResponse register(AuthRequest req) {
         log.info("Registering new user: {}", req.getUsername());
+
+        // Block disposable/temporary email addresses
+        if (disposableEmailValidator.isDisposable(req.getEmail())) {
+            log.warn("Registration blocked for disposable email: {}", req.getEmail());
+            throw new BadRequestException("user.email.disposable");
+        }
 
         if (bloomFilterService.mightHaveUsername(req.getUsername())) {
             // Only block if an ACTIVE (non-deleted) user exists with this username
