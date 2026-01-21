@@ -74,14 +74,14 @@ public class Invoice extends BaseEntity {
     @Column(length = 50)
     private String gateway;
 
-    @Column(length = 1000)
+    @Column(columnDefinition = "TEXT")
     private String paymentUrl;
 
     @Column
     @Enumerated(EnumType.STRING)
     private PaymentMethods paymentMethod;
 
-    @Column(length = 255)
+    @Column(columnDefinition = "TEXT")
     private String paymentTransactionId;
 
     private LocalDateTime dueDate;
