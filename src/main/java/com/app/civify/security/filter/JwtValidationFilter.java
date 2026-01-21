@@ -5,6 +5,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
@@ -13,6 +15,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
+@Slf4j
 public class JwtValidationFilter extends OncePerRequestFilter {
 
     private final AuthenticationManager authenticationManager;
@@ -21,9 +24,9 @@ public class JwtValidationFilter extends OncePerRequestFilter {
         this.authenticationManager = authenticationManager;
     }
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(@NotNull HttpServletRequest request,
+                                    @NotNull HttpServletResponse response,
+                                    @NotNull FilterChain filterChain) throws ServletException, IOException {
 
         String token = extractJwtFromRequest(request);
         if (token != null) {
@@ -35,8 +38,7 @@ public class JwtValidationFilter extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(authResult);
                 }
             } catch (AuthenticationException e) {
-                // Token is invalid/expired. Proceed as anonymous.
-                // Do not throw exception, allow other filters (like refresh) to proceed.
+                log.error("Token is invalid/expired. Proceed as anonymous, allow other filters (like refresh) to proceed");
             }
         }
 
