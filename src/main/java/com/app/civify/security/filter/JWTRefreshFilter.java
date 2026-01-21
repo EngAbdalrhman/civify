@@ -10,12 +10,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
 import static com.app.civify.util.JwtConstants.ACCESS_TOKEN_EXPIRATION_MINUTES;
+import static com.app.civify.util.JwtConstants.GENERATE_REFRESH_TOKEN_ENDPOINT;
 
 public class JWTRefreshFilter extends OncePerRequestFilter {
 
@@ -34,7 +34,7 @@ public class JWTRefreshFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        if (!request.getServletPath().equals("/auth/refresh")) {
+        if (!request.getServletPath().equals(GENERATE_REFRESH_TOKEN_ENDPOINT)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -65,7 +65,7 @@ public class JWTRefreshFilter extends OncePerRequestFilter {
         }
         String refreshToken = null;
         for (Cookie cookie : cookies) {
-            if ("refreshToken".equals(cookie.getName())) {
+            if (JwtConstants.REFRESH_TOKEN_COOKIE_NAME.equals(cookie.getName())) {
                 refreshToken = cookie.getValue();
             }
         }
