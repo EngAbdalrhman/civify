@@ -55,6 +55,12 @@ public class JWTRefreshFilter extends OncePerRequestFilter {
             accessCookie.setPath(JwtConstants.TOKEN_COOKIE_PATH);
             accessCookie.setMaxAge(JwtConstants.ACCESS_TOKEN_COOKIE_MAX_AGE);
             response.addCookie(accessCookie);
+
+            // Write token to response body as JSON (required by frontend)
+            response.setContentType("application/json");
+            response.setCharacterEncoding("UTF-8");
+            response.getWriter().write(String.format("{\"accessToken\": \"%s\"}", newToken));
+            response.getWriter().flush();
         }
     }
 
