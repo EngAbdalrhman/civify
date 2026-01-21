@@ -5,8 +5,11 @@ import com.app.civify.security.filter.JWTAuthenticationFilter;
 import com.app.civify.security.filter.JWTRefreshFilter;
 import com.app.civify.security.filter.JwtValidationFilter;
 import com.app.civify.filter.RateLimitFilter;
+import com.app.civify.service.auth.TokenService;
 import com.app.civify.util.JwtUtil;
+import jakarta.servlet.http.Cookie;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,14 +20,23 @@ import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
+
+import static com.app.civify.util.JwtConstants.*;
 
 @Configuration
 @EnableWebSecurity
@@ -39,6 +51,7 @@ public class SecurityConfig {
 
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
     private final RateLimitFilter rateLimitFilter;
+    private final TokenService tokenService;
 
     @Value("${app.frontend.base-url}")
     private String frontendUrl;
@@ -93,7 +106,7 @@ public class SecurityConfig {
 
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource())) // Enable CORS
-                .csrf(csrf -> csrf.disable())
+                .csrf(AbstractHttpConfigurer::disable)
                 .headers(h -> h.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'")))
                 .authorizeHttpRequests(auth -> auth
                         // Authentication
@@ -128,7 +141,7 @@ public class SecurityConfig {
                         .successHandler(oAuth2SuccessHandler)
                         .failureHandler((request, response, exception) -> {
                             // Log the error for debugging
-                            org.slf4j.LoggerFactory.getLogger(SecurityConfig.class)
+                            LoggerFactory.getLogger(SecurityConfig.class)
                                     .error("OAuth2 login failed: {}", exception.getMessage(), exception);
 
                             // Redirect to frontend callback with error parameter
@@ -136,26 +149,70 @@ public class SecurityConfig {
                                     ? exception.getMessage()
                                     : "OAuth login failed";
                             String targetUrl = frontendUrl + "/auth/callback?error=" +
-                                    java.net.URLEncoder.encode(errorMessage, java.nio.charset.StandardCharsets.UTF_8);
+                                    URLEncoder.encode(errorMessage, StandardCharsets.UTF_8);
                             response.sendRedirect(targetUrl);
                         })
-                );
-        ;
+                )
+                .logout(logout -> logout
+                        .logoutUrl("/auth/logout")
+                        .addLogoutHandler((request, response, authentication) -> {
+                            // 1. Blacklist Access Token
+                            String accessToken = null;
+                            String authHeader = request.getHeader("Authorization");
+                            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                                accessToken = authHeader.substring(7);
+                            }
+                            if (accessToken != null) {
+                                tokenService.blacklistAccessToken(accessToken);
+                            }
 
+                            // 2. Revoke Refresh Token
+                            String refreshToken = null;
+                            if (request.getCookies() != null) {
+                                for (Cookie cookie : request.getCookies()) {
+                                    if (REFRESH_TOKEN_COOKIE_NAME.equals(cookie.getName())) {
+                                        refreshToken = cookie.getValue();
+                                        break;
+                                    }
+                                }
+                            }
+                            if (refreshToken != null) {
+                                tokenService.revokeRefreshToken(refreshToken);
+                            }
+                        })
+                        .logoutSuccessHandler((request, response, authentication) -> {
+                            // Clear cookies on logout
+                            Cookie refreshTokenCookie = new Cookie(REFRESH_TOKEN_COOKIE_NAME, null);
+                            refreshTokenCookie.setPath(TOKEN_COOKIE_PATH);
+                            refreshTokenCookie.setMaxAge(0); // Set max age to 0 to delete the cookie
+                            refreshTokenCookie.setHttpOnly(true);
+                            refreshTokenCookie.setSecure(secureToken);
+                            response.addCookie(refreshTokenCookie);
+
+                            Cookie accessTokenCookie = new Cookie(ACCESS_TOKEN_COOKIE_NAME, null);
+                            accessTokenCookie.setPath(TOKEN_COOKIE_PATH);
+                            accessTokenCookie.setMaxAge(0); // Set max age to 0 to delete the cookie
+                            accessTokenCookie.setHttpOnly(false); // As per JWTAuthenticationFilter
+                            accessTokenCookie.setSecure(secureToken);
+                            response.addCookie(accessTokenCookie);
+
+                            response.setStatus(HttpStatus.OK.value());
+                        })
+                );
 
         return http.build();
     }
 
     @Bean
-    public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
-        org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
-        configuration.setAllowedOrigins(java.util.List.of(frontendUrl, "http://localhost:3000", paymentGateway, "www.".concat(frontendUrl)));
-        configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(java.util.List.of("*"));
-        configuration.setExposedHeaders(java.util.List.of("Authorization", "Set-Cookie"));
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(List.of(frontendUrl, "http://localhost:3000", paymentGateway, "www.".concat(frontendUrl)));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setExposedHeaders(List.of("Authorization", "Set-Cookie"));
         configuration.setAllowCredentials(true);
 
-        org.springframework.web.cors.UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
