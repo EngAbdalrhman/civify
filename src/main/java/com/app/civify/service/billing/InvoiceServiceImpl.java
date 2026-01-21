@@ -115,7 +115,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setGateway(gateway);
         invoice.setPaymentMethod(method);
         invoice.setPaymentUrl(result.getPaymentUrl());
-        invoice.setPaymentTransactionId(result.getPaymentKey());
+        invoice.setPaymentTransactionId(result.getOrderId());
 
         Invoice saved = invoiceRepository.save(invoice);
         log.info("Generated payment link for invoice {} via {} - URL: {}", 

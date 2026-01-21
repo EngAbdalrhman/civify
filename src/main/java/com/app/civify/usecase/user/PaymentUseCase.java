@@ -31,7 +31,7 @@ public interface PaymentUseCase {
      * @param paymentId Payment transaction ID to verify
      * @return Verification result with status and message
      */
-    PaymentVerificationResponse verifyAndActivatePayment(String paymentId);
+    PaymentVerificationResponse verifyAndActivatePayment(String paymentId, String gateway);
 
     /**
      * Get list of enabled payment gateways

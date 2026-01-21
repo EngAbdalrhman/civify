@@ -29,6 +29,15 @@ public interface PaymentService {
     boolean verifyPayment(String paymentId);
 
     /**
+     * Verify a payment transaction with specific gateway
+     *
+     * @param gateway Gateway name
+     * @param paymentId Payment ID to verify
+     * @return true if payment is successful
+     */
+    boolean verifyPayment(String gateway, String paymentId);
+
+    /**
      * Handle payment callback/webhook
      *
      * @param gateway Gateway name
