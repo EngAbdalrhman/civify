@@ -17,6 +17,7 @@ public class JwtConstants {
 
     // JWT token generation endpoint
     public static final String GENERATE_TOKEN_ENDPOINT = "/login";
+    public static final String GENERATE_REFRESH_TOKEN_ENDPOINT = "/auth/refresh";
 
     // Refresh token cookie settings
     public static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";

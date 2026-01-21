@@ -1,4 +1,5 @@
 package com.app.civify.security.filter;
+import com.app.civify.util.JwtConstants;
 import com.app.civify.security.authenticationToken.JwtAuthenticationToken;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -45,7 +46,7 @@ public class JwtValidationFilter extends OncePerRequestFilter {
         // Fallback: Check for auth_token cookie (required for SSE EventSource)
         if (request.getCookies() != null) {
             for (jakarta.servlet.http.Cookie cookie : request.getCookies()) {
-                if ("auth_token".equals(cookie.getName())) {
+                if (JwtConstants.ACCESS_TOKEN_COOKIE_NAME.equals(cookie.getName())) {
                     return cookie.getValue();
                 }
             }
