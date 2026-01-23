@@ -144,10 +144,12 @@ public class PaymobPaymentGateway implements PaymentGateway {
     @Transactional
     public boolean verifyPayment(String paymentKey) {
         try {
-            log.info("Verifying Paymob payment with key: {}", paymentKey);
+            log.info("Verifying Paymob payment with key/order: {}", paymentKey);
 
-            PaymentTransaction transaction = paymentRepository.findByPaymentKey(paymentKey)
-                    .orElseThrow(() -> new RuntimeException("Payment transaction not found for key: " + paymentKey));
+            // Try orderId first (frontend now sends orderId from redirect params)
+            PaymentTransaction transaction = paymentRepository.findByOrderId(paymentKey)
+                    .orElseGet(() -> paymentRepository.findByPaymentKey(paymentKey)
+                    .orElseThrow(() -> new RuntimeException("Payment transaction not found for key: " + paymentKey)));
 
             // Authenticate and check payment status from Paymob
             String authToken = authenticate();
