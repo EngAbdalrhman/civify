@@ -13,9 +13,6 @@ public interface PaymobClient {
     @PostMapping(value = "/v1/intention/", consumes = "application/json")
     String createIntention(@RequestHeader("Authorization") String authToken, @RequestBody String payload);
 
-    @GetMapping(value = "/v1/intention/{id}")
-    String getIntention(@RequestHeader("Authorization") String authToken, @PathVariable String id);
-
     @PostMapping(value = "/api/auth/tokens", consumes = "application/json")
     String authenticate(@RequestBody String payload);
 
