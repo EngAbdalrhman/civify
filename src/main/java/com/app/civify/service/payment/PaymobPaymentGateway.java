@@ -151,12 +151,19 @@ public class PaymobPaymentGateway implements PaymentGateway {
                     .orElseGet(() -> paymentRepository.findByPaymentKey(paymentKey)
                     .orElseThrow(() -> new RuntimeException("Payment transaction not found for key: " + paymentKey)));
 
-            // Authenticate and check payment status from Paymob
-            String authToken = authenticate();
-            String intentionResponse = paymobClient.getIntention("Bearer " + authToken, transaction.getOrderId());
+            // If already completed (e.g. by webhook), return success immediately
+            if (transaction.getStatus() == PaymentStatus.COMPLETED) {
+                log.info("Payment already completed for order {} (likely via webhook)", transaction.getOrderId());
+                return true;
+            }
 
-            // Parse response to check if payment is successful
-            boolean isSuccessful = parsePaymentStatus(intentionResponse);
+            // Authenticate and check payment status from Paymob Order (Acceptance API)
+            String authToken = authenticate();
+            // Use "Bearer " prefix as confirmed by createOrder success
+            String orderResponse = paymobClient.getOrder("Bearer " + authToken, transaction.getOrderId());
+
+            // Parse response to check if payment is successful via Order transactions
+            boolean isSuccessful = parseOrderStatus(orderResponse);
 
             if (isSuccessful) {
                 transaction.setStatus(PaymentStatus.COMPLETED);
@@ -172,6 +179,29 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
         } catch (Exception e) {
             log.error("Error verifying Paymob payment {}: {}", paymentKey, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * Parse order status from Paymob Order response (Acceptance API)
+     */
+    private boolean parseOrderStatus(String response) {
+        try {
+            JsonNode root = objectMapper.readTree(response);
+            
+            // Check paid_amount_cents vs amount_cents
+            if (root.has("paid_amount_cents") && root.has("amount_cents")) {
+                long paid = root.get("paid_amount_cents").asLong();
+                long amount = root.get("amount_cents").asLong();
+                // Check if fully paid
+                if (amount > 0 && paid >= amount) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (Exception e) {
+            log.error("Failed to parse order status: {}", e.getMessage());
             return false;
         }
     }
