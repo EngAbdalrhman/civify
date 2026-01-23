@@ -153,7 +153,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
             // Authenticate and check payment status from Paymob
             String authToken = authenticate();
-            String intentionResponse = paymobClient.getIntention(authToken, transaction.getOrderId());
+            String intentionResponse = paymobClient.getIntention("Bearer " + authToken, transaction.getOrderId());
 
             // Parse response to check if payment is successful
             boolean isSuccessful = parsePaymentStatus(intentionResponse);
