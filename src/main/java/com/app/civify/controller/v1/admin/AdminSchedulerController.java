@@ -8,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.JobExecutionException;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -66,8 +65,8 @@ public class AdminSchedulerController {
         
         try {
             long startTime = System.currentTimeMillis();
-            // The SubscriptionJob has the logic, we just call execute with null context
-            subscriptionJob.execute(null);
+            // Call specific method for invoicing only (SAFE MODE)
+            subscriptionJob.processInvoicingAndReminders();
             long duration = System.currentTimeMillis() - startTime;
             
             response.put("success", true);
@@ -75,7 +74,7 @@ public class AdminSchedulerController {
             response.put("durationMs", duration);
             
             return ResponseEntity.ok(response);
-        } catch (JobExecutionException e) {
+        } catch (Exception e) { // Catch generalized Exception since specific method might not throw JobExecutionException
             log.error("❌ Invoice processing failed: {}", e.getMessage(), e);
             response.put("success", false);
             response.put("message", "Processing failed: " + e.getMessage());
