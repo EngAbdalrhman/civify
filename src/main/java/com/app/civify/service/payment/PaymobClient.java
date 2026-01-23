@@ -22,6 +22,9 @@ public interface PaymobClient {
     @PostMapping(value = "/api/ecommerce/orders", consumes = "application/json")
     String createOrder(@RequestHeader("Authorization") String authToken, @RequestBody String payload);
 
+    @GetMapping(value = "/api/ecommerce/orders/{id}")
+    String getOrder(@RequestHeader("Authorization") String authToken, @PathVariable String id);
+
     @PostMapping(value = "/api/acceptance/payment_keys", consumes = "application/json")
     String createPaymentKey(@RequestHeader("Authorization") String authToken, @RequestBody String payload);
 
