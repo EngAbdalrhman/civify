@@ -336,6 +336,8 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                 BillingAuditType auditType = result.isSuccess() 
                         ? BillingAuditType.WEBHOOK_SUCCESS 
                         : BillingAuditType.WEBHOOK_FAILED;
+                // Convert callbackData to JSON string (rawPayload may be form-encoded which fails JSON storage)
+                String webhookPayloadJson = objectMapper.writeValueAsString(callbackData);
                 billingAuditService.logWebhook(
                     getGatewayName(),
                     transaction.getUserId(),
@@ -345,7 +347,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                     status,
                     paymentMethodValue,
                     result.getMessage(),
-                    rawPayload,
+                    webhookPayloadJson,
                     null,
                     auditType
                 );
