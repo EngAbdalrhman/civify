@@ -133,9 +133,10 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                 transaction.setGateway(getGatewayName());
                 transaction.setCurrency("EGP");
 
-                if (metadata == null) metadata = new HashMap<>();
-                metadata.put("paymentUrl", paymentUrl);
-                transaction.setMetadata(objectMapper.writeValueAsString(metadata));
+                // Create mutable copy of metadata (in case immutable Map.of() was passed)
+                Map<String, Object> mutableMetadata = metadata != null ? new HashMap<>(metadata) : new HashMap<>();
+                mutableMetadata.put("paymentUrl", paymentUrl);
+                transaction.setMetadata(objectMapper.writeValueAsString(mutableMetadata));
 
                 paymentRepository.save(transaction);
 
@@ -160,10 +161,12 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     @Transactional
     public boolean verifyPayment(String paymentKey) {
         try {
-            log.info("Verifying Fawaterak payment with key: {}", paymentKey);
+            log.info("Verifying Fawaterak payment with key/order: {}", paymentKey);
 
-            PaymentTransaction transaction = paymentRepository.findByPaymentKey(paymentKey)
-                    .orElseThrow(() -> new RuntimeException("Transaction not found"));
+            // Try orderId first (frontend now sends orderId from redirect params)
+            PaymentTransaction transaction = paymentRepository.findByOrderId(paymentKey)
+                    .orElseGet(() -> paymentRepository.findByPaymentKey(paymentKey)
+                    .orElseThrow(() -> new RuntimeException("Transaction not found")));
 
             Long invoiceId = Long.parseLong(transaction.getOrderId());
             String response = fawaterakClient.getInvoiceStatus("Bearer " + apiKey, invoiceId);
