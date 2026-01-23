@@ -600,35 +600,6 @@ public class PaymobPaymentGateway implements PaymentGateway {
     }
 
     /**
-     * Parse payment status from Paymob intention response
-     */
-    private boolean parsePaymentStatus(String response) {
-        try {
-            JsonNode root = objectMapper.readTree(response);
-
-            // Check various success indicators
-            if (root.has("success") && root.get("success").asBoolean()) {
-                return true;
-            }
-
-            if (root.has("is_success") && root.get("is_success").asBoolean()) {
-                return true;
-            }
-
-            if (root.has("status")) {
-                String status = root.get("status").asText().toLowerCase();
-                return status.equals("completed") || status.equals("success");
-            }
-
-            return false;
-
-        } catch (Exception e) {
-            log.error("Failed to parse payment status: {}", e.getMessage());
-            return false;
-        }
-    }
-
-    /**
      * Parse success from callback data (JsonNode)
      */
     private boolean parseCallbackSuccess(JsonNode callbackData) {
