@@ -35,8 +35,8 @@ public class PlanMapper {
                 .createdAt(plan.getCreatedAt())
                 .updatedAt(plan.getUpdatedAt())
                 // Billing restrictions
-                .allowAnnualBilling(plan.getAllowAnnualBilling())
-                .renewalAllowed(plan.getRenewalAllowed())
+                .allowAnnualBilling(plan.getAllowAnnualBilling() != null ? plan.getAllowAnnualBilling() : false)
+                .renewalAllowed(plan.getRenewalAllowed() != null ? plan.getRenewalAllowed() : false)
                 .maxBillingCycles(plan.getMaxBillingCycles())
                 // Display settings
                 .isFeatured(plan.getIsFeatured())
