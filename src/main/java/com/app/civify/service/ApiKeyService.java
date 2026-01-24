@@ -58,7 +58,8 @@ public class ApiKeyService {
             throw new RuntimeException("Unauthorized access to API Key");
         }
         
-        apiKeyRepository.delete(apiKey);
+        apiKey.setIsActive(false);
+        apiKeyRepository.save(apiKey);
     }
 
     @Transactional(readOnly = true)
