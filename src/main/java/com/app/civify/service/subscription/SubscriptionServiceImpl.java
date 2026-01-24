@@ -763,6 +763,33 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             existingPlan.setAnnualPrice(updatedPlan.getAnnualPrice());
         }
 
+        // Billing restrictions
+        if (updatedPlan.getAllowAnnualBilling() != null) {
+            existingPlan.setAllowAnnualBilling(updatedPlan.getAllowAnnualBilling());
+        }
+
+        if (updatedPlan.getRenewalAllowed() != null) {
+            existingPlan.setRenewalAllowed(updatedPlan.getRenewalAllowed());
+        }
+
+        if (updatedPlan.getMaxBillingCycles() != null) {
+            existingPlan.setMaxBillingCycles(updatedPlan.getMaxBillingCycles());
+        }
+
+        // Display settings
+        if (updatedPlan.getIsFeatured() != null) {
+            existingPlan.setIsFeatured(updatedPlan.getIsFeatured());
+        }
+
+        if (updatedPlan.getSortOrder() != null) {
+            existingPlan.setSortOrder(updatedPlan.getSortOrder());
+        }
+
+        // Linked group
+        if (updatedPlan.getLinkedGroup() != null) {
+            existingPlan.setLinkedGroup(updatedPlan.getLinkedGroup());
+        }
+
         SubscriptionPlan saved = planRepository.save(existingPlan);
         log.info("Subscription plan updated successfully: {}", planId);
         return saved;
