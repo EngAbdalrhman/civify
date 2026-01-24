@@ -5,6 +5,8 @@ import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.entity.plans.SubscriptionPlan;
 import com.app.civify.entity.enums.SubscriptionAuditType;
 import com.app.civify.entity.enums.SubscriptionStatus;
+import com.app.civify.entity.User;
+import com.app.civify.repository.UserRepository;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
 import com.app.civify.service.logs.SubscriptionAuditService;
 import com.app.civify.service.subscription.SubscriptionService;
@@ -45,6 +47,7 @@ public class SubscriptionJob implements Job {
     private final InvoiceService invoiceService;
     private final EmailService emailService;
     private final SubscriptionAuditService subscriptionAuditService;
+    private final UserRepository userRepository;
 
     @Value("${app.frontend.base-url}")
     private String frontendUrl;
@@ -57,6 +60,7 @@ public class SubscriptionJob implements Job {
             processInvoicingAndReminders();
             processExpiredSubscriptions();
             processUsageResets();
+            processWelcomeEmails();
         } catch (Exception e) {
             log.error("❌ SubscriptionJob failed", e);
         }
@@ -415,6 +419,35 @@ public class SubscriptionJob implements Job {
             sub.setUsageResetDate(nextDate);
 
             subscriptionRepository.save(sub);
+        }
+    }
+
+    /**
+     * Send welcome emails to newly registered users who haven't received one yet.
+     * This runs as part of the scheduled job to avoid impacting the registration/login flow.
+     */
+    @Transactional
+    public void processWelcomeEmails() {
+        List<User> usersNeedingWelcome = userRepository.findUsersNeedingWelcomeEmail();
+        
+        if (usersNeedingWelcome.isEmpty()) {
+            return;
+        }
+        
+        int sentCount = 0;
+        for (User user : usersNeedingWelcome) {
+            try {
+                emailService.sendWelcomeEmail(user);
+                userRepository.updateWelcomeEmailSent(user.getId());
+                sentCount++;
+                log.info("📧 Sent welcome email to user {} ({})", user.getId(), user.getEmail());
+            } catch (Exception e) {
+                log.error("❌ Failed to send welcome email to user {}: {}", user.getId(), e.getMessage());
+            }
+        }
+        
+        if (sentCount > 0) {
+            log.info("📧 Sent {} welcome emails.", sentCount);
         }
     }
 }

@@ -277,6 +277,9 @@ public class InvoiceServiceImpl implements InvoiceService {
                     subscription.getId(), newEnd, invoice.getUuid());
         }
 
+        // Send payment confirmation email
+        emailService.sendInvoicePaymentConfirmationEmail(invoice);
+
         return true;
     }
 

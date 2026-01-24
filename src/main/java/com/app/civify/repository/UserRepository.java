@@ -36,4 +36,17 @@ public interface UserRepository extends CommonRepo<User, Long> {
     @Modifying
     @Query("UPDATE User u SET u.extraTokens = :tokens WHERE u.id = :userId")
     int updateExtraTokens(@Param("userId") Long userId, @Param("tokens") Integer tokens);
+
+    /**
+     * Find users who need welcome emails (created today and haven't received one yet).
+     */
+    @Query("SELECT u FROM User u WHERE u.welcomeEmailSent = false AND u.isDeleted = false AND u.isEmailVerified = true")
+    java.util.List<User> findUsersNeedingWelcomeEmail();
+
+    /**
+     * Update welcome email sent status for a user.
+     */
+    @Modifying
+    @Query("UPDATE User u SET u.welcomeEmailSent = true WHERE u.id = :userId")
+    int updateWelcomeEmailSent(@Param("userId") Long userId);
 }

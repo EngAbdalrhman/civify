@@ -128,6 +128,10 @@ public class User extends BaseEntity implements Serializable {
     @Column(name = "preferred_theme", nullable = false, length = 10)
     private UserPreferredTheme preferredTheme = UserPreferredTheme.LIGHT;
 
+    @Builder.Default
+    @Column(name = "welcome_email_sent", nullable = false)
+    private Boolean welcomeEmailSent = false;
+
     // Relationships
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnore
