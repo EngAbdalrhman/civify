@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "External CV API", description = "Endpoints for external developers using API Keys")
+@CrossOrigin(origins = "*", allowedHeaders = "*")
 public class ExternalCvController {
 
     private final ExternalCvService externalCvService;
