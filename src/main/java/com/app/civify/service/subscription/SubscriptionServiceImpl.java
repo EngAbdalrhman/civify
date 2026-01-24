@@ -26,6 +26,7 @@ import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
 import com.app.civify.util.persistence.CommonService;
 import com.app.civify.service.i18n.MessageService;
+import com.app.civify.util.EmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -60,6 +61,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     private final MessageService messageService;
     private final InvoiceService invoiceService;
     private final TokenUsageService tokenUsageService;
+    private final EmailService emailService;
 
     private static final String FREE_PLAN_NAME = "free";
 
@@ -548,6 +550,9 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         }
 
         log.info("Subscription activated successfully for user {} with plan {}", user.getId(), plan.getName());
+
+        // Send subscription activation thank-you email
+        emailService.sendSubscriptionActivationEmail(user, plan);
     }
 
     @Override
