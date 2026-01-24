@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -104,12 +105,23 @@ public class InvoiceServiceImpl implements InvoiceService {
             throw new IllegalStateException("Invoice is not in PENDING status");
         }
 
+        // Build metadata with user information for payment gateway
+        Map<String, Object> metadata = new HashMap<>();
+        if (invoice.getUser() != null) {
+            metadata.put("firstName", invoice.getUser().getFirstName());
+            metadata.put("lastName", invoice.getUser().getLastName());
+            metadata.put("email", invoice.getUser().getEmail());
+            metadata.put("phone", invoice.getUser().getPhoneNumber() != null 
+                    ? invoice.getUser().getPhoneNumber() 
+                    : invoice.getUser().getPhone());
+        }
+        
         PaymentCreationResult result = paymentService.createPayment(
                 invoice.getUser().getId(),
                 invoice.getFinalAmount().doubleValue(),
                 gateway,
                 method,
-                Map.of() // TODO fix metadata
+                metadata
         );
 
         invoice.setGateway(gateway);
@@ -264,6 +276,9 @@ public class InvoiceServiceImpl implements InvoiceService {
             log.info("Extended subscription {} to {} (renewal invoice {})", 
                     subscription.getId(), newEnd, invoice.getUuid());
         }
+
+        // Send payment confirmation email
+        emailService.sendInvoicePaymentConfirmationEmail(invoice);
 
         return true;
     }

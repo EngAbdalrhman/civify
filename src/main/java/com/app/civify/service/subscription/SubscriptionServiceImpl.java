@@ -26,6 +26,7 @@ import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
 import com.app.civify.util.persistence.CommonService;
 import com.app.civify.service.i18n.MessageService;
+import com.app.civify.util.EmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -60,6 +61,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     private final MessageService messageService;
     private final InvoiceService invoiceService;
     private final TokenUsageService tokenUsageService;
+    private final EmailService emailService;
 
     private static final String FREE_PLAN_NAME = "free";
 
@@ -548,6 +550,9 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         }
 
         log.info("Subscription activated successfully for user {} with plan {}", user.getId(), plan.getName());
+
+        // Send subscription activation thank-you email
+        emailService.sendSubscriptionActivationEmail(user, plan);
     }
 
     @Override
@@ -761,6 +766,33 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                 throw new BadRequestException("validation.price.negative");
             }
             existingPlan.setAnnualPrice(updatedPlan.getAnnualPrice());
+        }
+
+        // Billing restrictions
+        if (updatedPlan.getAllowAnnualBilling() != null) {
+            existingPlan.setAllowAnnualBilling(updatedPlan.getAllowAnnualBilling());
+        }
+
+        if (updatedPlan.getRenewalAllowed() != null) {
+            existingPlan.setRenewalAllowed(updatedPlan.getRenewalAllowed());
+        }
+
+        if (updatedPlan.getMaxBillingCycles() != null) {
+            existingPlan.setMaxBillingCycles(updatedPlan.getMaxBillingCycles());
+        }
+
+        // Display settings
+        if (updatedPlan.getIsFeatured() != null) {
+            existingPlan.setIsFeatured(updatedPlan.getIsFeatured());
+        }
+
+        if (updatedPlan.getSortOrder() != null) {
+            existingPlan.setSortOrder(updatedPlan.getSortOrder());
+        }
+
+        // Linked group
+        if (updatedPlan.getLinkedGroup() != null) {
+            existingPlan.setLinkedGroup(updatedPlan.getLinkedGroup());
         }
 
         SubscriptionPlan saved = planRepository.save(existingPlan);

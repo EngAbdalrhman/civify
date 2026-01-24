@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
@@ -44,11 +45,14 @@ public class PaymentFulfillmentService {
     /**
      * Fulfill a successful payment by order ID.
      * Determines the payment type and triggers the appropriate fulfillment action.
+     * 
+     * IMPORTANT: Uses REQUIRES_NEW propagation to ensure this runs in a separate transaction.
+     * This prevents fulfillment failures from rolling back the payment record.
      *
      * @param orderId The order ID of the successful payment
      * @return true if fulfillment was successful
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean fulfillPayment(String orderId) {
         log.info("Fulfilling payment for order: {}", orderId);
 
@@ -65,11 +69,13 @@ public class PaymentFulfillmentService {
 
     /**
      * Fulfill a successful payment by payment key.
+     * 
+     * IMPORTANT: Uses REQUIRES_NEW propagation to ensure this runs in a separate transaction.
      *
      * @param paymentKey The payment key of the successful payment
      * @return true if fulfillment was successful
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean fulfillPaymentByKey(String paymentKey) {
         log.info("Fulfilling payment for paymentKey: {}", paymentKey);
 
@@ -101,14 +107,20 @@ public class PaymentFulfillmentService {
             }
 
             // Try to handle invoice payment first (for renewals)
-            boolean invoiceHandled = invoiceService.handleSuccessfulPayment(transaction.getPaymentKey());
+            // NOTE: Invoice stores orderId as paymentTransactionId, so try orderId first
+            boolean invoiceHandled = invoiceService.handleSuccessfulPayment(transaction.getOrderId());
+            
+            // Fallback: try with paymentKey for backwards compatibility
+            if (!invoiceHandled) {
+                invoiceHandled = invoiceService.handleSuccessfulPayment(transaction.getPaymentKey());
+            }
 
             if (!invoiceHandled) {
                 // No invoice found - activate subscription (initial purchase flow)
                 log.info("Processing SUBSCRIPTION activation for paymentKey: {}", transaction.getPaymentKey());
                 subscriptionService.activateSubscription(transaction.getPaymentKey());
             } else {
-                log.info("Invoice payment processed for paymentKey: {}", transaction.getPaymentKey());
+                log.info("Invoice payment processed for order: {}", transaction.getOrderId());
             }
 
             return true;

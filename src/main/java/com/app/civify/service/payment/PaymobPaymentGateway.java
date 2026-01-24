@@ -144,17 +144,26 @@ public class PaymobPaymentGateway implements PaymentGateway {
     @Transactional
     public boolean verifyPayment(String paymentKey) {
         try {
-            log.info("Verifying Paymob payment with key: {}", paymentKey);
+            log.info("Verifying Paymob payment with key/order: {}", paymentKey);
 
-            PaymentTransaction transaction = paymentRepository.findByPaymentKey(paymentKey)
-                    .orElseThrow(() -> new RuntimeException("Payment transaction not found for key: " + paymentKey));
+            // Try orderId first (frontend now sends orderId from redirect params)
+            PaymentTransaction transaction = paymentRepository.findByOrderId(paymentKey)
+                    .orElseGet(() -> paymentRepository.findByPaymentKey(paymentKey)
+                    .orElseThrow(() -> new RuntimeException("Payment transaction not found for key: " + paymentKey)));
 
-            // Authenticate and check payment status from Paymob
+            // If already completed (e.g. by webhook), return success immediately
+            if (transaction.getStatus() == PaymentStatus.COMPLETED) {
+                log.info("Payment already completed for order {} (likely via webhook)", transaction.getOrderId());
+                return true;
+            }
+
+            // Authenticate and check payment status from Paymob Order (Acceptance API)
             String authToken = authenticate();
-            String intentionResponse = paymobClient.getIntention(authToken, transaction.getOrderId());
+            // Use "Bearer " prefix as confirmed by createOrder success
+            String orderResponse = paymobClient.getOrder("Bearer " + authToken, transaction.getOrderId());
 
-            // Parse response to check if payment is successful
-            boolean isSuccessful = parsePaymentStatus(intentionResponse);
+            // Parse response to check if payment is successful via Order transactions
+            boolean isSuccessful = parseOrderStatus(orderResponse);
 
             if (isSuccessful) {
                 transaction.setStatus(PaymentStatus.COMPLETED);
@@ -170,6 +179,29 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
         } catch (Exception e) {
             log.error("Error verifying Paymob payment {}: {}", paymentKey, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * Parse order status from Paymob Order response (Acceptance API)
+     */
+    private boolean parseOrderStatus(String response) {
+        try {
+            JsonNode root = objectMapper.readTree(response);
+            
+            // Check paid_amount_cents vs amount_cents
+            if (root.has("paid_amount_cents") && root.has("amount_cents")) {
+                long paid = root.get("paid_amount_cents").asLong();
+                long amount = root.get("amount_cents").asLong();
+                // Check if fully paid
+                if (amount > 0 && paid >= amount) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (Exception e) {
+            log.error("Failed to parse order status: {}", e.getMessage());
             return false;
         }
     }
@@ -565,35 +597,6 @@ public class PaymobPaymentGateway implements PaymentGateway {
                 "\"postal_code\":\"NA\",\"city\":\"NA\",\"country\":\"NA\",\"last_name\":\"%s\",\"state\":\"NA\"}",
                 email, firstName, phone, lastName
         );
-    }
-
-    /**
-     * Parse payment status from Paymob intention response
-     */
-    private boolean parsePaymentStatus(String response) {
-        try {
-            JsonNode root = objectMapper.readTree(response);
-
-            // Check various success indicators
-            if (root.has("success") && root.get("success").asBoolean()) {
-                return true;
-            }
-
-            if (root.has("is_success") && root.get("is_success").asBoolean()) {
-                return true;
-            }
-
-            if (root.has("status")) {
-                String status = root.get("status").asText().toLowerCase();
-                return status.equals("completed") || status.equals("success");
-            }
-
-            return false;
-
-        } catch (Exception e) {
-            log.error("Failed to parse payment status: {}", e.getMessage());
-            return false;
-        }
     }
 
     /**
