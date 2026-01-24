@@ -4,6 +4,7 @@ import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.dto.payment.PaymentVerificationResponse;
 import com.app.civify.repository.billing.InvoiceRepository;
+import com.app.civify.service.billing.InvoiceService;
 import com.app.civify.service.payment.PaymentService;
 import com.app.civify.service.subscription.SubscriptionService;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ public class PaymentUseCaseImpl implements PaymentUseCase {
     private final PaymentService paymentService;
     private final SubscriptionService subscriptionService;
     private final InvoiceRepository invoiceRepository;
+    private final InvoiceService invoiceService;
 
     @Override
     public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, PaymentMethods method) {
@@ -58,8 +60,17 @@ public class PaymentUseCaseImpl implements PaymentUseCase {
         boolean isVerified = paymentService.verifyPayment(gateway, paymentId);
 
         if (isVerified) {
-            subscriptionService.activateSubscription(paymentId);
-            log.info("Payment {} verified and subscription activated", paymentId);
+            // Try invoice-based payment first (renewals, billing)
+            boolean isInvoicePayment = invoiceService.handleSuccessfulPayment(paymentId);
+            
+            if (!isInvoicePayment) {
+                // Fall back to subscription-based payment (new plans)
+                subscriptionService.activateSubscription(paymentId);
+                log.info("Payment {} verified and subscription activated", paymentId);
+            } else {
+                log.info("Payment {} verified and invoice processed (renewal/billing)", paymentId);
+            }
+            
             return PaymentVerificationResponse.builder()
                     .verified(true)
                     .message("Payment verified successfully")
