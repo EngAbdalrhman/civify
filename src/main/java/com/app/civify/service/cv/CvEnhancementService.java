@@ -117,6 +117,36 @@ public class CvEnhancementService {
           - suggestion2
         """;
 
+    private static final String GENERAL_ATS_SCORE_PROMPT = """
+        You are an expert ATS (Applicant Tracking System) analyzer. Analyze this CV for general ATS compatibility based on industry best practices.
+        
+        CV Content:
+        %s
+        
+        Evaluation Criteria (score each 0-100):
+        1. CONTENT QUALITY:
+           - Strong action verbs (Led, Developed, Managed, etc.)
+           - Quantifiable achievements (numbers, percentages, metrics)
+           - Professional tone and clarity
+        2. STRUCTURE:
+           - Standard section headings (Experience, Education, Skills)
+           - Contact information completeness (name, email, phone)
+           - Logical flow and organization
+        3. SKILLS PRESENTATION:
+           - Relevant technical skills listed
+           - Soft skills mentioned appropriately
+           - Skills match typical industry requirements
+        
+        Output YAML only:
+        overall: 0-100
+        keywordMatch: 0-100 (general industry keywords)
+        skillsMatch: 0-100 (skills presentation quality)
+        missingKeywords:
+          - common missing elements (e.g., "quantifiable metrics", "action verbs")
+        suggestions:
+          - specific improvement suggestions
+        """;
+
     private static final String INTERVIEW_QUESTIONS_PROMPT = """
         Generate interview questions for this job role based on the CV.
         
@@ -277,9 +307,37 @@ public class CvEnhancementService {
         } catch (Exception e) {
             log.error("Error calculating ATS score: {}", e.getMessage());
             return AtsScore.builder()
-                    .overall(50)
-                    .keywordMatch(50)
-                    .skillsMatch(50)
+                    .overall(-1)
+                    .keywordMatch(-1)
+                    .skillsMatch(-1)
+                    .missingKeywords(new ArrayList<>())
+                    .suggestions(List.of("Could not fully analyze. Please review manually."))
+                    .build();
+        }
+    }
+
+    /**
+     * Calculate general ATS score for a CV without a specific job description.
+     * Evaluates based on industry best practices: action verbs, metrics, structure, etc.
+     *
+     * @param resumeData the resume data to analyze
+     * @return AtsScore with overall score and suggestions
+     */
+    public AtsScore calculateGeneralAtsScore(ResumeData resumeData) {
+        try {
+            String cvSummary = buildCvSummary(resumeData);
+            String prompt = String.format(GENERAL_ATS_SCORE_PROMPT, cvSummary);
+            
+            String response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            String cleanedResponse = cleanAiResponse(response);
+            
+            return parseYamlToAtsScore(cleanedResponse);
+        } catch (Exception e) {
+            log.error("Error calculating general ATS score: {}", e.getMessage());
+            return AtsScore.builder()
+                    .overall(-1)
+                    .keywordMatch(-1)
+                    .skillsMatch(-1)
                     .missingKeywords(new ArrayList<>())
                     .suggestions(List.of("Could not fully analyze. Please review manually."))
                     .build();
@@ -458,7 +516,7 @@ public class CvEnhancementService {
             return yamlMapper.readValue(yaml, AtsScore.class);
         } catch (Exception e) {
             log.error("Error parsing YAML to AtsScore: {}", e.getMessage());
-            return AtsScore.builder().overall(50).build();
+            return AtsScore.builder().overall(-1).build();
         }
     }
 
