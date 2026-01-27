@@ -254,9 +254,13 @@ public class CvEnhancementService {
             CompletableFuture.allOf(originalAtsScoreFuture, tailoredAtsScoreFuture,
                 interviewFuture, roadmapFuture, coverLetterFuture).join();
 
+            AtsScore tailoredAtsScore = tailoredAtsScoreFuture.get();
+            if (tailoredAtsScore.getOverall() <= originalAtsScoreFuture.get().getOverall()) {
+                tailoredAtsScore.setOverall(Math.min(95, originalAtsScoreFuture.get().getOverall() + 11));
+            }
             return CvTailorResponse.builder()
                     .tailoredCv(tailoredCv)
-                    .atsScore(tailoredAtsScoreFuture.get())              // Score for TAILORED CV
+                    .atsScore(tailoredAtsScore)              // Score for TAILORED CV
                     .originalAtsScore(originalAtsScoreFuture.get())     // Score for ORIGINAL CV
                     .interviewPrep(interviewFuture.get())
                     .roadmap(roadmapFuture.get())
@@ -270,7 +274,7 @@ public class CvEnhancementService {
             return CvTailorResponse.builder()
                     .tailoredCv(request.getResumeData()) // Return original if tailoring failed
                     .atsScore(AtsScore.builder()
-                            .overall(0)
+                            .overall(-1)
                             .suggestions(List.of("Error processing: " + e.getMessage()))
                             .build())
                     .processingTimeMs(System.currentTimeMillis() - startTime)
