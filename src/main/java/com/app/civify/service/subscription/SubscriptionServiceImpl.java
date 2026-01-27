@@ -21,6 +21,8 @@ import com.app.civify.repository.plans.UserPromoUsageRepository;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
 import com.app.civify.service.billing.InvoiceService;
 import com.app.civify.service.logs.TokenUsageService;
+import com.app.civify.service.logs.SubscriptionAuditService;
+import com.app.civify.entity.enums.SubscriptionAuditType;
 import com.app.civify.service.payment.PaymentService;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
@@ -62,6 +64,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     private final InvoiceService invoiceService;
     private final TokenUsageService tokenUsageService;
     private final EmailService emailService;
+    private final SubscriptionAuditService auditService;
 
     private static final String FREE_PLAN_NAME = "free";
 
@@ -553,6 +556,17 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         // Send subscription activation thank-you email
         emailService.sendSubscriptionActivationEmail(user, plan);
+        
+        // Log audit event for compliance
+        auditService.logEvent(
+            user.getId(), 
+            subscription.getId(), 
+            SubscriptionAuditType.ACTIVATED, 
+            null, // Invoice ID not available here directly, would need lookup if critical
+            plan.getId(), 
+            "SYSTEM", 
+            "Subscription activated via payment: " + paymentTransactionId
+        );
     }
 
     @Override
@@ -578,6 +592,17 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         log.info("Subscription {} marked for cancellation (autoRenew=false). Will expire on {}", 
                 subscription.getId(), subscription.getEndDate());
+                
+        // Log audit event for compliance
+        auditService.logEvent(
+            userId, 
+            subscription.getId(), 
+            SubscriptionAuditType.CANCELLED, 
+            null, 
+            subscription.getPlan().getId(), 
+            "USER", 
+            "User requested cancellation of auto-renewal"
+        );
     }
 
     @Override
