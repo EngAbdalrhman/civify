@@ -2,8 +2,10 @@ package com.app.civify.usecase.cv;
 
 import com.app.civify.dto.cv.CvTailorRequest;
 import com.app.civify.dto.cv.CvTailorResponse;
+import com.app.civify.dto.cv.CvTailorResponse.AtsScore;
 import com.app.civify.dto.document.CvParseRequest;
 import com.app.civify.dto.document.CvParseResponse;
+import com.app.civify.dto.resume.ResumeData;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -35,4 +37,12 @@ public interface CvUseCase {
      */
     CvTailorResponse tailorCv(CvTailorRequest request, Long userId, 
                                String clientIp, String userAgent);
+
+    /**
+     * Calculate general ATS score for a CV without a specific job description.
+     *
+     * @param resumeData the resume data to analyze
+     * @return AtsScore with overall score and suggestions
+     */
+    AtsScore calculateScore(ResumeData resumeData);
 }

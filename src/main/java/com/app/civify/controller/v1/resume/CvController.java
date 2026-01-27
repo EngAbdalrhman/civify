@@ -1,8 +1,10 @@
 package com.app.civify.controller.v1.resume;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
+import com.app.civify.dto.cv.CvScoreRequest;
 import com.app.civify.dto.cv.CvTailorRequest;
 import com.app.civify.dto.cv.CvTailorResponse;
+import com.app.civify.dto.cv.CvTailorResponse.AtsScore;
 import com.app.civify.dto.document.CvParseRequest;
 import com.app.civify.dto.document.CvParseResponse;
 import com.app.civify.security.UserPrincipal;
@@ -103,6 +105,27 @@ public class CvController {
         );
         
         return ResponseEntity.ok(CommonResponse.success("CV tailored successfully", response));
+    }
+
+    @Operation(
+            summary = "Calculate general ATS score",
+            description = "Analyzes a CV for general ATS compatibility based on industry best practices. " +
+                    "Evaluates content quality, structure, and template compatibility without needing a job description.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "ATS score calculated successfully",
+                content = @Content(mediaType = "application/json",
+                        schema = @Schema(implementation = AtsScore.class))),
+        @ApiResponse(responseCode = "400", description = "Invalid request"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
+    @PostMapping("/score")
+    public ResponseEntity<CommonResponse<AtsScore>> calculateScore(
+            @Valid @RequestBody CvScoreRequest request) {
+        
+        AtsScore score = cvUseCase.calculateScore(request.getResumeData());
+        return ResponseEntity.ok(CommonResponse.success("ATS score calculated successfully", score));
     }
 
     private Long getCurrentUserId() {
