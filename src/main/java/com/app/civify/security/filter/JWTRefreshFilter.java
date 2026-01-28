@@ -1,6 +1,7 @@
 package com.app.civify.security.filter;
 
 import com.app.civify.entity.User;
+import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.auth.TokenService;
 import com.app.civify.util.JwtConstants;
 import jakarta.servlet.FilterChain;
@@ -9,6 +10,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -32,8 +34,8 @@ public class JWTRefreshFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+                                    @NotNull HttpServletResponse response,
+                                    @NotNull FilterChain filterChain) throws ServletException, IOException {
 
         if (!request.getServletPath().equals(GENERATE_REFRESH_TOKEN_ENDPOINT)) {
             filterChain.doFilter(request, response);
@@ -51,10 +53,12 @@ public class JWTRefreshFilter extends OncePerRequestFilter {
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
             log.info("start generating refresh token for {}", userDetails.getUsername());
 
-            if (!(userDetails instanceof User user)) {
-                 log.error("user casting issue");
-                 throw new ServletException("UserDetails is not of type com.app.civify.entity.User");
+            if (!(userDetails instanceof UserPrincipal)) {
+                 log.error("UserDetails is type: {}", userDetails.getClass().getName());
+                 throw new ServletException("UserDetails is not of type UserPrincipal");
             }
+            
+            User user = ((UserPrincipal) userDetails).getUser();
 
             TokenService.AuthTokenPair tokenPair = tokenService.refreshAccessToken(refreshToken, user);
 
