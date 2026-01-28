@@ -121,6 +121,10 @@ public class ResumeData implements Serializable {
         private String primaryColor = "#000000";
         private String fontFamily = "Inter";
         private String language = "en";
+        private String skillsDisplayStyle;    // e.g., "tags", "level", "dots", "bar"
+        private String languagesDisplayStyle; // e.g., "level", "dots", "bar"
+        private String coursesDisplayStyle;   // e.g., "detailed", "simple"
+        private String layoutDirection;       // e.g., "ltr", "rtl", "auto"
         private Map<String, String> customStyles;
     }
 }

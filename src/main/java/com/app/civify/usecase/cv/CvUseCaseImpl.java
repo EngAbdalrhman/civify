@@ -2,8 +2,10 @@ package com.app.civify.usecase.cv;
 
 import com.app.civify.dto.cv.CvTailorRequest;
 import com.app.civify.dto.cv.CvTailorResponse;
+import com.app.civify.dto.cv.CvTailorResponse.AtsScore;
 import com.app.civify.dto.document.CvParseRequest;
 import com.app.civify.dto.document.CvParseResponse;
+import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.entity.User;
 import com.app.civify.entity.enums.TokenUsageType;
 import com.app.civify.repository.UserRepository;
@@ -127,5 +129,49 @@ public class CvUseCaseImpl implements CvUseCase {
 
         return response;
     }
-}
 
+    @Override
+    public AtsScore calculateScore(ResumeData resumeData) {
+        log.info("Calculating general ATS score for CV");
+        
+        // Get AI-based content score
+        AtsScore contentScore = cvEnhancementService.calculateGeneralAtsScore(resumeData);
+        
+        // Apply template/design heuristics
+        int templatePenalty = 0;
+        var suggestions = new java.util.ArrayList<>(contentScore.getSuggestions() != null 
+                ? contentScore.getSuggestions() : java.util.List.of());
+        
+        if (resumeData.getMetadata() != null) {
+            String templateId = resumeData.getMetadata().getTemplateId();
+            String skillsDisplayStyle = resumeData.getMetadata().getSkillsDisplayStyle();
+            String languagesDisplayStyle = resumeData.getMetadata().getLanguagesDisplayStyle();
+            
+            // Check template compatibility
+            if ("creative".equalsIgnoreCase(templateId)) {
+                templatePenalty += 10;
+                suggestions.add("Creative templates may have parsing issues in some ATS systems");
+            }
+            
+            // Check visual display styles that could cause parsing issues
+            if ("dots".equals(skillsDisplayStyle) || "bar".equals(skillsDisplayStyle)) {
+                templatePenalty += 5;
+                suggestions.add("Visual skill bars/dots may not be parsed correctly by ATS");
+            }
+            if ("dots".equals(languagesDisplayStyle) || "bar".equals(languagesDisplayStyle)) {
+                templatePenalty += 3;
+                suggestions.add("Visual language proficiency indicators may not be parsed correctly");
+            }
+        }
+        
+        int adjustedScore = Math.max(0, contentScore.getOverall() - templatePenalty);
+        
+        return AtsScore.builder()
+                .overall(adjustedScore)
+                .keywordMatch(contentScore.getKeywordMatch())
+                .skillsMatch(contentScore.getSkillsMatch())
+                .missingKeywords(contentScore.getMissingKeywords())
+                .suggestions(suggestions)
+                .build();
+    }
+}
