@@ -101,7 +101,7 @@ public class SecurityConfig {
         JwtValidationFilter jwtValidationFilter = new JwtValidationFilter(authenticationManager);
 
         // refresh filter for checking JWT in every request
-        JWTRefreshFilter jwtRefreshFilter = new JWTRefreshFilter(jwtUtil, authenticationManager, secureToken);
+        JWTRefreshFilter jwtRefreshFilter = new JWTRefreshFilter(tokenService, userDetailsService, secureToken);
 
 
         http
