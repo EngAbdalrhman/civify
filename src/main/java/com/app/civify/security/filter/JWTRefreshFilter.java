@@ -8,6 +8,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -16,6 +17,7 @@ import java.io.IOException;
 
 import static com.app.civify.util.JwtConstants.GENERATE_REFRESH_TOKEN_ENDPOINT;
 
+@Slf4j
 public class JWTRefreshFilter extends OncePerRequestFilter {
 
     private final TokenService tokenService;
@@ -47,23 +49,12 @@ public class JWTRefreshFilter extends OncePerRequestFilter {
 
             String username = tokenService.extractUsername(refreshToken);
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+            log.info("start generating refresh token for {}", userDetails.getUsername());
 
-            // Cast UserDetails to our User entity if possible, or assume UserDetails implementation matches
-            // Ideally TokenService expects our User entity. Let's see if we can get it.
-            // Based on typical Spring Security, UserDetails might be a wrapper or the entity itself.
-            // If TokenService needs com.app.civify.entity.User, we might need a cast or lookup.
-            // Let's assume for now we can cast or fetch.
-            // Looking at TokenService.java: public AuthTokenPair refreshAccessToken(String refreshToken, User user)
-            // It needs 'User'. Let's verify if CustomUserDetailsService returns 'User'.
-            
-            if (!(userDetails instanceof User)) {
-                 // Fallback or error if implementation mismatch. 
-                 // For safety in this one-shot edit without seeing UserDetailsService, 
-                 // I'll assume we might need to cast.
+            if (!(userDetails instanceof User user)) {
+                 log.error("user casting issue");
                  throw new ServletException("UserDetails is not of type com.app.civify.entity.User");
             }
-            
-            User user = (User) userDetails;
 
             TokenService.AuthTokenPair tokenPair = tokenService.refreshAccessToken(refreshToken, user);
 
