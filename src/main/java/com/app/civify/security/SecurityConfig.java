@@ -206,10 +206,19 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(frontendUrl, "http://localhost:3000", paymentGateway, "www.".concat(frontendUrl)));
+        // Use setAllowedOriginPatterns to support wildcards with allowCredentials=true
+        configuration.setAllowedOriginPatterns(List.of(
+                frontendUrl, 
+                "http://localhost:3000", 
+                paymentGateway, 
+                "www.".concat(frontendUrl),
+                // Zoho CRM domains for extension widgets
+                "https://*.zoho.com",
+                "https://*.zappsusercontent.com"
+        ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setExposedHeaders(List.of("Authorization", "Set-Cookie"));
+        configuration.setExposedHeaders(List.of("Authorization", "Set-Cookie", "Content-Disposition"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
