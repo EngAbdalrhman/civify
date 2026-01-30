@@ -38,6 +38,14 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        // Allow CORS preflight requests to pass through without API key validation
+        // Preflight OPTIONS requests don't include custom headers like X-API-KEY
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            log.info("ApiKeyFilter: Allowing CORS preflight OPTIONS request for path: {}", path);
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String apiKeyHeader = request.getHeader(API_KEY_HEADER);
         log.info("ApiKeyFilter: API Key Header present: {}", (apiKeyHeader != null && !apiKeyHeader.isBlank()));
 
