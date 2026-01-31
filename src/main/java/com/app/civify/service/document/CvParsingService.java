@@ -119,18 +119,13 @@ public class CvParsingService {
             int estimatedTokens = tokenizerService.countTokens(truncatedText);
             log.info("Estimated tokens for CV parsing: {}", estimatedTokens);
             
-            // For authenticated users, check token limit
-            if (userId != null) {
-                if (!subscriptionService.canUserUseTokens(userId, estimatedTokens)) {
-                    return CvParseResponse.builder()
-                            .success(false)
-                            .message("TOKEN_LIMIT_EXCEEDED")
-                            .errorCode("TOKEN_LIMIT_EXCEEDED")
-                            .processingTimeMs(System.currentTimeMillis() - startTime)
-                            .build();
-                }
-            } else {
-                log.info("Guest user parsing CV - no token charging");
+            if (!subscriptionService.canUserUseTokens(userId, estimatedTokens)) {
+                return CvParseResponse.builder()
+                        .success(false)
+                        .message("TOKEN_LIMIT_EXCEEDED")
+                        .errorCode("TOKEN_LIMIT_EXCEEDED")
+                        .processingTimeMs(System.currentTimeMillis() - startTime)
+                        .build();
             }
 
             ResumeData resumeData = parseTextWithAi(truncatedText, request.isPiiOnly());

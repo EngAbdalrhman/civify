@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 @ApiV1Controller
-@RestController
 @RequestMapping("/external/cvs")
 @RequiredArgsConstructor
 @Slf4j
