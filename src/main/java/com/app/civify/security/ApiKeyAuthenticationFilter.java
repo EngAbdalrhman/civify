@@ -67,6 +67,30 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
+            // Check if user has API access (either via permission or plan)
+            boolean hasApiAccess = false;
+            
+            // 1. Check permissions
+            if (apiKey.getUser().getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("API_ACCESS"))) {
+                hasApiAccess = true;
+            }
+            
+            // 2. Check active plan if not already granted via permission
+            if (!hasApiAccess && apiKey.getUser().getSubscriptions() != null) {
+                hasApiAccess = apiKey.getUser().getSubscriptions().stream()
+                        .filter(sub -> sub.isActive())
+                        .anyMatch(sub -> Boolean.TRUE.equals(sub.getPlan().getHasApiAccess()));
+            }
+            
+            if (!hasApiAccess) {
+                log.warn("ApiKeyFilter: User {} does not have API access", apiKey.getUser().getEmail());
+                apiKeyService.logUsage(apiKey.getUser(), apiKey, path, request.getMethod(), HttpServletResponse.SC_FORBIDDEN, false, getClientIp(request), "API Access Denied - Plan upgrade required");
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.getWriter().write("API Access Denied - Your current plan does not support API access");
+                return;
+            }
+
             log.info("ApiKeyFilter: Valid API Key for user: {}", apiKey.getUser().getEmail());
 
             // Set authentication in context
