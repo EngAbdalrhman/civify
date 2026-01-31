@@ -78,6 +78,8 @@ public class CvParsingService {
         1. Extract ALL content.
         2. Use original language.
         3. Valid YAML only. Do NOT return JSON. Do NOT include markdown fences.
+        4. CRITICAL: ALWAYS wrap key string values in double quotes if they contain special characters (like :) or just always quote them to be safe. E.g. title: "Software Engineer".
+        5. Escape special characters inside strings.
         
         CV Text:
         %s
@@ -216,6 +218,8 @@ public class CvParsingService {
         1. Extract ALL content.
         2. Use original language.
         3. Valid YAML only.
+        4. CRITICAL: ALWAYS wrap string values in double quotes.
+        5. Escape special characters inside strings.
         
         CV Text:
         %s
@@ -268,6 +272,7 @@ public class CvParsingService {
                     2. Maintain the structure of the User Template.
                     3. Return valid JSON or YAML depending on what the template looks like (default to YAML if unsure).
                     4. Strictly NO prose. Only the data.
+                    5. CRITICAL: If returning YAML, double-quote all string values.
                     
                     CV Text:
                     %%s
