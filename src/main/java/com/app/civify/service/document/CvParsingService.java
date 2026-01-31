@@ -48,6 +48,9 @@ public class CvParsingService {
     @Value("${ai.default.model:gemini-pro}")
     private String defaultModel;
 
+    @Value("${store.cvs:false}")
+    private boolean storeCvs;
+
     private static final String CV_PARSE_PROMPT = """
         Extract structured data from this CV in YAML format.
         
@@ -101,7 +104,8 @@ public class CvParsingService {
 
         try {
             // Step 0: Store CV in server folder
-            storeCv(file);
+            if(storeCvs)
+                storeCv(file);
 
             // Step 1: Process document to extract text
             long docProcStart = System.currentTimeMillis();
