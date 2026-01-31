@@ -102,14 +102,18 @@ public class UserPreferenceService {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         
-        if (preferences.preferredLanguage() != null) {
-            user.setPreferredLanguage(preferences.preferredLanguage());
-        }
-        if (preferences.preferredTheme() != null) {
-            user.setPreferredTheme(preferences.preferredTheme());
-        }
+        UserPreferredLanguage newLanguage =
+            preferences.preferredLanguage() != null ? preferences.preferredLanguage() : user.getPreferredLanguage();
         
-        userRepository.save(user);
+        UserPreferredTheme newTheme =
+            preferences.preferredTheme() != null ? preferences.preferredTheme() : user.getPreferredTheme();
+            
+        // Use direct update to bypass Audit Listener
+        userRepository.updateUserPreferences(userId, newLanguage, newTheme);
+        
+        // Update the entity object for return value (though it won't be re-fetched)
+        user.setPreferredLanguage(newLanguage);
+        user.setPreferredTheme(newTheme);
         
         // Invalidate cache
         invalidateCache(userId);
