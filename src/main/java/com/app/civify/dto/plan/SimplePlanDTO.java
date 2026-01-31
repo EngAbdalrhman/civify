@@ -30,4 +30,5 @@ public class SimplePlanDTO {
     private Boolean active;
     private Boolean allowAnnualBilling;
     private Boolean renewalAllowed;
+    private Integer sortOrder;
 }
