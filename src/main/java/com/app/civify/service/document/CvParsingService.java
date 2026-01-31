@@ -20,6 +20,11 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.time.LocalDate;
 
 /**
  * Service for parsing CVs/Resumes into structured data. Integrates document
@@ -42,6 +47,9 @@ public class CvParsingService {
 
     @Value("${ai.default.model:gemini-pro}")
     private String defaultModel;
+
+    @Value("${store.cvs:false}")
+    private boolean storeCvs;
 
     private static final String CV_PARSE_PROMPT = """
         Extract structured data from this CV in YAML format.
@@ -95,6 +103,10 @@ public class CvParsingService {
             throw new BadRequestException("user.notfound");
 
         try {
+            // Step 0: Store CV in server folder
+            if(storeCvs)
+                storeCv(file);
+
             // Step 1: Process document to extract text
             long docProcStart = System.currentTimeMillis();
             ProcessedDocument processedDoc = documentProcessorService.process(file, request.getLanguage());
@@ -486,6 +498,31 @@ public class CvParsingService {
         } catch (Exception e) {
             log.warn("Failed to parse Gemini response structure: {}", e.getMessage());
             return response;
+        }
+    }
+
+    /**
+     * Store CV on the server in a date-based directory structure.
+     * Format: cvs/YYYY-MM-DD/timestamp_filename
+     */
+    private void storeCv(MultipartFile file) {
+        try {
+            String dateFolder = LocalDate.now().toString(); // YYYY-MM-DD
+            Path uploadPath = Paths.get("cvs", dateFolder);
+            
+            if (!Files.exists(uploadPath)) {
+                Files.createDirectories(uploadPath);
+            }
+
+            String originalFilename = file.getOriginalFilename();
+            String uniqueFilename = System.currentTimeMillis() + "_" + (originalFilename != null ? originalFilename : "unknown.pdf");
+            Path filePath = uploadPath.resolve(uniqueFilename);
+
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+            log.info("Stored CV at: {}", filePath.toAbsolutePath());
+        } catch (Exception e) {
+            log.error("Failed to store CV on server: {}", e.getMessage(), e);
+            // We do not throw exception here to avoid failing the whole parsing process if storage fails
         }
     }
 }
