@@ -14,6 +14,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -72,23 +74,28 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
                 String token = jwtUtil.generateToken(authResult.getName(), JwtConstants.ACCESS_TOKEN_EXPIRATION_MINUTES);
                 response.setHeader("Authorization", "Bearer " + token);
 
-                Cookie accessCookie = new Cookie(JwtConstants.ACCESS_TOKEN_COOKIE_NAME, token);
-                accessCookie.setHttpOnly(false);
-                accessCookie.setSecure(secureToken);
-                accessCookie.setPath(JwtConstants.TOKEN_COOKIE_PATH);
-                accessCookie.setMaxAge(JwtConstants.ACCESS_TOKEN_COOKIE_MAX_AGE);
-                response.addCookie(accessCookie);
+                // Set Access Token in ResponseCookie
+                ResponseCookie accessCookie = ResponseCookie.from(JwtConstants.ACCESS_TOKEN_COOKIE_NAME, token)
+                        .httpOnly(false)
+                        .secure(secureToken)
+                        .path(JwtConstants.TOKEN_COOKIE_PATH)
+                        .maxAge(JwtConstants.ACCESS_TOKEN_COOKIE_MAX_AGE)
+                        .sameSite("None")
+                        .build();
+                response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
 
                 // create refresh Token
                 String refreshToken = jwtUtil.generateToken(authResult.getName(), JwtConstants.REFRESH_TOKEN_EXPIRATION_MINUTES);
 
-                // Set Refresh Token in HttpOnly Cookie
-                Cookie refreshCookie = new Cookie(JwtConstants.REFRESH_TOKEN_COOKIE_NAME, refreshToken);
-                refreshCookie.setHttpOnly(true); // prevent javascript from accessing it
-                refreshCookie.setSecure(secureToken); // Set to false for development (HTTP), true for production (HTTPS)
-                refreshCookie.setPath(JwtConstants.TOKEN_COOKIE_PATH);
-                refreshCookie.setMaxAge(JwtConstants.REFRESH_TOKEN_COOKIE_MAX_AGE);
-                response.addCookie(refreshCookie);
+                // Set Refresh Token in ResponseCookie (HttpOnly)
+                ResponseCookie refreshCookie = ResponseCookie.from(JwtConstants.REFRESH_TOKEN_COOKIE_NAME, refreshToken)
+                        .httpOnly(true)
+                        .secure(secureToken)
+                        .path(JwtConstants.TOKEN_COOKIE_PATH)
+                        .maxAge(JwtConstants.REFRESH_TOKEN_COOKIE_MAX_AGE)
+                        .sameSite("None")
+                        .build();
+                response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
             }
         } catch (AuthenticationServiceException e) {
             writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
