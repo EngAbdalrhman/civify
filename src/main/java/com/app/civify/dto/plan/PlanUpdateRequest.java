@@ -42,6 +42,7 @@ public class PlanUpdateRequest {
     // Display settings
     private Boolean isFeatured;
     private Integer sortOrder;
+    private Boolean hasApiAccess;
     
     // New enhanced fields
     @Valid

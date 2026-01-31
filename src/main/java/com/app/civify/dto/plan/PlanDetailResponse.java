@@ -45,6 +45,7 @@ public class PlanDetailResponse {
     // Display settings
     private Boolean isFeatured;
     private Integer sortOrder;
+    private Boolean hasApiAccess;
     
     // Linked group
     private Long linkedGroupId;
