@@ -87,6 +87,13 @@ public class SubscriptionPlan extends BaseEntity {
     @ColumnDefault("0")
     private Integer sortOrder = 0;
 
+    /**
+     * Whether this plan includes API access for external integrations.
+     */
+    @Column
+    @ColumnDefault("false")
+    private Boolean hasApiAccess = false;
+
     // ==================== NEW RELATIONSHIPS ====================
     /**
      * Features included in this plan with their limits
