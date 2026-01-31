@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.slf4j.MDC;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -40,6 +41,9 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
         // Add request ID to response header for tracking
         response.setHeader("X-Request-ID", requestId);
+
+        // Add to MDC for thread-local access
+        MDC.put("requestId", requestId);
 
         // Log incoming request with structured format for ELK
         log.info("REQUEST_START | requestId={} | method={} | uri={} | remoteAddr={} | userAgent={} | timestamp={}",
@@ -87,6 +91,9 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             // Log response with structured format for ELK
             log.info("REQUEST_END | requestId={} | method={} | uri={} | status={} | duration={}ms | success={} | timestamp={}",
                     requestId, method, fullUri, status, duration, isSuccess, LocalDateTime.now());
+            
+            // Clear MDC
+            org.slf4j.MDC.clear();
         }
     }
 }
