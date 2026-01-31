@@ -60,6 +60,12 @@ public class CvOperationLog {
     private String endpoint;
 
     /**
+     * Request ID for tracing
+     */
+    @Column(name = "request_id", length = 36)
+    private String requestId;
+
+    /**
      * Extracted PII data stored as JSON.
      * Contains: name, email, phone, address, linkedin, github, website, etc.
      */

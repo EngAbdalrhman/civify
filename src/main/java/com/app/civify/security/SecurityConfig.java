@@ -213,11 +213,7 @@ public class SecurityConfig {
                 paymentGateway, 
                 "www.".concat(frontendUrl),
                 // Zoho CRM domains for extension widgets
-                "https://crm.zoho.com",
-                "https://crm.zoho.eu",
-                "https://crm.zoho.in",
-                "https://crm.zoho.com.au",
-                "https://crmsandbox.zoho.com",
+                "https://*.zoho.com",
                 "https://*.zappsusercontent.com"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));

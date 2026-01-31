@@ -72,7 +72,13 @@ public class SubscriptionJob implements Job {
      * - Zero-fee plans: auto-extend if renewal allowed and cycles permit
      * - Paid plans: create invoice and send reminders
      */
-    private void processInvoicingAndReminders() {
+    /**
+     * Process invoicing and reminders for subscriptions expiring within 3 days.
+     * - Zero-fee plans: auto-extend if renewal allowed and cycles permit
+     * - Paid plans: create invoice and send reminders
+     */
+    @Transactional
+    public void processInvoicingAndReminders() {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime threeDaysFromNow = now.plusDays(DAYS_BEFORE_EXPIRY_FOR_INVOICE);
 
@@ -166,10 +172,7 @@ public class SubscriptionJob implements Job {
                 invoiceCount, reminderCount, autoExtendCount, skippedCount);
     }
 
-    /**
-     * Auto-extend a zero-fee subscription (e.g., beta plan).
-     * Extends the subscription period and sends confirmation email.
-     */
+    // Helper methods remain private as they are internal to this logic
     private void autoExtendSubscription(UserSubscription sub, boolean isAnnual) {
         try {
             LocalDateTime currentEnd = sub.getEndDate();
@@ -202,9 +205,6 @@ public class SubscriptionJob implements Job {
         }
     }
 
-    /**
-     * Send confirmation email for auto-extended zero-fee subscription.
-     */
     private void sendAutoExtensionEmail(UserSubscription sub, LocalDateTime newEndDate, boolean isAnnual) {
         try {
             String subject = "Your Civify Subscription Has Been Extended";
@@ -240,17 +240,11 @@ public class SubscriptionJob implements Job {
         }
     }
 
-    /**
-     * Determine if subscription is annual based on duration between start and end dates.
-     */
     private boolean isAnnualSubscription(UserSubscription sub) {
         long daysBetween = ChronoUnit.DAYS.between(sub.getStartDate(), sub.getEndDate());
         return daysBetween > 180; // More than 6 months = annual
     }
 
-    /**
-     * Send first renewal email with checkout link when invoice is created.
-     */
     private void sendRenewalNotificationEmail(UserSubscription sub, Invoice invoice, BigDecimal amount, boolean isAnnual) {
         try {
             String checkoutUrl = frontendUrl + "/checkout?invoice=" + invoice.getUuid();
@@ -301,7 +295,8 @@ public class SubscriptionJob implements Job {
      * - Expire pending invoices
      * - Downgrade to free plan
      */
-    private void processExpiredSubscriptions() {
+    @Transactional
+    public void processExpiredSubscriptions() {
         LocalDateTime now = LocalDateTime.now();
 
         // Find all active subscriptions that have passed their endDate (including today)
@@ -402,7 +397,8 @@ public class SubscriptionJob implements Job {
     /**
      * Reset CVs and tokens if billing cycle month has passed.
      */
-    private void processUsageResets() {
+    @Transactional
+    public void processUsageResets() {
         LocalDateTime now = LocalDateTime.now();
         List<UserSubscription> needsReset = subscriptionRepository.findByUsageResetDateBefore(now);
 

@@ -167,7 +167,12 @@ public class DocumentProcessorService {
     }
 
     private DocumentType detectByMagicNumbers(MultipartFile file) {
-        try (var is = file.getInputStream()) {
+        try (var is = new java.io.BufferedInputStream(file.getInputStream())) {
+            if (!is.markSupported()) {
+                // Should not happen with BufferedInputStream, but safe check
+                log.warn("Mark/Reset not supported even with BufferedInputStream");
+                return DocumentType.UNKNOWN;
+            }
             is.mark(32);
             byte[] header = is.readNBytes(16);
             is.reset();
