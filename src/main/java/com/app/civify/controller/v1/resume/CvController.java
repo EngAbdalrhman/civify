@@ -124,7 +124,8 @@ public class CvController {
     public ResponseEntity<CommonResponse<AtsScore>> calculateScore(
             @Valid @RequestBody CvScoreRequest request) {
         
-        AtsScore score = cvUseCase.calculateScore(request.getResumeData());
+        Long userId = getCurrentUserId();
+        AtsScore score = cvUseCase.calculateScore(request.getResumeData(), userId);
         return ResponseEntity.ok(CommonResponse.success("ATS score calculated successfully", score));
     }
 

@@ -42,7 +42,8 @@ public interface CvUseCase {
      * Calculate general ATS score for a CV without a specific job description.
      *
      * @param resumeData the resume data to analyze
+     * @param userId the authenticated user's ID (nullable for unauthenticated)
      * @return AtsScore with overall score and suggestions
      */
-    AtsScore calculateScore(ResumeData resumeData);
+    AtsScore calculateScore(ResumeData resumeData, Long userId);
 }
