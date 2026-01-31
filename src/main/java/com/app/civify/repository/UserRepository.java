@@ -1,6 +1,8 @@
 package com.app.civify.repository;
 
 import com.app.civify.entity.User;
+import com.app.civify.entity.enums.UserPreferredLanguage;
+import com.app.civify.entity.enums.UserPreferredTheme;
 import com.app.civify.util.persistence.CommonRepo;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -49,4 +51,14 @@ public interface UserRepository extends CommonRepo<User, Long> {
     @Modifying
     @Query("UPDATE User u SET u.welcomeEmailSent = true WHERE u.id = :userId")
     int updateWelcomeEmailSent(@Param("userId") Long userId);
+
+    /**
+     * Update user preferences (Language & Theme) directly.
+     * Bypasses EntityListeners (Audit).
+     */
+    @Modifying
+    @Query("UPDATE User u SET u.preferredLanguage = :language, u.preferredTheme = :theme WHERE u.id = :userId")
+    void updateUserPreferences(@Param("userId") Long userId,
+                               @Param("language") UserPreferredLanguage language,
+                               @Param("theme") UserPreferredTheme theme);
 }
