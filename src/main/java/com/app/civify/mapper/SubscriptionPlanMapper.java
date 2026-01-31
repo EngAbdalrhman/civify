@@ -24,6 +24,7 @@ public interface SubscriptionPlanMapper {
     @Mapping(target = "active", source = "active")
     @Mapping(target = "allowAnnualBilling", source = "allowAnnualBilling")
     @Mapping(target = "renewalAllowed", source = "renewalAllowed")
+    @Mapping(target = "sortOrder", source = "sortOrder")
     SimplePlanDTO toSimplePlan(SubscriptionPlan plan);
 
     List<SimplePlanDTO> toSimplePlans(List<SubscriptionPlan> plans);
