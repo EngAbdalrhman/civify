@@ -2,6 +2,7 @@ package com.app.civify.controller.v1.admin;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.job.SubscriptionJob;
+import com.app.civify.security.annotation.CivifyAuthorization;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Tag(name = "Admin - Scheduler", description = "Admin endpoints to trigger scheduled jobs manually")
 @Slf4j
+@CivifyAuthorization(permission = "SCHEDULER_TRIGGER")
 public class AdminSchedulerController {
 
     private final SubscriptionJob subscriptionJob;
