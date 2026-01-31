@@ -32,7 +32,7 @@ public class CvUseCaseImpl implements CvUseCase {
     private final UserRepository userRepository;
     private final SubscriptionService subscriptionService;
 
-    // Estimated tokens for different operations (base values, can be adjusted)
+    // Estimated tokens for different operations
     private static final int TOKENS_CV_TAILOR = 500;
     private static final int TOKENS_COVER_LETTER = 200;
     private static final int TOKENS_INTERVIEW_PREP = 300;
@@ -131,8 +131,20 @@ public class CvUseCaseImpl implements CvUseCase {
     }
 
     @Override
-    public AtsScore calculateScore(ResumeData resumeData) {
-        log.info("Calculating general ATS score for CV");
+    public AtsScore calculateScore(ResumeData resumeData, Long userId) {
+        log.info("Calculating general ATS score for CV. User: {}", userId);
+        
+        // Use tokens for ATS score calculation if user is authenticated
+        if (userId != null) {
+            try {
+                subscriptionService.chargeTokens(userId, TOKENS_ATS_SCORE, TokenUsageType.ATS_SCORE,
+                        "General ATS Score Analysis");
+                log.info("Logged token usage for ATS score: userId={}", userId);
+            } catch (Exception e) {
+                log.error("Failed to log token usage for ATS score: {}", e.getMessage());
+                // Don't fail the request if token logging fails
+            }
+        }
         
         // Get AI-based content score
         AtsScore contentScore = cvEnhancementService.calculateGeneralAtsScore(resumeData);
