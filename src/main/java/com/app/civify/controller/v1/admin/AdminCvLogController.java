@@ -2,7 +2,7 @@ package com.app.civify.controller.v1.admin;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.security.annotation.CivifyAuthorization;
-import com.app.civify.entity.logs.CvOperationLog;
+import com.app.civify.dto.logs.CvOperationLogDto;
 import com.app.civify.usecase.admin.AdminCvLogUseCase;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
@@ -25,7 +25,7 @@ public class AdminCvLogController {
     @Operation(summary = "Get CV operation logs with filtering")
     @PostMapping("/cv-logs")
     @CivifyAuthorization(permission = "LOGS.CV")
-    public ResponseEntity<PagedResponse<CvOperationLog>> getCvLogs(@RequestBody InputDataModel inputData) {
+    public ResponseEntity<PagedResponse<CvOperationLogDto>> getCvLogs(@RequestBody InputDataModel inputData) {
         return ResponseEntity.ok(adminCvLogUseCase.getCvLogs(inputData));
     }
 }
