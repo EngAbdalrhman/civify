@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -620,8 +621,40 @@ public class CvEnhancementService {
 
     private List<String> validateAlignment(ResumeData original, ResumeData tailored) {
         List<String> warnings = new ArrayList<>();
-        // Placeholder for future logic
+        
+        // 1. Validate Experience (Companies)
+        Set<String> originalCompanies = extractTitlesFromSection(original, "experience");
+        Set<String> tailoredCompanies = extractTitlesFromSection(tailored, "experience");
+        
+        for (String company : tailoredCompanies) {
+            if (!originalCompanies.contains(company)) {
+                warnings.add("Possible Hallucination: Company '" + company + "' found in tailored CV was not in original.");
+            }
+        }
+        
+        // 2. Validate Education (Schools/Degrees)
+        Set<String> originalSchools = extractTitlesFromSection(original, "education");
+        Set<String> tailoredSchools = extractTitlesFromSection(tailored, "education");
+        
+        for (String school : tailoredSchools) {
+            if (!originalSchools.contains(school)) {
+                warnings.add("Possible Hallucination: Education institution '" + school + "' found in tailored CV was not in original.");
+            }
+        }
+        
         return warnings;
+    }
+
+    private Set<String> extractTitlesFromSection(ResumeData data, String sectionType) {
+        if (data == null || data.getSections() == null) {
+            return new java.util.HashSet<>();
+        }
+        return data.getSections().stream()
+                .filter(s -> sectionType.equalsIgnoreCase(s.getType())) // Filter by type (e.g., "experience")
+                .flatMap(s -> s.getItems().stream())
+                .map(item -> item.getTitle() != null ? item.getTitle().trim().toLowerCase() : "")
+                .filter(title -> !title.isEmpty())
+                .collect(java.util.stream.Collectors.toSet());
     }
 
     private List<String> generateDiffs(ResumeData original, ResumeData tailored) {
