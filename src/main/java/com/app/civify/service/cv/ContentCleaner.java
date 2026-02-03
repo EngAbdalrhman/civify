@@ -2,8 +2,8 @@ package com.app.civify.service.cv;
 
 import org.springframework.stereotype.Component;
 
+import com.app.civify.dto.resume.ResumeData;
 import java.util.List;
-import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -71,5 +71,42 @@ public class ContentCleaner {
         if (text == null) return false;
         String lower = text.toLowerCase();
         return AI_PHRASES.stream().anyMatch(lower::contains);
+    }
+    
+    /**
+     * Clean "AI Clichés" from the entire ResumeData structure.
+     * Focuses on: Summary, Job Titles, and Descriptions.
+     */
+    public ResumeData clean(ResumeData data) {
+        if (data == null) return null;
+        
+        // 1. Clean Personal Info
+        if (data.getPersonalInfo() != null) {
+            String origSummary = data.getPersonalInfo().getSummary();
+            if (origSummary != null) {
+                data.getPersonalInfo().setSummary(clean(origSummary));
+            }
+        }
+        
+        // 2. Clean Sections (Experience, Projects, etc.)
+        if (data.getSections() != null) {
+             for (ResumeData.ResumeSection section : data.getSections()) {
+                 if (section.getItems() != null) {
+                     for (ResumeData.SectionItem item : section.getItems()) {
+                         // Clean Description
+                         if (item.getDescription() != null) {
+                             item.setDescription(clean(item.getDescription()));
+                         }
+                         // Clean Title (less likely to have fluff, but possible)
+                         if (item.getTitle() != null) {
+                             // be conservative with titles
+                             // item.setTitle(clean(item.getTitle())); 
+                         }
+                     }
+                 }
+             }
+        }
+        
+        return data;
     }
 }
