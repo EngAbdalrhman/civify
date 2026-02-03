@@ -1,13 +1,13 @@
 package com.app.civify.service.ai;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
+
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -98,6 +98,7 @@ public class AiServiceImpl implements AiService {
 
     @Override
     @Retryable(value = {Exception.class}, maxAttempts = 2, backoff = @Backoff(delay = 500, multiplier = 2))
+    @Cacheable(value = "ai_responses", key = "{#prompt.hashCode(), #provider, #model}") 
     public String callModel(String prompt, String provider, String model) {
         log.info("Calling AI model - Provider: {}, Model: {}", provider, model);
 

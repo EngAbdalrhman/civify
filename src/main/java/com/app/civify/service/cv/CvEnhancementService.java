@@ -5,6 +5,7 @@ import com.app.civify.dto.cv.CvTailorResponse;
 import com.app.civify.dto.cv.CvTailorResponse.*;
 import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.service.ai.AiService;
+import com.app.civify.service.ai.JsonSanitizer;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
@@ -14,10 +15,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 /**
  * Service for CV enhancement operations including tailoring, ATS scoring,
@@ -30,6 +34,10 @@ public class CvEnhancementService {
 
     private final AiService aiService;
     private final ObjectMapper objectMapper;
+    private final KeywordMatcher keywordMatcher;
+    private final ContentCleaner contentCleaner;
+    private final ResumeDiffService resumeDiffService;
+    private final JsonSanitizer jsonSanitizer;
 
     @Value("${ai.default.provider:gemini}")
     private String defaultProvider;
@@ -179,35 +187,34 @@ public class CvEnhancementService {
         """;
 
     private static final String COVER_LETTER_PROMPT = """
-        Write a professional cover letter for this job application.
-        
-        Position: %s
-        Company: %s
-        
-        Candidate Information:
-        Name: %s
-        Email: %s
-        Phone: %s
-        Professional Summary: %s
-        Key Skills: %s
-        
-        Work Experience:
-        %s
-        
-        INSTRUCTIONS:
-        1. Start with "Dear [Company] Hiring Team," or "Dear Hiring Manager,"
-        2. First paragraph: Express enthusiasm for the role and company
-        3. Second paragraph: Highlight relevant experience that aligns with the job requirements
-        4. Third paragraph: Describe specific achievements and how they relate to the position
-        5. Closing paragraph: Express interest in an interview, thank them
-        6. End with:
-           Sincerely,
-           [Name]
-           [Email]
-           [Phone]
-        
-        Write the complete cover letter as plain text, professional tone, no markdown.
-        """;
+            You are an expert career coach. Write a compelling, high-converting cover letter for the following candidate.
+            
+            Target Role: %s at %s
+            
+            Candidate:
+            Name: %s
+            Email: %s
+            Phone: %s
+            
+            Candidate Profile:
+            Summary: %s
+            Top Skills: %s
+            Experience Highlights: %s
+            
+            Job Description Analysis (Pain Points):
+            %s
+            
+            Instructions:
+            1.  **Structure**: Use the "Hook-Story-Offer" framework.
+                *   **Hook**: Start with a strong opening that captures attention and shows understanding of the company's needs (Pain Points).
+                *   **Story**: Connect specific achievements from the candidate's profile to solving those pain points. prove value with metrics.
+                *   **Offer**: Close with a confident call to action.
+            2.  **Tone**: Professional, confident, yet authentic. Avoid generic fluff.
+            3.  **Formatting**: Standard business letter format.
+            4.  **No Placeholders**: Do not use [Insert Company Name] placeholders; use the provided data.
+            
+            Output ONLY the cover letter body texts (or with header if appropriate).
+            """;
 
     // ==================== Main Tailor Method ====================
 
@@ -258,6 +265,12 @@ public class CvEnhancementService {
             if (tailoredAtsScore.getOverall() <= originalAtsScoreFuture.get().getOverall()) {
                 tailoredAtsScore.setOverall(Math.min(95, originalAtsScoreFuture.get().getOverall() + 11));
             }
+            // NEW: Run "Truthful Tailoring" Validation
+            List<String> validationWarnings = validateAlignment(request.getResumeData(), tailoredCv);
+            
+            // NEW: Generate Change Diffs using Robust Service
+            List<String> changes = resumeDiffService.calculateDiff(request.getResumeData(), tailoredCv);
+
             return CvTailorResponse.builder()
                     .tailoredCv(tailoredCv)
                     .atsScore(tailoredAtsScore)              // Score for TAILORED CV
@@ -265,6 +278,8 @@ public class CvEnhancementService {
                     .interviewPrep(interviewFuture.get())
                     .roadmap(roadmapFuture.get())
                     .coverLetter(coverLetterFuture.get())
+                    .changes(changes)
+                    .validationWarnings(validationWarnings)
                     .processingTimeMs(System.currentTimeMillis() - startTime)
                     .build();
 
@@ -290,9 +305,15 @@ public class CvEnhancementService {
             String prompt = String.format(TAILOR_CV_PROMPT, jobDescription, cvYaml);
             
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
-            String cleanedResponse = cleanAiResponse(response);
             
-            return parseYamlToResumeData(cleanedResponse);
+            // 1. Sanitize JSON (Resilience)
+            String sanitizedResponse = jsonSanitizer.sanitize(response);
+            
+            // 2. Parse Valid JSON to Object
+            ResumeData rawData = parseYamlToResumeData(sanitizedResponse);
+            
+            // 3. Clean "AI Clichés" (Polish) from values
+            return contentCleaner.clean(rawData);
         } catch (Exception e) {
             log.error("Error tailoring CV content: {}", e.getMessage());
             return resumeData; // Return original on failure
@@ -300,6 +321,10 @@ public class CvEnhancementService {
     }
 
     private AtsScore calculateAtsScore(ResumeData resumeData, String jobDescription) {
+        // 1. Calculate deterministic keyword match score
+        String cvTextForMatching = buildCvSummary(resumeData); // Use the summary text for matching
+        KeywordMatcher.MatchResult keywordResult = keywordMatcher.match(cvTextForMatching, jobDescription);
+        
         try {
             String cvSummary = buildCvSummary(resumeData);
             String prompt = String.format(ATS_SCORE_PROMPT, jobDescription, cvSummary);
@@ -307,15 +332,42 @@ public class CvEnhancementService {
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
             String cleanedResponse = cleanAiResponse(response);
             
-            return parseYamlToAtsScore(cleanedResponse);
-        } catch (Exception e) {
-            log.error("Error calculating ATS score: {}", e.getMessage());
+            AtsScore aiScore = parseYamlToAtsScore(cleanedResponse);
+            
+            // 2. Hybrid Score Calculation
+            // Weigh AI score 60% and Keyword score 40%
+            int hybridOverall = (int) Math.round((aiScore.getOverall() * 0.6) + (keywordResult.score() * 0.4));
+            
+            // Merge missing keywords (AI + Deterministic)
+            List<String> mergedMissingKeywords = new ArrayList<>();
+            if (aiScore.getMissingKeywords() != null) {
+                mergedMissingKeywords.addAll(aiScore.getMissingKeywords());
+            }
+            // Add top 10 missing keywords from deterministic matcher if not already present
+            for (String kw : keywordResult.missingKeywords()) {
+                 if (mergedMissingKeywords.size() >= 15) break; 
+                 if (!mergedMissingKeywords.contains(kw)) {
+                     mergedMissingKeywords.add(kw);
+                 }
+            }
+            
             return AtsScore.builder()
-                    .overall(-1)
-                    .keywordMatch(-1)
-                    .skillsMatch(-1)
-                    .missingKeywords(new ArrayList<>())
-                    .suggestions(List.of("Could not fully analyze. Please review manually."))
+                    .overall(hybridOverall)
+                    .keywordMatch(keywordResult.score()) // Use the real keyword score here for accuracy
+                    .skillsMatch(aiScore.getSkillsMatch())
+                    .missingKeywords(mergedMissingKeywords)
+                    .suggestions(aiScore.getSuggestions())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error calculating ATS score (AI failed), falling back to keyword score: {}", e.getMessage());
+            // Fallback to purely deterministic score if AI fails
+            return AtsScore.builder()
+                    .overall(keywordResult.score())
+                    .keywordMatch(keywordResult.score())
+                    .skillsMatch(0)
+                    .missingKeywords(keywordResult.missingKeywords())
+                    .suggestions(List.of("AI analysis failed. Score based on keyword matching only."))
                     .build();
         }
     }
@@ -415,7 +467,10 @@ public class CvEnhancementService {
                 info.getPhone() != null ? info.getPhone() : "",
                 info.getSummary() != null ? info.getSummary() : "",
                 skills,
-                experience);
+                experience,
+                // We pass the full JD here for the "Pain Points" analysis in line with the prompt
+                request.getJobDescription() != null ? request.getJobDescription() : "Standard role requirements"
+            );
             
             log.debug("Cover letter prompt length: {}", prompt.length());
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
@@ -572,5 +627,43 @@ public class CvEnhancementService {
                 .limit(15)
                 .reduce((a, b) -> a + ", " + b)
                 .orElse("");
+    }
+
+    private List<String> validateAlignment(ResumeData original, ResumeData tailored) {
+        List<String> warnings = new ArrayList<>();
+        
+        // 1. Validate Experience (Companies)
+        Set<String> originalCompanies = extractTitlesFromSection(original, "experience");
+        Set<String> tailoredCompanies = extractTitlesFromSection(tailored, "experience");
+        
+        for (String company : tailoredCompanies) {
+            if (!originalCompanies.contains(company)) {
+                warnings.add("Possible Hallucination: Company '" + company + "' found in tailored CV was not in original.");
+            }
+        }
+        
+        // 2. Validate Education (Schools/Degrees)
+        Set<String> originalSchools = extractTitlesFromSection(original, "education");
+        Set<String> tailoredSchools = extractTitlesFromSection(tailored, "education");
+        
+        for (String school : tailoredSchools) {
+            if (!originalSchools.contains(school)) {
+                warnings.add("Possible Hallucination: Education institution '" + school + "' found in tailored CV was not in original.");
+            }
+        }
+        
+        return warnings;
+    }
+
+    private Set<String> extractTitlesFromSection(ResumeData data, String sectionType) {
+        if (data == null || data.getSections() == null) {
+            return new HashSet<>();
+        }
+        return data.getSections().stream()
+                .filter(s -> sectionType.equalsIgnoreCase(s.getType())) // Filter by type (e.g., "experience")
+                .flatMap(s -> s.getItems().stream())
+                .map(item -> item.getTitle() != null ? item.getTitle().trim().toLowerCase() : "")
+                .filter(title -> !title.isEmpty())
+                .collect(Collectors.toSet());
     }
 }

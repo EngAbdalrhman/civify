@@ -48,6 +48,16 @@ public class CvTailorResponse {
      * Generated cover letter. Null if not requested.
      */
     private String coverLetter;
+    
+    /**
+     * Visual feedback for what changed in the CV.
+     */
+    private List<String> changes;
+    
+    /**
+     * Warnings about potential hallucinations or alignment issues.
+     */
+    private List<String> validationWarnings;
 
     /**
      * Total processing time in milliseconds.

@@ -11,6 +11,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -63,20 +65,24 @@ public class JWTRefreshFilter extends OncePerRequestFilter {
             TokenService.AuthTokenPair tokenPair = tokenService.refreshAccessToken(refreshToken, user);
 
             // Set new Access Token Cookie
-            Cookie accessCookie = new Cookie(JwtConstants.ACCESS_TOKEN_COOKIE_NAME, tokenPair.getAccessToken());
-            accessCookie.setHttpOnly(false); // Accessible to JS
-            accessCookie.setSecure(secureToken);
-            accessCookie.setPath(JwtConstants.TOKEN_COOKIE_PATH);
-            accessCookie.setMaxAge(JwtConstants.ACCESS_TOKEN_COOKIE_MAX_AGE);
-            response.addCookie(accessCookie);
+            ResponseCookie accessCookie = ResponseCookie.from(JwtConstants.ACCESS_TOKEN_COOKIE_NAME, tokenPair.getAccessToken())
+                    .httpOnly(false)
+                    .secure(secureToken)
+                    .path(JwtConstants.TOKEN_COOKIE_PATH)
+                    .maxAge(JwtConstants.ACCESS_TOKEN_COOKIE_MAX_AGE)
+                    .sameSite("None")
+                    .build();
+            response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
 
             // Set new Refresh Token Cookie (Rotation!)
-            Cookie refreshCookie = new Cookie(JwtConstants.REFRESH_TOKEN_COOKIE_NAME, tokenPair.getRefreshToken());
-            refreshCookie.setHttpOnly(true); // HttpOnly
-            refreshCookie.setSecure(secureToken);
-            refreshCookie.setPath(JwtConstants.TOKEN_COOKIE_PATH);
-            refreshCookie.setMaxAge(JwtConstants.REFRESH_TOKEN_COOKIE_MAX_AGE);
-            response.addCookie(refreshCookie);
+            ResponseCookie refreshCookie = ResponseCookie.from(JwtConstants.REFRESH_TOKEN_COOKIE_NAME, tokenPair.getRefreshToken())
+                    .httpOnly(true)
+                    .secure(secureToken)
+                    .path(JwtConstants.TOKEN_COOKIE_PATH)
+                    .maxAge(JwtConstants.REFRESH_TOKEN_COOKIE_MAX_AGE)
+                    .sameSite("None")
+                    .build();
+            response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
 
             response.setHeader("Authorization", "Bearer " + tokenPair.getAccessToken());
 
