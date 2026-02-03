@@ -78,6 +78,7 @@ public class NotificationFallbackProcessor {
      * Cleanup old delivered notifications (runs daily at 2 AM)
      */
     @Scheduled(cron = "0 0 2 * * ?")
+    @org.springframework.transaction.annotation.Transactional
     public void cleanupOldNotifications() {
         try {
             LocalDateTime cutoff = LocalDateTime.now().minusDays(30);
