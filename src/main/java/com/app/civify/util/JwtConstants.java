@@ -1,8 +1,11 @@
 package com.app.civify.util;
 
+import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
 /**
  * JWT Constants for token generation and expiration
  */
+@Component
 public class JwtConstants {
 
     private JwtConstants() {
@@ -10,7 +13,7 @@ public class JwtConstants {
     }
 
     // Access token expiration: 15 minutes (in minutes)
-    public static final long ACCESS_TOKEN_EXPIRATION_MINUTES = 1;
+    public static long ACCESS_TOKEN_EXPIRATION_MINUTES = 15;
 
     // Refresh token expiration: 30 days (in minutes)
     public static final long REFRESH_TOKEN_EXPIRATION_MINUTES = 30 * 24 * 60;
@@ -26,4 +29,9 @@ public class JwtConstants {
     public static final String TOKEN_COOKIE_PATH = "/"; // Allow cookie for all paths
     public static final int ACCESS_TOKEN_COOKIE_MAX_AGE = Math.toIntExact(ACCESS_TOKEN_EXPIRATION_MINUTES * 60);
     public static final int REFRESH_TOKEN_COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days in seconds
+
+    @Value("${access.token.time:15}")
+    public void setAccessTokenTime(int accessTokenTime) {
+        JwtConstants.ACCESS_TOKEN_EXPIRATION_MINUTES = accessTokenTime;
+    }
 }
