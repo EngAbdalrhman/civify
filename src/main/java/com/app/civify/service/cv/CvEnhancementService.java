@@ -187,35 +187,34 @@ public class CvEnhancementService {
         """;
 
     private static final String COVER_LETTER_PROMPT = """
-        Write a professional cover letter for this job application.
-        
-        Position: %s
-        Company: %s
-        
-        Candidate Information:
-        Name: %s
-        Email: %s
-        Phone: %s
-        Professional Summary: %s
-        Key Skills: %s
-        
-        Work Experience:
-        %s
-        
-        INSTRUCTIONS:
-        1. Start with "Dear [Company] Hiring Team," or "Dear Hiring Manager,"
-        2. First paragraph: Express enthusiasm for the role and company
-        3. Second paragraph: Highlight relevant experience that aligns with the job requirements
-        4. Third paragraph: Describe specific achievements and how they relate to the position
-        5. Closing paragraph: Express interest in an interview, thank them
-        6. End with:
-           Sincerely,
-           [Name]
-           [Email]
-           [Phone]
-        
-        Write the complete cover letter as plain text, professional tone, no markdown.
-        """;
+            You are an expert career coach. Write a compelling, high-converting cover letter for the following candidate.
+            
+            Target Role: %s at %s
+            
+            Candidate:
+            Name: %s
+            Email: %s
+            Phone: %s
+            
+            Candidate Profile:
+            Summary: %s
+            Top Skills: %s
+            Experience Highlights: %s
+            
+            Job Description Analysis (Pain Points):
+            %s
+            
+            Instructions:
+            1.  **Structure**: Use the "Hook-Story-Offer" framework.
+                *   **Hook**: Start with a strong opening that captures attention and shows understanding of the company's needs (Pain Points).
+                *   **Story**: Connect specific achievements from the candidate's profile to solving those pain points. prove value with metrics.
+                *   **Offer**: Close with a confident call to action.
+            2.  **Tone**: Professional, confident, yet authentic. Avoid generic fluff.
+            3.  **Formatting**: Standard business letter format.
+            4.  **No Placeholders**: Do not use [Insert Company Name] placeholders; use the provided data.
+            
+            Output ONLY the cover letter body texts (or with header if appropriate).
+            """;
 
     // ==================== Main Tailor Method ====================
 
@@ -468,7 +467,10 @@ public class CvEnhancementService {
                 info.getPhone() != null ? info.getPhone() : "",
                 info.getSummary() != null ? info.getSummary() : "",
                 skills,
-                experience);
+                experience,
+                // We pass the full JD here for the "Pain Points" analysis in line with the prompt
+                request.getJobDescription() != null ? request.getJobDescription() : "Standard role requirements"
+            );
             
             log.debug("Cover letter prompt length: {}", prompt.length());
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
