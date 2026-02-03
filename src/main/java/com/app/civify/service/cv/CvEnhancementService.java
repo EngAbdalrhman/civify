@@ -5,6 +5,7 @@ import com.app.civify.dto.cv.CvTailorResponse;
 import com.app.civify.dto.cv.CvTailorResponse.*;
 import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.service.ai.AiService;
+import com.app.civify.service.ai.JsonSanitizer;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
@@ -14,11 +15,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 /**
  * Service for CV enhancement operations including tailoring, ATS scoring,
@@ -33,6 +36,8 @@ public class CvEnhancementService {
     private final ObjectMapper objectMapper;
     private final KeywordMatcher keywordMatcher;
     private final ContentCleaner contentCleaner;
+    private final ResumeDiffService resumeDiffService;
+    private final JsonSanitizer jsonSanitizer;
 
     @Value("${ai.default.provider:gemini}")
     private String defaultProvider;
@@ -264,8 +269,8 @@ public class CvEnhancementService {
             // NEW: Run "Truthful Tailoring" Validation
             List<String> validationWarnings = validateAlignment(request.getResumeData(), tailoredCv);
             
-            // NEW: Generate Change Diffs
-            List<String> changes = generateDiffs(request.getResumeData(), tailoredCv);
+            // NEW: Generate Change Diffs using Robust Service
+            List<String> changes = resumeDiffService.calculateDiff(request.getResumeData(), tailoredCv);
 
             return CvTailorResponse.builder()
                     .tailoredCv(tailoredCv)
@@ -301,12 +306,15 @@ public class CvEnhancementService {
             String prompt = String.format(TAILOR_CV_PROMPT, jobDescription, cvYaml);
             
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
-            String cleanedResponse = cleanAiResponse(response);
             
-            // NEW: Clean "AI Clichés" from the response text before parsing
-            String polishedResponse = contentCleaner.clean(cleanedResponse);
+            // 1. Sanitize JSON (Resilience)
+            String sanitizedResponse = jsonSanitizer.sanitize(response);
             
-            return parseYamlToResumeData(polishedResponse);
+            // 2. Parse Valid JSON to Object
+            ResumeData rawData = parseYamlToResumeData(sanitizedResponse);
+            
+            // 3. Clean "AI Clichés" (Polish) from values
+            return contentCleaner.clean(rawData);
         } catch (Exception e) {
             log.error("Error tailoring CV content: {}", e.getMessage());
             return resumeData; // Return original on failure
@@ -647,34 +655,13 @@ public class CvEnhancementService {
 
     private Set<String> extractTitlesFromSection(ResumeData data, String sectionType) {
         if (data == null || data.getSections() == null) {
-            return new java.util.HashSet<>();
+            return new HashSet<>();
         }
         return data.getSections().stream()
                 .filter(s -> sectionType.equalsIgnoreCase(s.getType())) // Filter by type (e.g., "experience")
                 .flatMap(s -> s.getItems().stream())
                 .map(item -> item.getTitle() != null ? item.getTitle().trim().toLowerCase() : "")
                 .filter(title -> !title.isEmpty())
-                .collect(java.util.stream.Collectors.toSet());
-    }
-
-    private List<String> generateDiffs(ResumeData original, ResumeData tailored) {
-        List<String> diffs = new ArrayList<>();
-        
-        if (original.getPersonalInfo() != null && tailored.getPersonalInfo() != null) {
-            String origSummary = original.getPersonalInfo().getSummary();
-            String tailoredSummary = tailored.getPersonalInfo().getSummary();
-            if (origSummary != null && !origSummary.equals(tailoredSummary)) {
-                diffs.add("Optimized Professional Summary");
-            }
-        }
-        
-        // Detect added keywords in skills
-        String origSkills = extractSkills(original);
-        String newSkills = extractSkills(tailored);
-        if (!origSkills.equals(newSkills)) {
-            diffs.add("Updated Skills section with JD keywords");
-        }
-        
-        return diffs;
+                .collect(Collectors.toSet());
     }
 }
