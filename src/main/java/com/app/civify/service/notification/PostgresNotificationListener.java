@@ -21,14 +21,32 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
+ * @deprecated This class is disabled in favor of Google Pub/Sub.
  * PostgreSQL LISTEN/NOTIFY listener for real-time notification delivery.
- * Active when notification.provider=postgres (default fallback).
+ * 
+ * DISABLED: This implementation used PostgreSQL pg_notify() for real-time notifications.
+ * Now using Google Cloud Pub/Sub via PubSubNotificationListener.
+ * 
+ * Kept for reference and potential fallback reactivation.
+ * 
+ * HOW TO PREVENT DUPLICATE SENDS:
+ * 
+ * 1. PostgreSQL TRIGGER fires ONCE per INSERT
+ * 2. This listener receives notification
+ * 3. Pushes to SSE clients
+ * 4. Marks as delivered = TRUE in DB
+ * 5. Quartz fallback skips delivered = TRUE notifications
+ * 
+ * DEDUPLICATION MECHANISMS:
+ * - idempotencyKey in DB (prevents duplicate creation)
+ * - delivered flag (prevents duplicate sending)
+ * - Set<Long> processedIds cache (in-memory, prevents same notification twice)
  */
 
 @Component
 @Slf4j
 @RequiredArgsConstructor
-@ConditionalOnProperty(value = "spring.cloud.gcp.pubsub.enabled", havingValue = "false", matchIfMissing = true)
+@Deprecated
 public class PostgresNotificationListener {
 
     private final DataSource dataSource;
@@ -41,7 +59,7 @@ public class PostgresNotificationListener {
     // Broadcast SSE connections (for broadcast notifications)
     private final CopyOnWriteArrayList<SseEmitter> broadcastConnections = new CopyOnWriteArrayList<>();
 
-    private volatile boolean running = false;
+    private volatile boolean running = false; // DISABLED - set to false
     private Thread listenerThread;
 
     /**
@@ -50,13 +68,14 @@ public class PostgresNotificationListener {
      */
     @PostConstruct
     public void startListening() {
-        if (running) return;
-        running = true;
+        // DISABLED: PostgreSQL LISTEN/NOTIFY replaced by Google Pub/Sub
+        log.info("⚠️ PostgreSQL LISTEN/NOTIFY is DISABLED. Using Google Pub/Sub for notifications.");
         
-        listenerThread = new Thread(this::listen, "PostgreSQL-LISTEN-Thread");
-        listenerThread.setDaemon(true);
-        listenerThread.start();
-        log.info("🎧 PostgreSQL LISTEN/NOTIFY started (Fallback Mode)");
+        // Original code kept for reference:
+        // listenerThread = new Thread(this::listen, "PostgreSQL-LISTEN-Thread");
+        // listenerThread.setDaemon(true);
+        // listenerThread.start();
+        // log.info("🎧 PostgreSQL LISTEN/NOTIFY started");
     }
 
     @PreDestroy
