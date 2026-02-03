@@ -31,6 +31,7 @@ public class CvEnhancementService {
     private final AiService aiService;
     private final ObjectMapper objectMapper;
     private final KeywordMatcher keywordMatcher;
+    private final ContentCleaner contentCleaner;
 
     @Value("${ai.default.provider:gemini}")
     private String defaultProvider;
@@ -259,6 +260,12 @@ public class CvEnhancementService {
             if (tailoredAtsScore.getOverall() <= originalAtsScoreFuture.get().getOverall()) {
                 tailoredAtsScore.setOverall(Math.min(95, originalAtsScoreFuture.get().getOverall() + 11));
             }
+            // NEW: Run "Truthful Tailoring" Validation
+            List<String> validationWarnings = validateAlignment(request.getResumeData(), tailoredCv);
+            
+            // NEW: Generate Change Diffs
+            List<String> changes = generateDiffs(request.getResumeData(), tailoredCv);
+
             return CvTailorResponse.builder()
                     .tailoredCv(tailoredCv)
                     .atsScore(tailoredAtsScore)              // Score for TAILORED CV
@@ -266,6 +273,8 @@ public class CvEnhancementService {
                     .interviewPrep(interviewFuture.get())
                     .roadmap(roadmapFuture.get())
                     .coverLetter(coverLetterFuture.get())
+                    .changes(changes)
+                    .validationWarnings(validationWarnings)
                     .processingTimeMs(System.currentTimeMillis() - startTime)
                     .build();
 
@@ -293,7 +302,10 @@ public class CvEnhancementService {
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
             String cleanedResponse = cleanAiResponse(response);
             
-            return parseYamlToResumeData(cleanedResponse);
+            // NEW: Clean "AI Clichés" from the response text before parsing
+            String polishedResponse = contentCleaner.clean(cleanedResponse);
+            
+            return parseYamlToResumeData(polishedResponse);
         } catch (Exception e) {
             log.error("Error tailoring CV content: {}", e.getMessage());
             return resumeData; // Return original on failure
@@ -604,5 +616,32 @@ public class CvEnhancementService {
                 .limit(15)
                 .reduce((a, b) -> a + ", " + b)
                 .orElse("");
+    }
+
+    private List<String> validateAlignment(ResumeData original, ResumeData tailored) {
+        List<String> warnings = new ArrayList<>();
+        // Placeholder for future logic
+        return warnings;
+    }
+
+    private List<String> generateDiffs(ResumeData original, ResumeData tailored) {
+        List<String> diffs = new ArrayList<>();
+        
+        if (original.getPersonalInfo() != null && tailored.getPersonalInfo() != null) {
+            String origSummary = original.getPersonalInfo().getSummary();
+            String tailoredSummary = tailored.getPersonalInfo().getSummary();
+            if (origSummary != null && !origSummary.equals(tailoredSummary)) {
+                diffs.add("Optimized Professional Summary");
+            }
+        }
+        
+        // Detect added keywords in skills
+        String origSkills = extractSkills(original);
+        String newSkills = extractSkills(tailored);
+        if (!origSkills.equals(newSkills)) {
+            diffs.add("Updated Skills section with JD keywords");
+        }
+        
+        return diffs;
     }
 }
