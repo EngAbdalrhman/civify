@@ -1,0 +1,55 @@
+package com.app.civify.service.document.pdf;
+
+import com.app.civify.dto.resume.ResumeData;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Primary;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+
+import java.util.Map;
+
+/**
+ * Generates PDFs by calling the Frontend's high-fidelity Puppeteer endpoint.
+ * High-Fidelity = Pixel perfect, CSS Grid/Flexbox support, Modern fonts.
+ */
+@Service
+@Primary // Make this the default
+@RequiredArgsConstructor
+@Slf4j
+public class FrontendPdfGenerationService implements PdfGenerationService {
+
+    private final ThymeleafPdfGenerationService fallbackService;
+    
+    @Value("${app.frontend.base-url:http://localhost:3000}")
+    private String frontendUrl;
+
+    @Override
+    public byte[] generatePdf(ResumeData resumeData, String templateName) {
+        log.info("Requesting High-Fidelity PDF from Frontend: {} using template: {}", frontendUrl, templateName);
+
+        try {
+            RestClient restClient = RestClient.create();
+            
+            // Call Frontend API: /api/generate-pdf
+            // Payload: { "resumeData": {...}, "template": "modern", "filename": "cv" }
+            return restClient.post()
+                    .uri(frontendUrl + "/api/generate-pdf")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of(
+                            "resumeData", resumeData,
+                            "template", templateName != null ? templateName : "modern",
+                            "filename", "resume"
+                    ))
+                    .retrieve()
+                    .body(byte[].class);
+
+        } catch (Exception e) {
+            log.error("Frontend PDF generation failed: {}. Falling back to legacy renderer.", e.getMessage());
+            // Fallback to legacy service for resilience
+            return fallbackService.generatePdf(resumeData, templateName);
+        }
+    }
+}
