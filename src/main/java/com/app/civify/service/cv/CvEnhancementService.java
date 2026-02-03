@@ -30,6 +30,7 @@ public class CvEnhancementService {
 
     private final AiService aiService;
     private final ObjectMapper objectMapper;
+    private final KeywordMatcher keywordMatcher;
 
     @Value("${ai.default.provider:gemini}")
     private String defaultProvider;
@@ -300,6 +301,10 @@ public class CvEnhancementService {
     }
 
     private AtsScore calculateAtsScore(ResumeData resumeData, String jobDescription) {
+        // 1. Calculate deterministic keyword match score
+        String cvTextForMatching = buildCvSummary(resumeData); // Use the summary text for matching
+        KeywordMatcher.MatchResult keywordResult = keywordMatcher.match(cvTextForMatching, jobDescription);
+        
         try {
             String cvSummary = buildCvSummary(resumeData);
             String prompt = String.format(ATS_SCORE_PROMPT, jobDescription, cvSummary);
@@ -307,15 +312,42 @@ public class CvEnhancementService {
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
             String cleanedResponse = cleanAiResponse(response);
             
-            return parseYamlToAtsScore(cleanedResponse);
-        } catch (Exception e) {
-            log.error("Error calculating ATS score: {}", e.getMessage());
+            AtsScore aiScore = parseYamlToAtsScore(cleanedResponse);
+            
+            // 2. Hybrid Score Calculation
+            // Weigh AI score 60% and Keyword score 40%
+            int hybridOverall = (int) Math.round((aiScore.getOverall() * 0.6) + (keywordResult.score() * 0.4));
+            
+            // Merge missing keywords (AI + Deterministic)
+            List<String> mergedMissingKeywords = new ArrayList<>();
+            if (aiScore.getMissingKeywords() != null) {
+                mergedMissingKeywords.addAll(aiScore.getMissingKeywords());
+            }
+            // Add top 10 missing keywords from deterministic matcher if not already present
+            for (String kw : keywordResult.missingKeywords()) {
+                 if (mergedMissingKeywords.size() >= 15) break; 
+                 if (!mergedMissingKeywords.contains(kw)) {
+                     mergedMissingKeywords.add(kw);
+                 }
+            }
+            
             return AtsScore.builder()
-                    .overall(-1)
-                    .keywordMatch(-1)
-                    .skillsMatch(-1)
-                    .missingKeywords(new ArrayList<>())
-                    .suggestions(List.of("Could not fully analyze. Please review manually."))
+                    .overall(hybridOverall)
+                    .keywordMatch(keywordResult.score()) // Use the real keyword score here for accuracy
+                    .skillsMatch(aiScore.getSkillsMatch())
+                    .missingKeywords(mergedMissingKeywords)
+                    .suggestions(aiScore.getSuggestions())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error calculating ATS score (AI failed), falling back to keyword score: {}", e.getMessage());
+            // Fallback to purely deterministic score if AI fails
+            return AtsScore.builder()
+                    .overall(keywordResult.score())
+                    .keywordMatch(keywordResult.score())
+                    .skillsMatch(0)
+                    .missingKeywords(keywordResult.missingKeywords())
+                    .suggestions(List.of("AI analysis failed. Score based on keyword matching only."))
                     .build();
         }
     }
