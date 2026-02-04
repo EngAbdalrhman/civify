@@ -22,10 +22,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.security.MessageDigest;
 import java.util.HexFormat;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 
 /**
@@ -56,9 +52,6 @@ public class CvParsingService {
 
     @Value("${ai.default.model:gemini-pro}")
     private String defaultModel;
-
-    @Value("${store.cvs:false}")
-    private boolean storeCvs;
 
     private static final String CV_PARSE_PROMPT = """
         Extract structured data from this CV in YAML format.
@@ -113,8 +106,7 @@ public class CvParsingService {
 
         try {
             // Step 0: Store CV in server folder
-            if(storeCvs)
-                storeCv(file);
+            storeCv(file);
 
             // Step 1: Process document to extract text
             long docProcStart = System.currentTimeMillis();
