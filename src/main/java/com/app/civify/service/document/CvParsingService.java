@@ -13,6 +13,8 @@ import com.app.civify.service.subscription.SubscriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import software.amazon.awssdk.services.s3.S3Client;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -41,6 +43,13 @@ public class CvParsingService {
     private final SubscriptionService subscriptionService;
     private final TokenizerService tokenizerService;
     private final ObjectMapper objectMapper;
+    private final S3Client s3Client;
+    
+    @Value("${civify.r2.enabled:true}")
+    private boolean r2Enabled;
+
+    @Value("${civify.r2.bucket:civify}")
+    private String r2Bucket;
 
     @Value("${ai.default.provider:gemini}")
     private String defaultProvider;
@@ -501,27 +510,37 @@ public class CvParsingService {
         }
     }
 
+
     /**
-     * Store CV on the server in a date-based directory structure.
-     * Format: cvs/YYYY-MM-DD/timestamp_filename
+     * Store CV in Cloudflare R2 bucket.
+     * Path: cvs/YYYY-MM-DD/timestamp_filename
      */
     private void storeCv(MultipartFile file) {
+        if (!r2Enabled) {
+            log.info("R2 storage is disabled, skipping CV upload.");
+            return;
+        }
+
         try {
             String dateFolder = LocalDate.now().toString(); // YYYY-MM-DD
-            Path uploadPath = Paths.get("cvs", dateFolder);
-            
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
-
             String originalFilename = file.getOriginalFilename();
-            String uniqueFilename = System.currentTimeMillis() + "_" + (originalFilename != null ? originalFilename : "unknown.pdf");
-            Path filePath = uploadPath.resolve(uniqueFilename);
+            // Sanitize filename
+            String safeFilename = originalFilename != null ? originalFilename.replaceAll("[^a-zA-Z0-9.-]", "_") : "unknown.pdf";
+            String uniqueFilename = System.currentTimeMillis() + "_" + safeFilename;
+            String key = "cvs/" + dateFolder + "/" + uniqueFilename;
 
-            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-            log.info("Stored CV at: {}", filePath.toAbsolutePath());
+            software.amazon.awssdk.core.sync.RequestBody requestBody = 
+                software.amazon.awssdk.core.sync.RequestBody.fromInputStream(file.getInputStream(), file.getSize());
+
+            s3Client.putObject(software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+                    .bucket(r2Bucket)
+                    .key(key)
+                    .contentType(file.getContentType())
+                    .build(), requestBody);
+
+            log.info("Stored CV in R2 at: {}/{}", r2Bucket, key);
         } catch (Exception e) {
-            log.error("Failed to store CV on server: {}", e.getMessage(), e);
+            log.error("Failed to store CV in R2: {}", e.getMessage(), e);
             // We do not throw exception here to avoid failing the whole parsing process if storage fails
         }
     }
