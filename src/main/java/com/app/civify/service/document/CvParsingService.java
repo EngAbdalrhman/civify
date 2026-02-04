@@ -39,13 +39,7 @@ public class CvParsingService {
     private final SubscriptionService subscriptionService;
     private final TokenizerService tokenizerService;
     private final ObjectMapper objectMapper;
-    private final S3Client s3Client;
-    
-    @Value("${civify.r2.enabled:true}")
-    private boolean r2Enabled;
-
-    @Value("${civify.r2.bucket:civify}")
-    private String r2Bucket;
+    private final BucketService bucketService;
 
     @Value("${ai.default.provider:gemini}")
     private String defaultProvider;
@@ -106,7 +100,7 @@ public class CvParsingService {
 
         try {
             // Step 0: Store CV in server folder
-            storeCv(file);
+            bucketService.storeCv(file, userId);
 
             // Step 1: Process document to extract text
             long docProcStart = System.currentTimeMillis();
@@ -501,39 +495,5 @@ public class CvParsingService {
             return response;
         }
     }
-
-
-    /**
-     * Store CV in Cloudflare R2 bucket.
-     * Path: cvs/YYYY-MM-DD/timestamp_filename
-     */
-    private void storeCv(MultipartFile file) {
-        if (!r2Enabled) {
-            log.info("R2 storage is disabled, skipping CV upload.");
-            return;
-        }
-
-        try {
-            String dateFolder = LocalDate.now().toString(); // YYYY-MM-DD
-            String originalFilename = file.getOriginalFilename();
-            // Sanitize filename
-            String safeFilename = originalFilename != null ? originalFilename.replaceAll("[^a-zA-Z0-9.-]", "_") : "unknown.pdf";
-            String uniqueFilename = System.currentTimeMillis() + "_" + safeFilename;
-            String key = "cvs/" + dateFolder + "/" + uniqueFilename;
-
-            software.amazon.awssdk.core.sync.RequestBody requestBody = 
-                software.amazon.awssdk.core.sync.RequestBody.fromInputStream(file.getInputStream(), file.getSize());
-
-            s3Client.putObject(software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
-                    .bucket(r2Bucket)
-                    .key(key)
-                    .contentType(file.getContentType())
-                    .build(), requestBody);
-
-            log.info("Stored CV in R2 at: {}/{}", r2Bucket, key);
-        } catch (Exception e) {
-            log.error("Failed to store CV in R2: {}", e.getMessage(), e);
-            // We do not throw exception here to avoid failing the whole parsing process if storage fails
-        }
-    }
+    
 }
