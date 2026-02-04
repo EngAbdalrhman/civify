@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.postgresql.PGConnection;
 import org.postgresql.PGNotification;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -35,6 +36,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * - delivered flag (prevents duplicate sending)
  * - Set<Long> processedIds cache (in-memory, prevents same notification twice)
  */
+
 @Component
 @Slf4j
 @RequiredArgsConstructor
