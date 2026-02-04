@@ -60,6 +60,10 @@ public class RedisConfig {
         cacheConfigurations.put("cv-parsing", 
             defaultConfig.entryTtl(Duration.ofHours(24)));
 
+        // AI Responses: 24 hours (caching expensive LLM calls)
+        cacheConfigurations.put("ai_responses", 
+            defaultConfig.entryTtl(Duration.ofHours(24)));
+
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)
                 .withInitialCacheConfigurations(cacheConfigurations)

@@ -13,6 +13,8 @@ import com.app.civify.service.subscription.SubscriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import software.amazon.awssdk.services.s3.S3Client;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -20,10 +22,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.security.MessageDigest;
 import java.util.HexFormat;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 
 /**
@@ -41,15 +39,13 @@ public class CvParsingService {
     private final SubscriptionService subscriptionService;
     private final TokenizerService tokenizerService;
     private final ObjectMapper objectMapper;
+    private final BucketService bucketService;
 
     @Value("${ai.default.provider:gemini}")
     private String defaultProvider;
 
     @Value("${ai.default.model:gemini-pro}")
     private String defaultModel;
-
-    @Value("${store.cvs:false}")
-    private boolean storeCvs;
 
     private static final String CV_PARSE_PROMPT = """
         Extract structured data from this CV in YAML format.
@@ -104,8 +100,7 @@ public class CvParsingService {
 
         try {
             // Step 0: Store CV in server folder
-            if(storeCvs)
-                storeCv(file);
+            bucketService.storeCv(file, userId);
 
             // Step 1: Process document to extract text
             long docProcStart = System.currentTimeMillis();
@@ -500,29 +495,5 @@ public class CvParsingService {
             return response;
         }
     }
-
-    /**
-     * Store CV on the server in a date-based directory structure.
-     * Format: cvs/YYYY-MM-DD/timestamp_filename
-     */
-    private void storeCv(MultipartFile file) {
-        try {
-            String dateFolder = LocalDate.now().toString(); // YYYY-MM-DD
-            Path uploadPath = Paths.get("cvs", dateFolder);
-            
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
-
-            String originalFilename = file.getOriginalFilename();
-            String uniqueFilename = System.currentTimeMillis() + "_" + (originalFilename != null ? originalFilename : "unknown.pdf");
-            Path filePath = uploadPath.resolve(uniqueFilename);
-
-            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-            log.info("Stored CV at: {}", filePath.toAbsolutePath());
-        } catch (Exception e) {
-            log.error("Failed to store CV on server: {}", e.getMessage(), e);
-            // We do not throw exception here to avoid failing the whole parsing process if storage fails
-        }
-    }
+    
 }
