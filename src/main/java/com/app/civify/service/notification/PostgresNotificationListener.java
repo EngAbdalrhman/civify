@@ -22,24 +22,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * PostgreSQL LISTEN/NOTIFY listener for real-time notification delivery.
- * 
- * HOW TO PREVENT DUPLICATE SENDS:
- * 
- * 1. PostgreSQL TRIGGER fires ONCE per INSERT
- * 2. This listener receives notification
- * 3. Pushes to SSE clients
- * 4. Marks as delivered = TRUE in DB
- * 5. Quartz fallback skips delivered = TRUE notifications
- * 
- * DEDUPLICATION MECHANISMS:
- * - idempotencyKey in DB (prevents duplicate creation)
- * - delivered flag (prevents duplicate sending)
- * - Set<Long> processedIds cache (in-memory, prevents same notification twice)
+ * Active when notification.provider=postgres (default fallback).
  */
 
 @Component
 @Slf4j
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "notification.provider", havingValue = "postgres", matchIfMissing = true)
 public class PostgresNotificationListener {
 
     private final DataSource dataSource;
@@ -52,15 +41,22 @@ public class PostgresNotificationListener {
     // Broadcast SSE connections (for broadcast notifications)
     private final CopyOnWriteArrayList<SseEmitter> broadcastConnections = new CopyOnWriteArrayList<>();
 
-    private volatile boolean running = true;
+    private volatile boolean running = false;
     private Thread listenerThread;
 
+    /**
+     * DISABLED - PostgreSQL LISTEN/NOTIFY is no longer used.
+     * Using Google Cloud Pub/Sub instead.
+     */
     @PostConstruct
     public void startListening() {
+        if (running) return;
+        running = true;
+        
         listenerThread = new Thread(this::listen, "PostgreSQL-LISTEN-Thread");
         listenerThread.setDaemon(true);
         listenerThread.start();
-        log.info("🎧 PostgreSQL LISTEN/NOTIFY started");
+        log.info("🎧 PostgreSQL LISTEN/NOTIFY started (Fallback Mode)");
     }
 
     @PreDestroy
@@ -74,7 +70,9 @@ public class PostgresNotificationListener {
 
     /**
      * Background thread that listens to PostgreSQL notifications
+     * DISABLED - kept for reference
      */
+    @SuppressWarnings("unused")
     private void listen() {
         while (running) {
             try (Connection conn = dataSource.getConnection();
@@ -113,6 +111,7 @@ public class PostgresNotificationListener {
 
     /**
      * Handle incoming PostgreSQL notification
+     * DISABLED - kept for reference
      */
     private void handleNotification(String payload) {
         try {
@@ -219,7 +218,9 @@ public class PostgresNotificationListener {
 
     /**
      * Register SSE connection for a user
+     * @deprecated Use SseNotificationDeliveryService instead
      */
+    @Deprecated
     public void registerUserConnection(Long userId, SseEmitter emitter) {
         userConnections.computeIfAbsent(userId, k -> new CopyOnWriteArrayList<>()).add(emitter);
         log.info("✅ Registered SSE connection for user {}", userId);
@@ -232,7 +233,9 @@ public class PostgresNotificationListener {
 
     /**
      * Register SSE connection for broadcast notifications
+     * @deprecated Use SseNotificationDeliveryService instead
      */
+    @Deprecated
     public void registerBroadcastConnection(SseEmitter emitter) {
         broadcastConnections.add(emitter);
         log.info("✅ Registered broadcast SSE connection (total: {})", broadcastConnections.size());

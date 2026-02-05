@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Slf4j
-@ConditionalOnProperty(value = "spring.cloud.gcp.pubsub.enabled", havingValue = "false", matchIfMissing = true)
+@ConditionalOnProperty(name = "notification.provider", havingValue = "postgres", matchIfMissing = true)
 public class PostgresNotificationPublisher implements NotificationPublisher {
 
     @Override
