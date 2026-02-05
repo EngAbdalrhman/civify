@@ -4,6 +4,9 @@ import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.job.JobApplicationRequest;
 import com.app.civify.dto.job.JobApplicationResponse;
 import com.app.civify.security.UserPrincipal;
+import com.app.civify.dto.job.ScrapeJdRequest;
+import com.app.civify.dto.job.ScrapeJdResponse;
+import com.app.civify.service.external.JdScraperService;
 import com.app.civify.service.job.JobApplicationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -25,6 +28,7 @@ import java.util.List;
 public class JobApplicationController {
 
     private final JobApplicationService jobApplicationService;
+    private final JdScraperService jdScraperService;
 
     @Operation(summary = "Get all job applications", security = @SecurityRequirement(name = "bearer-jwt"))
     @GetMapping
@@ -59,5 +63,13 @@ public class JobApplicationController {
     public ResponseEntity<Void> deleteApplication(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal userPrincipal) {
         jobApplicationService.deleteApplication(id, userPrincipal);
         return ResponseEntity.noContent().build();
+    }
+    @Operation(summary = "Scrape Job Description from URL", security = @SecurityRequirement(name = "bearer-jwt"))
+    @PostMapping("/scrape-jd")
+    public ResponseEntity<ScrapeJdResponse> scrapeJobDescription(@RequestBody ScrapeJdRequest request) {
+        String content = jdScraperService.scrape(request.getUrl());
+        return ResponseEntity.ok(ScrapeJdResponse.builder()
+                .content(content)
+                .build());
     }
 }
