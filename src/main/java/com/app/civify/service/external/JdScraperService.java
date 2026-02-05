@@ -75,15 +75,48 @@ public class JdScraperService {
         if (element == null) return "";
         
         // Preserve line breaks for standard block elements
-        Document.OutputSettings outputSettings = new Document.OutputSettings();
-        outputSettings.prettyPrint(false);
+        // Clone to avoid modifying the original document used elsewhere if applicable
+        Element clone = element.clone();
         
-        // Use Jsoup clean but we want text. 
-        // Better: replace <br> and <p> with newlines before getting text
-        element.select("br").append("\\n");
-        element.select("p").prepend("\\n\\n");
-        element.select("li").prepend("\\n- ");
+        clone.select("br").append("\\n");
+        clone.select("p").prepend("\\n\\n");
+        clone.select("li").prepend("\\n- ");
+        clone.select("div").prepend("\\n");
         
-        return Jsoup.clean(element.html(), "", Safelist.none(), outputSettings).trim();
+        // Get the text from the modified HTML
+        // Using clone.text() would just get text of nodes, missing the explicitly added "\n" text nodes correctly if mixed.
+        // Actually, we inserted text nodes containing literal "\n".
+        
+        String safeHtml = Jsoup.clean(clone.html(), Safelist.none());
+        
+        // Unescape entities (like &amp;)
+        String text = Jsoup.parse(safeHtml).text();
+        
+        // Replace literal \n markers we added (which are now just text) with actual newlines
+        text = text.replace("\\n", "\n");
+        
+        // Remove common noise
+        text = text.replaceAll("(?i)Show more\\s*Show less", "");
+        
+        // Normalize whitespace:
+        // 1. Replace multiple spaces with single space
+        // 2. Reduce multiple newlines to max 2
+        
+        String[] lines = text.split("\n");
+        StringBuilder sb = new StringBuilder();
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (!trimmed.isEmpty()) {
+                sb.append(trimmed).append("\n");
+            } else {
+                 // Keep empty lines but limit consecutive ones?
+                 // Simple approach: just rebuild
+                 sb.append("\n");
+            }
+        }
+        
+        String result = sb.toString();
+        // Collapse 3+ newlines to 2
+        return result.replaceAll("\n{3,}", "\n\n").trim();
     }
 }
