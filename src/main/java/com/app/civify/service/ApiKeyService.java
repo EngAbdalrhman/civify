@@ -70,9 +70,13 @@ public class ApiKeyService {
                 .orElse(null);
         
         if (apiKey != null) {
-            // Force initialization of User entity to avoid LazyInitializationException in filter
+            // Force initialization of User entity and subscriptions to avoid LazyInitializationException in filter
             apiKey.getUser().getId(); 
             apiKey.getUser().getEmail();
+            // Initialize subscriptions for plan checks since they are accessed in the filter
+            if (apiKey.getUser().getSubscriptions() != null) {
+                apiKey.getUser().getSubscriptions().size();
+            }
         }
         return apiKey;
     }
