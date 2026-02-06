@@ -1,6 +1,7 @@
 package com.app.civify.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -30,10 +31,8 @@ public class R2Config {
     private boolean enabled;
 
     @Bean
+    @ConditionalOnProperty(name = "civify.r2.enabled", havingValue = "true")
     public S3Client s3Client() {
-        if (!enabled) {
-            return null; // Return null if disabled, service should handle this
-        }
 
         if (accessKey.isBlank() || secretKey.isBlank() || endpoint.isBlank()) {
             log.info("missing data for s3 r2");
