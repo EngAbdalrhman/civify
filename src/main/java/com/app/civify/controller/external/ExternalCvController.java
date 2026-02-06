@@ -1,6 +1,7 @@
 package com.app.civify.controller.external;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
+import com.app.civify.dto.cv.CvTailorResponse;
 import com.app.civify.dto.document.CvParseResponse;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.external.ExternalCvService;
@@ -76,6 +77,41 @@ public class ExternalCvController {
                      .success(false)
                      .message("Internal Server Error: " + e.getMessage())
                      .build());
+        }
+    }
+
+    @Operation(
+            summary = "Tailor CV (External)",
+            description = "Upload a CV and job description to get a tailored CV with ATS analysis. Requires X-API-KEY header.",
+            security = @SecurityRequirement(name = "api-key")
+    )
+    @PostMapping(value = "/tailor", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<CvTailorResponse> tailorCv(
+            @RequestPart("file") MultipartFile file,
+            @RequestPart("jobDescription") String jobDescription,
+            @RequestParam(value = "jobTitle", required = false) String jobTitle,
+            @RequestParam(value = "companyName", required = false) String companyName,
+            @RequestParam(value = "language", required = false) String language,
+            @RequestParam(value = "generateCoverLetter", defaultValue = "false") boolean generateCoverLetter,
+            @RequestParam(value = "includeInterviewQuestions", defaultValue = "false") boolean includeInterviewQuestions,
+            @RequestParam(value = "includeRoadmap", defaultValue = "false") boolean includeRoadmap,
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            HttpServletRequest httpRequest) {
+
+        try {
+            CvTailorResponse response = externalCvService.tailorCv(
+                    file, jobDescription, jobTitle, companyName, language,
+                    generateCoverLetter, includeInterviewQuestions, includeRoadmap,
+                    userPrincipal.getUser(), httpRequest
+            );
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(CvTailorResponse.builder()
+                    .build());
+        } catch (Exception e) {
+            log.error("Error tailoring CV: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(CvTailorResponse.builder()
+                    .build());
         }
     }
 }

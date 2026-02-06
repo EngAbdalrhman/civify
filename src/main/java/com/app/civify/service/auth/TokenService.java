@@ -56,7 +56,8 @@ public class TokenService {
      * Generate new JWT refresh token (stateless but blacklisted)
      */
     private String generateRefreshToken(User user) {
-        String token = jwtUtil.generateRefreshToken(user, REFRESH_TOKEN_COOKIE_MAX_AGE);
+        // REFRESH_TOKEN_COOKIE_MAX_AGE is in seconds; generateRefreshToken expects milliseconds
+        String token = jwtUtil.generateRefreshToken(user, REFRESH_TOKEN_COOKIE_MAX_AGE * 1000L);
         // We don't strictly need to store it for validation (it's a JWT),
         // but we can track it for "logout all" if needed.
         // For now, we rely on JWT signature + blacklist check.
@@ -65,20 +66,20 @@ public class TokenService {
     }
 
     /**
-     * Refresh access token using refresh token
-     * Implements refresh token rotation
+     * Refresh access token using refresh token Implements refresh token
+     * rotation
      */
     public AuthTokenPair refreshAccessToken(String refreshToken, User user) {
         // 1. Check if token is blacklisted
         if (isRefreshTokenBlacklisted(refreshToken)) {
-             log.warn("Refresh token is blacklisted for user: {}", user.getUsername());
-             throw new BadRequestException("token.refresh.invalid");
+            log.warn("Refresh token is blacklisted for user: {}", user.getUsername());
+            throw new BadRequestException("token.refresh.invalid");
         }
 
         // 2. Validate JWT signature and expiration
         if (!jwtUtil.validateToken(refreshToken, user.getUsername())) {
-             log.warn("Invalid refresh token signature/expiry for user: {}", user.getUsername());
-             throw new BadRequestException("token.refresh.invalid");
+            log.warn("Invalid refresh token signature/expiry for user: {}", user.getUsername());
+            throw new BadRequestException("token.refresh.invalid");
         }
 
         // 3. Rotate: Blacklist the old token
@@ -200,8 +201,6 @@ public class TokenService {
     public String extractGroup(String token) {
         return jwtUtil.extractGroup(token);
     }
-
-
 
     /**
      * Track a refresh token for a user (for revoke all functionality)

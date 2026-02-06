@@ -137,7 +137,7 @@ public class CvParsingService {
                         .build();
             }
 
-            ResumeData resumeData = parseTextWithAi(truncatedText, request.isPiiOnly());
+            ResumeData resumeData = parseTextWithAi(truncatedText, request);
             long aiTime = System.currentTimeMillis() - aiStart;
             log.info("AI Parsing Time: {}ms", aiTime);
 
