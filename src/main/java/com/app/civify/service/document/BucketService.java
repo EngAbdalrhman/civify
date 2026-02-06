@@ -2,8 +2,8 @@ package com.app.civify.service.document;
 
 import com.app.civify.entity.document.StoredFile;
 import com.app.civify.repository.document.StoredFileRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -15,11 +15,15 @@ import java.time.LocalDate;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class BucketService {
 
     private final S3Client s3Client;
     private final StoredFileRepository storedFileRepository;
+
+    public BucketService(@Autowired(required = false) S3Client s3Client, StoredFileRepository storedFileRepository) {
+        this.s3Client = s3Client;
+        this.storedFileRepository = storedFileRepository;
+    }
 
     @Value("${civify.r2.enabled:true}")
     private boolean r2Enabled;
