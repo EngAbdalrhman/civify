@@ -1,11 +1,14 @@
 package com.app.civify.service.external;
 
+import com.app.civify.dto.cv.CvTailorRequest;
+import com.app.civify.dto.cv.CvTailorResponse;
 import com.app.civify.dto.document.CvParseRequest;
 import com.app.civify.dto.document.CvParseResponse;
 import com.app.civify.dto.document.MaskRequest;
 import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.entity.User;
 import com.app.civify.entity.enums.TokenUsageType;
+import com.app.civify.service.cv.CvEnhancementService;
 import com.app.civify.service.cvlog.CvOperationLogService;
 import com.app.civify.service.document.CvParsingService;
 import com.app.civify.service.document.masking.MaskingService;
@@ -26,6 +29,7 @@ import jakarta.servlet.http.HttpServletRequest;
 public class ExternalCvService {
 
     private final CvParsingService cvParsingService;
+    private final CvEnhancementService cvEnhancementService;
     private final MaskingService maskingService;
     private final PdfGenerationService pdfGenerationService;
     private final CvOperationLogService cvOperationLogService;
@@ -35,6 +39,7 @@ public class ExternalCvService {
     // TODO fix Token costs for external API operations
     private static final int TOKENS_EXTERNAL_MASK = 300;
     private static final int TOKENS_EXTERNAL_PARSE = 200;
+    private static final int TOKENS_EXTERNAL_TAILOR = 700;
 
     public byte[] maskCv(MultipartFile file, String language, User user, HttpServletRequest httpRequest) {
         long startTime = System.currentTimeMillis();
@@ -55,7 +60,7 @@ public class ExternalCvService {
             if (!parseResponse.isSuccess() || parseResponse.getResumeData() == null) {
                 long processingTime = System.currentTimeMillis() - startTime;
                 cvOperationLogService.logMask(
-                        user, null, "/api/v1/external/cvs/mask", processingTime,
+                        user, null, "/apis/v1/external/cvs/mask", processingTime,
                         false, "Failed to parse CV",
                         getClientIp(httpRequest), httpRequest.getHeader("User-Agent"),
                         file.getOriginalFilename()
@@ -81,7 +86,7 @@ public class ExternalCvService {
 
             // Log successful operation
             cvOperationLogService.logMask(
-                    user, originalResumeData, "/api/v1/external/cvs/mask", totalTime,
+                    user, originalResumeData, "/apis/v1/external/cvs/mask", totalTime,
                     true, null,
                     getClientIp(httpRequest), httpRequest.getHeader("User-Agent"),
                     file.getOriginalFilename()
@@ -101,7 +106,7 @@ public class ExternalCvService {
         } catch (Exception e) {
             long processingTime = System.currentTimeMillis() - startTime;
             cvOperationLogService.logMask(
-                    user, originalResumeData, "/api/v1/external/cvs/mask", processingTime,
+                    user, originalResumeData, "/apis/v1/external/cvs/mask", processingTime,
                     false, e.getMessage(),
                     getClientIp(httpRequest), httpRequest.getHeader("User-Agent"),
                     file.getOriginalFilename()
@@ -129,7 +134,7 @@ public class ExternalCvService {
 
         // Log the operation
         cvOperationLogService.logParse(
-                user, response.getResumeData(), "/api/v1/external/cvs/parse", processingTime,
+                user, response.getResumeData(), "/apis/v1/external/cvs/parse", processingTime,
                 response.isSuccess(), response.isSuccess() ? null : response.getMessage(),
                 getClientIp(httpRequest), httpRequest.getHeader("User-Agent"),
                 file.getOriginalFilename(), language
@@ -169,6 +174,94 @@ public class ExternalCvService {
             return request.getRemoteAddr();
         }
         return xfHeader.split(",")[0].trim();
+    }
+
+    /**
+     * Tailors a CV for a job description. Combines parsing and tailoring in one API call.
+     *
+     * @param file           CV file to parse
+     * @param jobDescription Job description text
+     * @param jobTitle       Optional job title
+     * @param companyName    Optional company name
+     * @param language       Optional language hint
+     * @param user           Authenticated user
+     * @param httpRequest    HTTP request for logging
+     * @return CvTailorResponse with tailored CV, ATS scores, and optional extras
+     */
+    public CvTailorResponse tailorCv(MultipartFile file, String jobDescription, String jobTitle,
+                                      String companyName, String language, boolean generateCoverLetter,
+                                      boolean includeInterviewQuestions, boolean includeRoadmap,
+                                      User user, HttpServletRequest httpRequest) {
+        long startTime = System.currentTimeMillis();
+        ResumeData originalResumeData = null;
+
+        try {
+            // Step 1: Parse CV
+            var parseRequest = CvParseRequest.builder()
+                    .language(language)
+                    .saveToDatabase(false)
+                    .build();
+
+            var parseResponse = cvParsingService.parseCv(file, parseRequest, user.getId());
+
+            if (!parseResponse.isSuccess() || parseResponse.getResumeData() == null) {
+                long processingTime = System.currentTimeMillis() - startTime;
+                cvOperationLogService.logTailor(
+                        user, null, "/apis/v1/external/cvs/tailor", processingTime,
+                        false, "Failed to parse CV: " + parseResponse.getMessage(),
+                        getClientIp(httpRequest), httpRequest.getHeader("User-Agent"),
+                        jobTitle != null ? jobTitle : "unspecified"
+                );
+                throw new RuntimeException("Failed to parse CV: " + parseResponse.getMessage());
+            }
+
+            originalResumeData = parseResponse.getResumeData();
+
+            // Step 2: Tailor CV
+            var tailorRequest = CvTailorRequest.builder()
+                    .resumeData(originalResumeData)
+                    .jobDescription(jobDescription)
+                    .jobTitle(jobTitle)
+                    .companyName(companyName)
+                    .generateCoverLetter(generateCoverLetter)
+                    .includeInterviewQuestions(includeInterviewQuestions)
+                    .includeRoadmap(includeRoadmap)
+                    .build();
+
+            CvTailorResponse response = cvEnhancementService.tailorCv(tailorRequest);
+
+            long processingTime = System.currentTimeMillis() - startTime;
+            response.setProcessingTimeMs(processingTime);
+
+            // Log successful operation
+            cvOperationLogService.logTailor(
+                    user, response.getTailoredCv(), "/apis/v1/external/cvs/tailor", processingTime,
+                    true, null,
+                    getClientIp(httpRequest), httpRequest.getHeader("User-Agent"),
+                    jobTitle != null ? jobTitle : "unspecified"
+            );
+
+            // Charge tokens for external API tailor operation
+            try {
+                subscriptionService.chargeTokens(user.getId(), TOKENS_EXTERNAL_TAILOR, TokenUsageType.EXTERNAL_API,
+                        "External API: CV Tailor - " + file.getOriginalFilename());
+                log.info("Logged token usage for external tailor API: userId={}, file={}", user.getId(), file.getOriginalFilename());
+            } catch (Exception e) {
+                log.error("Failed to log token usage for external tailor: {}", e.getMessage());
+            }
+
+            return response;
+
+        } catch (Exception e) {
+            long processingTime = System.currentTimeMillis() - startTime;
+            cvOperationLogService.logTailor(
+                    user, originalResumeData, "/apis/v1/external/cvs/tailor", processingTime,
+                    false, e.getMessage(),
+                    getClientIp(httpRequest), httpRequest.getHeader("User-Agent"),
+                    jobTitle != null ? jobTitle : "unspecified"
+            );
+            throw e;
+        }
     }
 }
 
