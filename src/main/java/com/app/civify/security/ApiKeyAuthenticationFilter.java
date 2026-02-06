@@ -83,13 +83,13 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
                         .anyMatch(sub -> Boolean.TRUE.equals(sub.getPlan().getHasApiAccess()));
             }
             
-            if (!hasApiAccess) {
-                log.warn("ApiKeyFilter: User {} does not have API access", apiKey.getUser().getEmail());
-                apiKeyService.logUsage(apiKey.getUser(), apiKey, path, request.getMethod(), HttpServletResponse.SC_FORBIDDEN, false, getClientIp(request), "API Access Denied - Plan upgrade required");
-                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                response.getWriter().write("API Access Denied - Your current plan does not support API access");
-                return;
-            }
+            // if (!hasApiAccess) {
+            //     log.warn("ApiKeyFilter: User {} does not have API access", apiKey.getUser().getEmail());
+            //     apiKeyService.logUsage(apiKey.getUser(), apiKey, path, request.getMethod(), HttpServletResponse.SC_FORBIDDEN, false, getClientIp(request), "API Access Denied - Plan upgrade required");
+            //     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            //     response.getWriter().write("API Access Denied - Your current plan does not support API access");
+            //     return;
+            // }
 
             log.info("ApiKeyFilter: Valid API Key for user: {}", apiKey.getUser().getEmail());
 
