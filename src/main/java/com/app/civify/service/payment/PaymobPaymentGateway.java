@@ -165,44 +165,39 @@ public class PaymobPaymentGateway implements PaymentGateway {
     @Override
     @Transactional
     public boolean verifyPayment(String paymentKey) {
-        try {
-            log.info("Verifying Paymob payment with key/order: {}", paymentKey);
+        log.info("Verifying Paymob payment with key/order: {}", paymentKey);
 
-            // Try orderId first (frontend now sends orderId from redirect params)
-            PaymentTransaction transaction = paymentRepository.findByOrderId(paymentKey)
-                    .orElseGet(() -> paymentRepository.findByPaymentKey(paymentKey)
-                    .orElseThrow(() -> new RuntimeException("Payment transaction not found for key: " + paymentKey)));
+        // Try orderId first (frontend now sends orderId from redirect params)
+        PaymentTransaction transaction = paymentRepository.findByOrderId(paymentKey)
+                .orElseGet(() -> paymentRepository.findByPaymentKey(paymentKey)
+                .orElseThrow(() -> new RuntimeException("Payment transaction not found for key: " + paymentKey)));
 
-            // If already completed (e.g. by webhook), return success immediately
-            if (transaction.getStatus() == PaymentStatus.COMPLETED) {
-                log.info("Payment already completed for order {} (likely via webhook)", transaction.getOrderId());
-                return true;
-            }
-
-            // Authenticate and check payment status from Paymob Order (Acceptance API)
-            String authToken = authenticate();
-            // Use "Bearer " prefix as confirmed by createOrder success
-            String orderResponse = paymobClient.getOrder("Bearer " + authToken, transaction.getOrderId());
-
-            // Parse response to check if payment is successful via Order transactions
-            boolean isSuccessful = parseOrderStatus(orderResponse);
-
-            if (isSuccessful) {
-                transaction.setStatus(PaymentStatus.COMPLETED);
-                transaction.setCompletedAt(LocalDateTime.now());
-                log.info("Paymob payment verified successfully for user {}", transaction.getUserId());
-            } else {
-                transaction.setStatus(PaymentStatus.FAILED);
-                log.warn("Paymob payment verification failed for user {}", transaction.getUserId());
-            }
-
-            paymentRepository.save(transaction);
-            return isSuccessful;
-
-        } catch (Exception e) {
-            log.error("Error verifying Paymob payment {}: {}", paymentKey, e.getMessage(), e);
-            return false;
+        // If already completed (e.g. by webhook), return success immediately
+        if (transaction.getStatus() == PaymentStatus.COMPLETED) {
+            log.info("Payment already completed for order {} (likely via webhook)", transaction.getOrderId());
+            return true;
         }
+
+        // Authenticate and check payment status from Paymob Order (Acceptance API)
+        // Let infrastructure exceptions (API errors, timeouts) propagate
+        // so the controller can return 503 instead of a misleading "payment failed"
+        String authToken = authenticate();
+        String orderResponse = paymobClient.getOrder("Bearer " + authToken, transaction.getOrderId());
+
+        // Parse response to check if payment is successful via Order transactions
+        boolean isSuccessful = parseOrderStatus(orderResponse);
+
+        if (isSuccessful) {
+            transaction.setStatus(PaymentStatus.COMPLETED);
+            transaction.setCompletedAt(LocalDateTime.now());
+            log.info("Paymob payment verified successfully for user {}", transaction.getUserId());
+        } else {
+            transaction.setStatus(PaymentStatus.FAILED);
+            log.warn("Paymob payment verification failed for user {}", transaction.getUserId());
+        }
+
+        paymentRepository.save(transaction);
+        return isSuccessful;
     }
 
     /**
