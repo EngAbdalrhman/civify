@@ -49,4 +49,7 @@ public class PaymentTransaction extends BaseEntity {
     @Column(columnDefinition = "jsonb")
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     private String metadata;
+
+    @Version
+    private Long version;
 }

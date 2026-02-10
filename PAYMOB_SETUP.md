@@ -7,9 +7,11 @@ This document provides instructions for configuring Paymob as a payment gateway.
 | Variable | Description | Where to Find |
 |----------|-------------|---------------|
 | `PAYMOB_API_KEY` | API Key for authentication | [Dashboard](https://accept.paymob.com/portal2/en/settings) → Account Settings → API Key |
-| `PAYMOB_INTEGRATION_ID` | Integration ID for card payments | Dashboard → Payment Integrations → Select your integration |
+| `PAYMOB_CARD_INTEGRATION_ID` | Integration ID for card payments | Dashboard → Payment Integrations → Card integration |
+| `PAYMOB_WALLET_INTEGRATION_ID` | Integration ID for wallet payments | Dashboard → Payment Integrations → Wallet integration |
 | `PAYMOB_IFRAME_ID` | Iframe ID for hosted checkout | Dashboard → Online Checkout → Iframe ID |
 | `PAYMOB_HMAC_SECRET` | HMAC secret for callback verification | Dashboard → Account Settings → HMAC Secret |
+| `PAYMOB_ENABLED` | Enable/disable gateway (`true`/`false`) | Application property |
 
 ## Configuration
 
@@ -17,9 +19,11 @@ Add these to your environment or `.env` file:
 
 ```bash
 PAYMOB_API_KEY=your_api_key_here
-PAYMOB_INTEGRATION_ID=your_integration_id
+PAYMOB_CARD_INTEGRATION_ID=your_card_integration_id
+PAYMOB_WALLET_INTEGRATION_ID=your_wallet_integration_id
 PAYMOB_IFRAME_ID=your_iframe_id
 PAYMOB_HMAC_SECRET=your_hmac_secret
+PAYMOB_ENABLED=true
 ```
 
 ## Webhook Configuration

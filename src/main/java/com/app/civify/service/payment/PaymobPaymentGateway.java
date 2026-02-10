@@ -62,6 +62,12 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
     @Value("${payment.paymob.hmac-secret:}")
     private String hmacSecret;
+
+    @Value("${payment.paymob.integration-id.card:0}")
+    private Long cardIntegrationId;
+
+    @Value("${payment.paymob.integration-id.wallet:0}")
+    private Long walletIntegrationId;
     
     @Value("${payment.gateway.paymob.enabled:false}")
     private boolean enabled;
@@ -648,22 +654,22 @@ public class PaymobPaymentGateway implements PaymentGateway {
     public Long getPaymentMethod(PaymentMethods paymentMethod){
         if (paymentMethod == null) {
             log.warn("Payment method passed to Paymob is NULL. Defaulting to CARD integration ID.");
-            return 5033333L; // Default to CARD ID
+            return cardIntegrationId;
         }
         switch (paymentMethod){
             case CARD -> {
-                return 5033333L;
+                return cardIntegrationId;
             }
             case WALLET -> {
-                return 5033334L;
+                return walletIntegrationId;
             }
             case FAWRY -> {
-                return 11111L;
+                log.warn("FAWRY payment method is not yet implemented for Paymob gateway.");
+                throw new UnsupportedOperationException("FAWRY payment method is not supported via Paymob");
             }
             default -> {
-                log.warn("Unknown payment method: {}. Returning default/error ID.", paymentMethod);
-                // TODO make generic config table
-                 return -1L;
+                log.warn("Unknown payment method: {}.", paymentMethod);
+                throw new IllegalArgumentException("Unsupported payment method: " + paymentMethod);
             }
         }
     }
