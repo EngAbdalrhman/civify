@@ -44,6 +44,8 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
         // Add to MDC for thread-local access
         MDC.put("requestId", requestId);
+        MDC.put("method", method);
+        MDC.put("uri", fullUri);
 
         // Log incoming request with structured format for ELK
         log.info("REQUEST_START | requestId={} | method={} | uri={} | remoteAddr={} | userAgent={} | timestamp={}",
@@ -93,7 +95,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
                     requestId, method, fullUri, status, duration, isSuccess, LocalDateTime.now());
             
             // Clear MDC
-            org.slf4j.MDC.clear();
+            MDC.clear();
         }
     }
 }
