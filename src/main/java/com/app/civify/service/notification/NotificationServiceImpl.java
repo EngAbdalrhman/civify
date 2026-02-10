@@ -1,11 +1,14 @@
 package com.app.civify.service.notification;
 
+import com.app.civify.dto.admin.AdminNotificationRequest;
 import com.app.civify.entity.Notification;
 import com.app.civify.entity.User;
+import com.app.civify.entity.enums.NotificationChannel;
 import com.app.civify.entity.enums.NotificationType;
 import com.app.civify.repository.NotificationRepository;
 import com.app.civify.repository.UserRepository;
 import com.app.civify.service.notification.dto.NotificationMessage;
+import com.app.civify.util.EmailService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -45,6 +49,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final NotificationPublisher publisher;
+    private final EmailService emailService;
 
     /**
      * Send notification to ALL users (broadcast). Saved with user_id = NULL in
@@ -168,5 +173,52 @@ public class NotificationServiceImpl implements NotificationService {
 
         notificationRepository.save(notification);
         log.info("📅 Scheduled notification for {}: id={}", scheduledFor, notification.getId());
+    }
+    @Override
+    @Async
+    public void sendEmailToAll(String title, String message, NotificationType type) {
+        log.info("📧 Sending email broadcast: [{}] {}", type, title);
+        List<User> users = userRepository.findAllActiveUsers();
+        for (User user : users) {
+            try {
+                emailService.sendHtmlEmailToUser(user.getId(), user.getEmail(), title, "<p>" + message + "</p>");
+            } catch (Exception e) {
+                log.error("❌ Failed to send email to user {}", user.getId(), e);
+            }
+        }
+        log.info("✅ Email broadcast sent to {} users", users.size());
+    }
+
+    @Override
+    @Async
+    public void sendEmailToUser(Long userId, String title, String message, NotificationType type) {
+        log.info("📧 Sending email to user {}: [{}] {}", userId, type, title);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+
+        emailService.sendHtmlEmailToUser(userId, user.getEmail(), title, "<p>" + message + "</p>");
+        log.info("✅ Email sent to user {}", userId);
+    }
+
+    @Override
+    public void dispatch(AdminNotificationRequest request) {
+        log.info("� Dispatching notification: title={}, channel={}, broadcast={}",
+                request.getTitle(), request.getChannel(), request.isBroadcast());
+
+        boolean sendPush = request.getChannel() == NotificationChannel.PUSH || request.getChannel() == NotificationChannel.ALL;
+        boolean sendEmail = request.getChannel() == NotificationChannel.EMAIL || request.getChannel() == NotificationChannel.ALL;
+
+        if (request.isBroadcast()) {
+            if (sendPush)  sendToAll(request.getTitle(), request.getMessage(), request.getType());
+            if (sendEmail) sendEmailToAll(request.getTitle(), request.getMessage(), request.getType());
+        } else {
+            if (request.getUserIds() == null || request.getUserIds().isEmpty()) {
+                throw new IllegalArgumentException("User IDs required for non-broadcast notification");
+            }
+            for (Long userId : request.getUserIds()) {
+                if (sendPush)  sendToUser(userId, request.getTitle(), request.getMessage(), request.getType());
+                if (sendEmail) sendEmailToUser(userId, request.getTitle(), request.getMessage(), request.getType());
+            }
+        }
     }
 }

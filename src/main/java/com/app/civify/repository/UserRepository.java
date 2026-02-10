@@ -61,4 +61,6 @@ public interface UserRepository extends CommonRepo<User, Long> {
     void updateUserPreferences(@Param("userId") Long userId,
                                @Param("language") UserPreferredLanguage language,
                                @Param("theme") UserPreferredTheme theme);
+    @Query("SELECT u FROM User u WHERE u.status = com.app.civify.entity.enums.UserStatus.ACTIVE AND u.isDeleted = false")
+    java.util.List<User> findAllActiveUsers();
 }
