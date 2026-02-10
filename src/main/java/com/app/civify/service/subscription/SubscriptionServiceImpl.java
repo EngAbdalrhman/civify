@@ -330,7 +330,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
     @Override
     @Transactional
-    public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, PaymentMethods method) {
+    public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, PaymentMethods method, String phoneNumber) {
         log.info("Initiating payment for user {} with plan {} using gateway {}", userId, planId, gateway);
 
         // Create subscription first (with PENDING status)
@@ -367,7 +367,10 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             metadata.put("firstName", user.getFirstName());
             metadata.put("lastName", user.getLastName());
             metadata.put("email", user.getEmail());
-            metadata.put("phone", user.getPhoneNumber() != null ? user.getPhoneNumber() : user.getPhone());
+            // Prioritize passed phone number (e.g. for wallet payment), otherwise use user profile phone
+            String phoneToUse = (phoneNumber != null && !phoneNumber.isEmpty()) ? phoneNumber : 
+                               (user.getPhoneNumber() != null ? user.getPhoneNumber() : user.getPhone());
+            metadata.put("phone", phoneToUse);
         }
 
         PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), gateway, method, metadata);

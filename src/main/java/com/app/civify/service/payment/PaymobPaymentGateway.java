@@ -132,7 +132,23 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
             // Paymob uses iframe, so we can construct the URL here or let frontend do it.
             // To be consistent with Fawaterak, we should return the URL.
-            String paymentUrl = getPaymentUrl(paymentKey);
+            String paymentUrl;
+            
+            // For WALLET, we need to make an additional request to process the payment
+            if (method == PaymentMethods.WALLET) {
+                String phone = "";
+                if (metadata != null) {
+                    phone = (String) metadata.getOrDefault("phone", "");
+                }
+                
+                if (phone.isEmpty()) {
+                    throw new RuntimeException("Phone number is required for wallet payments");
+                }
+                paymentUrl = processWalletPayment(paymentKey, phone);
+                log.info("Paymob Wallet payment initiated. Redirect URL: {}", paymentUrl);
+            } else {
+                paymentUrl = getPaymentUrl(paymentKey);
+            }
 
             return PaymentCreationResult.builder()
                     .paymentKey(paymentKey)
@@ -578,6 +594,39 @@ public class PaymobPaymentGateway implements PaymentGateway {
         } catch (Exception e) {
             log.error("Failed to create Paymob payment key: {}", e.getMessage(), e);
             throw new RuntimeException("Paymob payment key creation failed", e);
+        }
+    }
+
+    /**
+     * Process wallet payment to get redirect URL
+     */
+    private String processWalletPayment(String paymentKey, String phoneNumber) {
+        try {
+            String payload = String.format(
+                "{\"source\":{\"identifier\":\"%s\",\"subtype\":\"WALLET\"},\"payment_token\":\"%s\"}",
+                phoneNumber, paymentKey
+            );
+
+            log.debug("Processing wallet payment with payload: {}", payload);
+            String response = paymobClient.processPayment(payload);
+            log.debug("Wallet payment response: {}", response);
+
+            JsonNode root = objectMapper.readTree(response);
+            
+            // Paymob returns 'redirect_url' or 'iframe_url' or just 'url' in some versions
+            if (root.has("redirect_url") && !root.get("redirect_url").isNull()) {
+                return root.get("redirect_url").asText();
+            } else if (root.has("url") && !root.get("url").isNull()) {
+                 return root.get("url").asText();
+            } else if (root.has("iframe_url") && !root.get("iframe_url").isNull()) {
+                 return root.get("iframe_url").asText();
+            }
+            
+            throw new RuntimeException("No redirect URL found in Paymob response");
+
+        } catch (Exception e) {
+            log.error("Failed to process wallet payment: {}", e.getMessage(), e);
+            throw new RuntimeException("Wallet payment processing failed: " + e.getMessage(), e);
         }
     }
 

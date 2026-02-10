@@ -42,7 +42,10 @@ public interface SubscriptionService {
     // Payment and checkout
     PriceCalculationResponse calculateTotalPrice(Long userId, Long planId, boolean isAnnual, String promoCode);
 
-    PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, PaymentMethods method);
+    /**
+     * Initiate payment for a plan
+     */
+    PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, PaymentMethods method, String phoneNumber);
 
     // Usage tracking
     boolean canUserUseFeature(Long userId, String feature); // CV, WATERMARK

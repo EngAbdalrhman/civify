@@ -20,9 +20,11 @@ public interface PaymentUseCase {
      * @param isAnnual  Whether this is annual billing
      * @param promoCode Optional promo code
      * @param gateway   Optional payment gateway preference
+     * @param method    Payment method (CARD, WALLET, etc.)
+     * @param phoneNumber Optional phone number for wallet payments
      * @return Payment initiation response with payment URL
      */
-    PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, PaymentMethods method);
+    PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, PaymentMethods method, String phoneNumber);
 
     /**
      * Verify payment and activate subscription if successful.
