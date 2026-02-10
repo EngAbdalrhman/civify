@@ -36,6 +36,8 @@ public class TokenService {
     private static final String REFRESH_TOKEN_PREFIX = "refresh:";
     private static final String ACCESS_TOKEN_BLACKLIST_PREFIX = "blacklist:access:";
     private static final String USER_TOKENS_PREFIX = "user:tokens:";
+    private static final long REFRESH_TOKEN_GRACE_PERIOD_MS = 10000; // 10 seconds grace period
+    private static final long TOKEN_PERIOD_MS = 1000L; 
 
     /**
      * Create complete auth token pair (access + refresh) Also tracks the token
@@ -57,7 +59,7 @@ public class TokenService {
      */
     private String generateRefreshToken(User user) {
         // REFRESH_TOKEN_COOKIE_MAX_AGE is in seconds; generateRefreshToken expects milliseconds
-        String token = jwtUtil.generateRefreshToken(user, REFRESH_TOKEN_COOKIE_MAX_AGE * 1000L);
+        String token = jwtUtil.generateRefreshToken(user, REFRESH_TOKEN_COOKIE_MAX_AGE * TOKEN_PERIOD_MS);
         // We don't strictly need to store it for validation (it's a JWT),
         // but we can track it for "logout all" if needed.
         // For now, we rely on JWT signature + blacklist check.
@@ -108,7 +110,8 @@ public class TokenService {
 
             if (ttlMillis > 0) {
                 String blacklistKey = getRefreshKey(token); // Reuse prefix
-                cacheService.set(blacklistKey, "revoked", Duration.ofMillis(ttlMillis));
+                // Store revocation timestamp instead of static string
+                cacheService.set(blacklistKey, String.valueOf(currentTime), Duration.ofMillis(ttlMillis));
             }
         } catch (Exception e) {
             log.error("Failed to blacklist refresh token", e);
@@ -117,7 +120,31 @@ public class TokenService {
 
     private boolean isRefreshTokenBlacklisted(String token) {
         String blacklistKey = getRefreshKey(token);
-        return cacheService.get(blacklistKey) != null;
+        String blacklistValue = cacheService.get(blacklistKey);
+        
+        if (blacklistValue == null) {
+            return false;
+        }
+
+        // Backward compatibility for existing "revoked" entries
+        if ("revoked".equals(blacklistValue)) {
+            return true;
+        }
+
+        try {
+            long revokedAt = Long.parseLong(blacklistValue);
+            long timeSinceRevocation = System.currentTimeMillis() - revokedAt;
+            
+            // If within grace period, treat as valid (allow race conditions to succeed)
+            if (timeSinceRevocation < REFRESH_TOKEN_GRACE_PERIOD_MS) {
+                log.debug("Refresh token reused within grace period ({}ms ago)", timeSinceRevocation);
+                return false;
+            }
+            return true;
+        } catch (NumberFormatException e) {
+            log.warn("Invalid blacklist value for token: {}", blacklistValue);
+            return true; // Treat as blacklisted on error for security
+        }
     }
 
     /**
