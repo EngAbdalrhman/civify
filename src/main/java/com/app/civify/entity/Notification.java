@@ -96,7 +96,7 @@ public class Notification {
      * Read tracking — TRUE when user has acknowledged/read the notification.
      */
     @Builder.Default
-    @Column(name = "read")
+    @Column(name = "is_read")
     private Boolean read = false;
 
     @Column(name = "read_at")
