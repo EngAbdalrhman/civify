@@ -10,4 +10,6 @@ public interface NotificationUseCase {
     Page<Notification> getRecentNotifications(Long userId, Pageable pageable);
     Long getUnreadCount(Long userId);
     SseEmitter subscribe(UserPrincipal userPrincipal);
+    void markAsRead(Long notificationId, Long userId);
+    void markAllAsRead(Long userId);
 }

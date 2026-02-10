@@ -25,7 +25,7 @@ public class GeminiVisionOcrService implements OcrService {
     private final GeminiAiClient geminiAiClient;
     private final ObjectMapper objectMapper;
     
-    @Value("${ai.gemini.vision.model:gemini-1.5-flash}")
+    @Value("${ai.gemini.vision.model:gemini-2.5-flash}")
     private String visionModel;
     
     @Value("${ai.gemini.enabled:true}")

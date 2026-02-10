@@ -6,7 +6,7 @@ import com.app.civify.entity.enums.NotificationType;
 import com.app.civify.repository.NotificationRepository;
 import com.app.civify.repository.UserRepository;
 import com.app.civify.service.notification.dto.NotificationMessage;
-import com.app.civify.service.notification.pubsub.PubSubNotificationPublisher;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -19,25 +19,23 @@ import java.util.Optional;
 
 /**
  * Notification service using Google Pub/Sub as message queue.
- * 
+ *
  * HOW IT WORKS:
- * 
- * 1. Admin sends broadcast:
- *    notificationService.sendToAll("Maintenance", "System down at 10 PM", "INFO")
- *    → Saves to DB with user_id = NULL
- *    → Publishes to Pub/Sub topic
- *    → PubSubNotificationListener receives → pushes to ALL connected SSE clients
- * 
- * 2. System sends to user:
- *    notificationService.sendToUser(userId, "Payment Success", "Premium activated", "SUCCESS")
- *    → Saves to DB with specific user_id
- *    → Publishes to Pub/Sub topic
- *    → PubSubNotificationListener receives → pushes to THAT user's SSE connection + Web Push
- * 
- * 3. DEDUPLICATION:
- *    Use idempotencyKey to prevent duplicates
- *    notificationService.sendToUser(userId, title, message, "SUCCESS", "payment_123_success")
- *    → Checks if idempotencyKey exists → skip if already sent
+ *
+ * 1. Admin sends broadcast: notificationService.sendToAll("Maintenance",
+ * "System down at 10 PM", "INFO") → Saves to DB with user_id = NULL → Publishes
+ * to Pub/Sub topic → PubSubNotificationListener receives → pushes to ALL
+ * connected SSE clients
+ *
+ * 2. System sends to user: notificationService.sendToUser(userId, "Payment
+ * Success", "Premium activated", "SUCCESS") → Saves to DB with specific user_id
+ * → Publishes to Pub/Sub topic → PubSubNotificationListener receives → pushes
+ * to THAT user's SSE connection + Web Push
+ *
+ * 3. DEDUPLICATION: Use idempotencyKey to prevent duplicates
+ * notificationService.sendToUser(userId, title, message, "SUCCESS",
+ * "payment_123_success") → Checks if idempotencyKey exists → skip if already
+ * sent
  */
 @Service
 @Slf4j
@@ -46,11 +44,11 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
-    private final PubSubNotificationPublisher pubSubPublisher;
+    private final NotificationPublisher publisher;
 
     /**
-     * Send notification to ALL users (broadcast).
-     * Saved with user_id = NULL in database.
+     * Send notification to ALL users (broadcast). Saved with user_id = NULL in
+     * database.
      */
     @Override
     @Async
@@ -78,8 +76,8 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     /**
-     * Send notification to specific user.
-     * Saved with specific user_id in database.
+     * Send notification to specific user. Saved with specific user_id in
+     * database.
      */
     @Override
     @Async
@@ -90,13 +88,14 @@ public class NotificationServiceImpl implements NotificationService {
 
     /**
      * Send notification with metadata and idempotency key.
-     * 
-     * @param idempotencyKey Unique key to prevent duplicates (e.g., "payment_order_123_success")
+     *
+     * @param idempotencyKey Unique key to prevent duplicates (e.g.,
+     * "payment_order_123_success")
      */
     @Override
     @Transactional
     public void sendToUser(Long userId, String title, String message, NotificationType type,
-                          String idempotencyKey, Map<String, Object> metadata) {
+            String idempotencyKey, Map<String, Object> metadata) {
         log.info("📬 Sending notification to user {}: [{}] {}", userId, type, title);
 
         try {
@@ -148,7 +147,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .metadata(notification.getMetadata())
                 .build();
 
-        pubSubPublisher.publish(message);
+        publisher.publish(message);
     }
 
     /**
@@ -156,7 +155,7 @@ public class NotificationServiceImpl implements NotificationService {
      */
     @Transactional
     public void scheduleNotification(Long userId, String title, String message, NotificationType type,
-                                    LocalDateTime scheduledFor) {
+            LocalDateTime scheduledFor) {
         User user = userId != null ? userRepository.findById(userId).orElse(null) : null;
 
         Notification notification = Notification.builder()

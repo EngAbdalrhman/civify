@@ -34,7 +34,7 @@ public class NotificationUseCaseImpl implements NotificationUseCase {
     @Override
     @Transactional(readOnly = true)
     public Long getUnreadCount(Long userId) {
-        return notificationRepository.countUndeliveredForUser(userId);
+        return notificationRepository.countUnreadForUser(userId);
     }
 
     @Override
@@ -65,6 +65,22 @@ public class NotificationUseCaseImpl implements NotificationUseCase {
         }
 
         return emitter;
+    }
+
+    @Override
+    @Transactional
+    public void markAsRead(Long notificationId, Long userId) {
+        int updated = notificationRepository.markAsRead(notificationId, userId);
+        if (updated == 0) {
+            log.warn("Notification {} not found or not accessible for user {}", notificationId, userId);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void markAllAsRead(Long userId) {
+        int updated = notificationRepository.markAllAsReadForUser(userId);
+        log.info("Marked {} notifications as read for user {}", updated, userId);
     }
 
     /**
@@ -109,7 +125,8 @@ public class NotificationUseCaseImpl implements NotificationUseCase {
                 "title", notif.getTitle(),
                 "message", notif.getMessage(),
                 "type", notif.getType(),
-                "timestamp", notif.getCreatedAt().toString()
+                "timestamp", notif.getCreatedAt().toString(),
+                "read", notif.getRead() != null ? notif.getRead() : false
             );
 
             emitter.send(SseEmitter.event()

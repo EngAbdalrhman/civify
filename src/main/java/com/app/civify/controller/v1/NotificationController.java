@@ -10,6 +10,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -60,11 +62,32 @@ public class NotificationController {
     }
 
     /**
-     * Get undelivered notification count for user
+     * Get unread notification count for user
      */
     @GetMapping("/unread-count")
     public ResponseEntity<Map<String, Long>> getUnreadCount(@AuthenticationPrincipal UserPrincipal userPrincipal) {
         Long count = notificationUseCase.getUnreadCount(userPrincipal.getId());
         return ResponseEntity.ok(Map.of("count", count));
     }
+
+    /**
+     * Mark a single notification as read
+     */
+    @PutMapping("/{id}/read")
+    public ResponseEntity<Void> markAsRead(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        notificationUseCase.markAsRead(id, userPrincipal.getId());
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Mark all notifications as read for the current user
+     */
+    @PutMapping("/read-all")
+    public ResponseEntity<Void> markAllAsRead(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+        notificationUseCase.markAllAsRead(userPrincipal.getId());
+        return ResponseEntity.noContent().build();
+    }
 }
+

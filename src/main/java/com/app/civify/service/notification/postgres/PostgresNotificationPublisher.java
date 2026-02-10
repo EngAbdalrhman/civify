@@ -7,13 +7,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * No-op publisher for PostgreSQL mode.
- * In Postgres mode, notifications are handled by database triggers and the Listener,
- * so we don't need to explicitly "publish" anything in Java code.
+ * No-op publisher for PostgreSQL mode. In Postgres mode, notifications are
+ * handled by database triggers and the Listener, so we don't need to explicitly
+ * "publish" anything in Java code.
  */
 @Component
 @Slf4j
-@ConditionalOnProperty(value = "spring.cloud.gcp.pubsub.enabled", havingValue = "false", matchIfMissing = true)
+@ConditionalOnProperty(value = "notification.publisher", havingValue = "postgres")
 public class PostgresNotificationPublisher implements NotificationPublisher {
 
     @Override

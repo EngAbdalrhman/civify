@@ -40,7 +40,7 @@ public class PermissionsEncryptionService {
 
     private final ObjectMapper objectMapper;
     
-    @Value("${permissions.encryption.key:CHANGE_THIS_32_BYTE_SECRET_KEY_}")
+    @Value("${permissions.encryption.key:CHANGE_THIS_32_BYTE_SECRET_KEY_!!!!!!!}")
     private String encryptionKey;
     
     private static final String ALGORITHM = "AES/GCM/NoPadding";

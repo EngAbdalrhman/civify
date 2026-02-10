@@ -4,6 +4,7 @@ import com.app.civify.entity.Notification;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -52,4 +53,24 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
      */
     @Query("SELECT COUNT(n) FROM Notification n WHERE (n.user.id = :userId OR n.user IS NULL) AND n.delivered = false")
     Long countUndeliveredForUser(@Param("userId") Long userId);
+
+    /**
+     * Count unread notifications for a user (user-specific + broadcasts)
+     */
+    @Query("SELECT COUNT(n) FROM Notification n WHERE (n.user.id = :userId OR n.user IS NULL) AND n.read = false")
+    Long countUnreadForUser(@Param("userId") Long userId);
+
+    /**
+     * Mark a single notification as read for a user
+     */
+    @Modifying
+    @Query("UPDATE Notification n SET n.read = true, n.readAt = CURRENT_TIMESTAMP WHERE n.id = :notificationId AND (n.user.id = :userId OR n.user IS NULL)")
+    int markAsRead(@Param("notificationId") Long notificationId, @Param("userId") Long userId);
+
+    /**
+     * Mark all unread notifications as read for a user
+     */
+    @Modifying
+    @Query("UPDATE Notification n SET n.read = true, n.readAt = CURRENT_TIMESTAMP WHERE (n.user.id = :userId OR n.user IS NULL) AND n.read = false")
+    int markAllAsReadForUser(@Param("userId") Long userId);
 }
