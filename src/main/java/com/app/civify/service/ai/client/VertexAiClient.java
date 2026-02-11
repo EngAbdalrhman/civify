@@ -5,7 +5,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
-@FeignClient(name = "vertexAiClient", url = "${vertex.api.url:https://aiplatform.googleapis.com}")
+@FeignClient(name = "vertexAiClient", url = "${vertex.api.url:https://aiplatform.googleapis.com}", configuration = VertexAiFeignConfig.class)
 public interface VertexAiClient {
 
     @PostMapping(value = "/v1/publishers/google/models/{model}:generateContent?key=${vertex.api.key}", consumes = "application/json")
