@@ -605,17 +605,10 @@ public class PaymobPaymentGateway implements PaymentGateway {
             JsonNode root = objectMapper.readTree(rawPayload);
             JsonNode obj = root.get("obj");
             
-            // Check for Token callback (Card Tokenization) separately
-            // Paymob sends a separate callback with "type": "TOKEN" when a card is saved
-            String callbackType = root.has("type") ? root.get("type").asText() : "TRANSACTION";
-            if ("TOKEN".equalsIgnoreCase(callbackType)) {
-                return handleCardTokenCallback(root);
-            }
-
             // Standard Transaction Callback logic...
             JsonNode dataNode = (obj != null) ? obj : root;
             
-            // 1. Verify HMAC (Critical Security Step)
+            // 1. Verify HMAC (Critical Security Step) - Moved here to protect both TOKEN and TRANSACTION
             String providedHmac = headers.getOrDefault("hmac", headers.getOrDefault("HMAC", null));
             if (providedHmac == null) {
                  log.warn("Paymob callback missing HMAC signature");
@@ -628,6 +621,13 @@ public class PaymobPaymentGateway implements PaymentGateway {
                  result.setSuccess(false);
                  result.setMessage("Invalid signature");
                  return result;
+            }
+
+            // Check for Token callback (Card Tokenization) separately
+            // Paymob sends a separate callback with "type": "TOKEN" when a card is saved
+            String callbackType = root.has("type") ? root.get("type").asText() : "TRANSACTION";
+            if ("TOKEN".equalsIgnoreCase(callbackType)) {
+                return handleCardTokenCallback(root);
             }
 
             log.debug("Callback data: {}", dataNode);
@@ -1108,8 +1108,8 @@ public class PaymobPaymentGateway implements PaymentGateway {
             billingData.put("floor", "NA");
             billingData.put("street", "NA");
             billingData.put("building", "NA");
-            billingData.put("city", "NA");
-            billingData.put("country", "NA");
+            billingData.put("city", "Cairo");
+            billingData.put("country", "Egypt");
             billingData.put("state", "NA");
 
             // Items (Required by V2)
@@ -1119,6 +1119,9 @@ public class PaymobPaymentGateway implements PaymentGateway {
             item.put("amount", amountCents);
             item.put("description", "Civify Subscription Auto-Renewal");
             item.put("quantity", 1);
+            
+            // Special Reference (Required/Recommended by V2)
+            payload.put("special_reference", "civify_renew_" + userId + "_" + System.currentTimeMillis() + "_" + java.util.UUID.randomUUID().toString().substring(0, 8));
 
             // Webhook for async confirmation (backup to synchronous check)
             payload.put("notification_url", backendUrl + "/apis/v1/payments/webhook/paymob");
