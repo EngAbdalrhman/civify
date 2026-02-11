@@ -13,7 +13,15 @@
     </springProfile>
 
     <springProfile name="dev">
-        <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <!-- Text Appender for General System Logs -->
+        <appender name="CONSOLE_TEXT" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSS'Z'} %-5level %logger{36} - %msg%n</pattern>
+            </encoder>
+        </appender>
+
+        <!-- JSON Appender for Request Logs -->
+        <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
             <encoder class="net.logstash.logback.encoder.LogstashEncoder">
                 <fieldNames>
                     <level>severity</level>
@@ -22,11 +30,8 @@
                 <includeContext>false</includeContext>
                 <includeMdc>true</includeMdc>
                 <includeCallerData>true</includeCallerData>
-                
                 <timeZone>UTC</timeZone>
-                
                 <provider class="net.logstash.logback.composite.loggingevent.ArgumentsJsonProvider"/>
-                
                 <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
                     <maxDepthPerThrowable>30</maxDepthPerThrowable>
                     <maxLength>4096</maxLength>
@@ -36,8 +41,15 @@
             </encoder>
         </appender>
 
+        <!-- Specific Logger for Requests -> JSON -->
+        <!-- additivity=false ensures these logs don't bubble up to root and get printed twice -->
+        <logger name="com.app.civify.util.RequestLoggingFilter" level="INFO" additivity="false">
+            <appender-ref ref="CONSOLE_JSON"/>
+        </logger>
+
+        <!-- Root Logger -> Text -->
         <root level="INFO">
-            <appender-ref ref="JSON_CONSOLE"/>
+            <appender-ref ref="CONSOLE_TEXT"/>
         </root>
     </springProfile>
 </configuration>
