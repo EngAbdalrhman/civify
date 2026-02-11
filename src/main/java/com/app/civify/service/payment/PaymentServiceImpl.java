@@ -78,4 +78,10 @@ public class PaymentServiceImpl implements PaymentService {
     public List<String> getEnabledGateways() {
         return gatewayManager.getEnabledGateways();
     }
+
+    @Override
+    public boolean chargeWithToken(Long userId, double amount, String cardToken, Long subscriptionId) {
+        log.info("Charging token for user {} amount {}", userId, amount);
+        return gatewayManager.getDefaultGateway().chargeWithToken(userId, amount, cardToken, subscriptionId);
+    }
 }

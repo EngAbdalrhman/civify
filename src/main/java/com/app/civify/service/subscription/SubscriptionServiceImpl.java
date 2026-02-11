@@ -27,6 +27,7 @@ import com.app.civify.service.payment.PaymentService;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
 import com.app.civify.util.persistence.CommonService;
+import com.app.civify.repository.plans.PaymentRepository;
 import com.app.civify.service.i18n.MessageService;
 import com.app.civify.util.EmailService;
 import lombok.RequiredArgsConstructor;
@@ -61,6 +62,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     private final UserRepository userRepository;
     private final PaymentService paymentService;
     private final MessageService messageService;
+    private final PaymentRepository paymentRepository;
     private final InvoiceService invoiceService;
     private final TokenUsageService tokenUsageService;
     private final EmailService emailService;
@@ -383,6 +385,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             String phoneToUse = (phoneNumber != null && !phoneNumber.isEmpty()) ? phoneNumber :
                                (user.getPhoneNumber() != null ? user.getPhoneNumber() : user.getPhone());
             metadata.put("phone", phoneToUse);
+            metadata.put("subscriptionId", subscription.getId());
         }
 
         PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), gateway, method, metadata);
@@ -390,6 +393,12 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         // Link payment to subscription
         subscription.setPaymentTransactionId(paymentResult.getPaymentKey());
         subscriptionRepository.save(subscription);
+
+        // Link PaymentTransaction → Subscription (needed for token extraction in webhook)
+        paymentRepository.findByOrderId(paymentResult.getOrderId()).ifPresent(tx -> {
+            tx.setSubscriptionId(subscription.getId());
+            paymentRepository.save(tx);
+        });
 
         log.info("Payment initiated successfully for user {} with payment key {}", userId, paymentResult.getPaymentKey());
 

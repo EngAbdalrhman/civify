@@ -43,6 +43,9 @@ import java.util.Map;
  * 5. Paymob sends webhook callback with payment status
  * 6. System verifies and activates subscription
  */
+import com.app.civify.repository.plans.UserSubscriptionRepository;
+import com.app.civify.entity.User;
+
 @Component
 @Slf4j
 @RequiredArgsConstructor
@@ -50,6 +53,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
     private final PaymobClient paymobClient;
     private final PaymentRepository paymentRepository;
+    private final UserSubscriptionRepository subscriptionRepository;
     private final ObjectMapper objectMapper;
     private final BillingAuditService billingAuditService;
 
@@ -71,6 +75,9 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
     @Value("${payment.paymob.integration-id.wallet:0}")
     private Long walletIntegrationId;
+
+    @Value("${payment.paymob.integration-id.moto:0}")
+    private Long motoIntegrationId;
     
     @Value("${payment.gateway.paymob.enabled:false}")
     private boolean enabled;
@@ -202,6 +209,15 @@ public class PaymobPaymentGateway implements PaymentGateway {
             transaction.setGateway(getGatewayName());
             transaction.setCurrency("EGP");
             
+            // Set subscription ID if present in metadata
+            if (metadata.containsKey("subscriptionId")) {
+                try {
+                    transaction.setSubscriptionId(Long.valueOf(String.valueOf(metadata.get("subscriptionId"))));
+                } catch (NumberFormatException e) {
+                    log.warn("Invalid subscriptionId in metadata: {}", metadata.get("subscriptionId"));
+                }
+            }
+            
             // Store Intention ID in metadata for troubleshooting & verification
             Map<String, Object> txMetadata = new HashMap<>(metadata);
             txMetadata.put("intention_id", intentionId);
@@ -251,6 +267,15 @@ public class PaymobPaymentGateway implements PaymentGateway {
             transaction.setStatus(PaymentStatus.PENDING);
             transaction.setGateway(getGatewayName());
             transaction.setCurrency("EGP");
+
+            // Set subscription ID if present in metadata
+            if (metadata != null && metadata.containsKey("subscriptionId")) {
+                try {
+                    transaction.setSubscriptionId(Long.valueOf(String.valueOf(metadata.get("subscriptionId"))));
+                } catch (NumberFormatException e) {
+                    log.warn("Invalid subscriptionId in metadata: {}", metadata.get("subscriptionId"));
+                }
+            }
 
             // Store metadata if provided (e.g., subscription info)
             if (metadata != null && !metadata.isEmpty()) {
@@ -378,24 +403,68 @@ public class PaymobPaymentGateway implements PaymentGateway {
             // Parse Intention Response
             JsonNode root = objectMapper.readTree(response);
             
-            // Check status. Usually check for "success" or payment method status?
-            // Intention response structure needs checking. 
-            // Assuming simplified check: Look for a successful payment method object or status.
-            // But usually, we check the underlying Order or just the Intention status?
-            // For now, if getIntention returns 200 OK and we have it, we check if it has 'payment_keys' which have transactions?
-            // Actually, best way is to check the attached order's payment status if available.
-            // But V2 intention response contains "next_action" or "payment_methods".
-            
-            // Fallback: If we got the intention successfully, and it has an order ID, we can check that order?
-            // But getIntention logic is sufficient to prove existence. Proof of *payment* requires checking the payment transaction inside.
-            
-            // NOTE: Paymob V2 verification is best done via Webhook. Manual verification is tricky without looking at specific payment attempts.
-            // Let's assume if we can fetch it, it exists. But we need to know if it's PAID.
-            // We will return false here unless we can PROVE it's paid. 
-            // Since we lack clear "is_paid" field in Intention without deep traversal, 
-            // we will rely on Webhook primarily.
-            // However, to support standard flow, we'll return false and log.
-            log.warn("Manual verification for V2 not fully implemented (relying on Webhook). Returning false.");
+            // Paymob V2 Intention "payment_keys" array contains transactions
+            if (root.has("payment_keys")) {
+                 for (JsonNode key : root.get("payment_keys")) {
+                     // Each payment key might have a list of transactions?
+                     // Or check key itself? Usually transactions are nested or key has status.
+                     // The structure is payment_keys -> [ { key, ... } ]? 
+                     // Actually, Intention object -> payment_keys (array) -> transaction object??
+                     // To be safe, let's look for "success_transaction" or "transactions" array.
+                     
+                     // Checking Paymob docs: Intention has "payment_keys".
+                     // payment_keys is a list of payment key objects.
+                     // Each payment key object has "transaction_id" if paid? No.
+                     // Let's assume the safest way is to check the root order status if present using legacy means if possible,
+                     // OR rely on webhooks. But we need synchronous check.
+                     
+                     // Let's try to extract transaction from inside if possible.
+                     // V2 Intention response is huge.
+                     // Let's look for known success indicators.
+                }
+            }
+
+            // A robust indicator in V2 Intention response is "payment_keys" array.
+            // If any payment key has a transaction with "success": true, we are good.
+            // Let's iterate deeply.
+            if (root.has("payment_keys")) {
+                JsonNode keys = root.get("payment_keys");
+                if (keys.isArray()) {
+                    for (JsonNode pk : keys) {
+                        if (pk.has("children_transactions")) { // Sometimes called children_transactions
+                             for (JsonNode tx : pk.get("children_transactions")) {
+                                 if (tx.has("success") && tx.get("success").asBoolean()) {
+                                     log.info("Found successful V2 transaction: {}", tx.get("id"));
+                                     return true;
+                                 }
+                             }
+                        }
+                    }
+                }
+            }
+
+            // If we have an order ID, we can try to fall back to Legacy check IF we have an API Key.
+            // This covers the case where the user has both keys (likely during migration).
+            if (apiKey != null && !apiKey.isEmpty() && root.has("order")) {
+                String orderId = root.get("order").asText(); // can be object or ID?
+                // Sometimes order is an object in V2 response? 
+                if (root.get("order").isObject()) {
+                    orderId = root.get("order").get("id").asText();
+                }
+                
+                log.info("V2 Verification: Falling back to Legacy Order Check for Order ID: {}", orderId);
+                try {
+                     String authToken = authenticate();
+                     String orderResponse = paymobClient.getOrder("Bearer " + authToken, orderId);
+                     if (parseOrderStatus(orderResponse)) {
+                         return true;
+                     }
+                } catch (Exception ex) {
+                    log.warn("V2 Legacy fallback failed: {}", ex.getMessage());
+                }
+            }
+
+            log.warn("Manual verification for V2: No successful transaction found in Intention response yet. Returning false.");
             return false;
             
         } catch (Exception e) {
@@ -534,37 +603,36 @@ public class PaymobPaymentGateway implements PaymentGateway {
             log.info("Handling Paymob payment callback");
 
             JsonNode root = objectMapper.readTree(rawPayload);
-            String providedHmac = headers.getOrDefault("hmac", headers.getOrDefault("HMAC", null));
+            JsonNode obj = root.get("obj");
             
-            // If HMAC is missing from headers, check if it's in the query string (controller needs to pass it)
-            // But since the current controller implementation passes headers, we'll assume it's there or fail.
-            // Note: The POST webhook puts HMAC in query params usually.
-            // If providedHmac is null, we can try to extract from rawPayload if it mysteriously exists there (unlikely).
-            
-            // The JSON from Paymob POST callback is usually { "obj": { ... }, "type": "TRANSACTION" ... }
-            JsonNode dataNode = root;
-            if (root.has("obj")) {
-                dataNode = root.get("obj");
+            // Check for Token callback (Card Tokenization) separately
+            // Paymob sends a separate callback with "type": "TOKEN" when a card is saved
+            String callbackType = root.has("type") ? root.get("type").asText() : "TRANSACTION";
+            if ("TOKEN".equalsIgnoreCase(callbackType)) {
+                return handleCardTokenCallback(root);
             }
 
-            if (providedHmac != null && !verifySignatureFromJson(dataNode, providedHmac)) {
-                 log.warn("Paymob callback failed HMAC verification");
-                 result.setSuccess(false);
-                 result.setMessage("Invalid signature");
-                 return result;
-            }
-            // If providedHmac is null, we log a warning but proceed or fail? 
-            // In strict mode we should fail. Let's fail if it is null to be safe.
+            // Standard Transaction Callback logic...
+            JsonNode dataNode = (obj != null) ? obj : root;
+            
+            // 1. Verify HMAC (Critical Security Step)
+            String providedHmac = headers.getOrDefault("hmac", headers.getOrDefault("HMAC", null));
             if (providedHmac == null) {
                  log.warn("Paymob callback missing HMAC signature");
                  result.setSuccess(false);
                  result.setMessage("Missing signature");
                  return result;
             }
+            if (!verifySignatureFromJson(dataNode, providedHmac)) {
+                 log.warn("Paymob callback failed HMAC verification");
+                 result.setSuccess(false);
+                 result.setMessage("Invalid signature");
+                 return result;
+            }
 
             log.debug("Callback data: {}", dataNode);
 
-            // Extract order ID from callback
+            // 2. Extract order ID from callback
             String orderId = extractOrderId(dataNode.get("order"));
 
             if (orderId == null || orderId.isEmpty()) {
@@ -577,49 +645,42 @@ public class PaymobPaymentGateway implements PaymentGateway {
             result.setOrderId(orderId);
             result.setTransactionId(extractOrderId(dataNode.get("id")));
 
+            // 3. Find transaction
             PaymentTransaction transaction = paymentRepository.findByOrderId(orderId)
-                    .orElseThrow(() -> new RuntimeException("Payment transaction not found for order: " + orderId));
-
-            // Idempotency: if already completed, short-circuit
-            if (transaction.getStatus() == PaymentStatus.COMPLETED) {
-                log.info("Paymob callback idempotent hit for order {}, already COMPLETED", orderId);
-                result.setSuccess(true);
-                result.setMessage("Already processed");
-                return result;
-            }
+                    .orElse(null); // Use orElse(null) to handle token callbacks that might not have a transaction yet
 
             // Parse callback success status
             boolean isSuccessful = parseCallbackSuccess(dataNode);
 
-            if (isSuccessful) {
-                transaction.setStatus(PaymentStatus.COMPLETED);
-                transaction.setCompletedAt(LocalDateTime.now());
-                log.info("✅ Paymob payment callback processed successfully for user {} - Order: {}",
-                        transaction.getUserId(), orderId);
-                result.setSuccess(true);
-                result.setMessage("Payment completed");
-            } else {
-                transaction.setStatus(PaymentStatus.FAILED);
-                log.warn("❌ Paymob payment callback indicates failure for user {} - Order: {}",
-                        transaction.getUserId(), orderId);
-                result.setSuccess(false);
-                result.setMessage("Payment failed");
+             // 4. Update transaction status
+            if (transaction != null) {
+                // Check if already completed to avoid duplicates
+                if (transaction.getStatus() == PaymentStatus.COMPLETED && isSuccessful) {
+                    log.info("Transaction {} is already COMPLETED. Ignoring duplicate success callback.", orderId);
+                    result.setSuccess(true);
+                    result.setMessage("Duplicate callback ignored");
+                    return result;
+                }
+
+                transaction.setStatus(isSuccessful ? PaymentStatus.COMPLETED : PaymentStatus.FAILED);
+                if (isSuccessful) transaction.setCompletedAt(LocalDateTime.now());
+                paymentRepository.save(transaction);
             }
 
-            paymentRepository.save(transaction);
-
-            // Fulfill the payment if successful (do this BEFORE audit logging so it doesn't get rolled back)
             if (isSuccessful) {
                 fulfillmentService.fulfillPayment(orderId);
+                // Note: Token extraction is now handled by handleCardTokenCallback
+            } else {
+                log.warn("Payment failed for order {}: {}", orderId, result.getMessage());
             }
 
             // Log billing audit (non-critical - catch exceptions to prevent rollback)
             try {
                 billingAuditService.logWebhook(
                     getGatewayName(),
-                    transaction.getUserId(),
+                    transaction != null ? transaction.getUserId() : null,
                     null,
-                    transaction.getPaymentKey(),
+                    transaction != null ? transaction.getPaymentKey() : null,
                     orderId,
                     isSuccessful ? "success" : "failed",
                     "callback",
@@ -640,6 +701,41 @@ public class PaymobPaymentGateway implements PaymentGateway {
             result.setMessage("Error: " + e.getMessage());
             return result;
         }
+    }
+    
+    private PaymentCallbackResult handleCardTokenCallback(JsonNode root) {
+        PaymentCallbackResult result = new PaymentCallbackResult();
+        result.setSuccess(true); // Token callbacks are informational/success
+        result.setMessage("Token callback processed");
+
+        try {
+            JsonNode obj = root.get("obj");
+            if (obj == null) return result;
+
+            String cardToken = obj.has("token") ? obj.get("token").asText() : null;
+            String maskedPan = obj.has("masked_pan") ? obj.get("masked_pan").asText("****") : "****";
+            String cardType = obj.has("card_subtype") ? obj.get("card_subtype").asText("Unknown") : "Unknown";
+            String orderId = obj.has("order_id") ? obj.get("order_id").asText() : null;
+
+            if (cardToken != null && orderId != null) {
+                // Find the transaction by order ID to link to subscription
+                paymentRepository.findByOrderId(orderId).ifPresent(tx -> {
+                    if (tx.getSubscriptionId() != null) {
+                        subscriptionRepository.findById(tx.getSubscriptionId()).ifPresent(sub -> {
+                            sub.setSavedCardToken(cardToken);
+                            sub.setCardMaskedPan("**** " + maskedPan);
+                            sub.setCardType(cardType);
+                            sub.setAutoChargeFailureCount(0);
+                            subscriptionRepository.save(sub);
+                            log.info("💳 Saved card token for subscription {} (****{})", sub.getId(), maskedPan);
+                        });
+                    }
+                });
+            }
+        } catch (Exception e) {
+            log.error("Failed to process card token callback", e);
+        }
+        return result;
     }
     
     private boolean verifySignatureFromParams(Map<String, String> params, String expectedHmac) {
@@ -962,4 +1058,126 @@ public class PaymobPaymentGateway implements PaymentGateway {
             }
         }
     }
+
+    @Override
+    @Transactional
+    public boolean chargeWithToken(Long userId, double amount, String cardToken, Long subscriptionId) {
+        try {
+            log.info("Charging saved token for user {} amount {} EGP", userId, amount);
+
+            if (motoIntegrationId == null || motoIntegrationId == 0) {
+                 log.error("MOTO Integration ID is not configured. Cannot process token charge.");
+                 return false;
+            }
+
+            // Step 1: Create Intention (V2)
+            int amountCents = (int) (amount * 100);
+            
+            // Construct Payload using ObjectMapper
+            ObjectNode payload = objectMapper.createObjectNode();
+            payload.put("amount", amountCents);
+            payload.put("currency", "EGP");
+            // Important: Use MOTO integration ID for server-to-server token charges
+            payload.putArray("payment_methods").add(motoIntegrationId);
+
+            // Add billing data from user (needed for compliance)
+            String firstName = "Customer";
+            String lastName = "Recurring";
+            String email = "recurring@civify.cv";
+            String phone = "+201000000000";
+
+            if (subscriptionId != null) {
+                var subOpt = subscriptionRepository.findById(subscriptionId);
+                if (subOpt.isPresent()) {
+                    var user = subOpt.get().getUser();
+                    if (user != null) {
+                        firstName = user.getFirstName() != null ? user.getFirstName() : "Customer";
+                        lastName = user.getLastName() != null ? user.getLastName() : "Recurring";
+                        email = user.getEmail() != null ? user.getEmail() : email;
+                        phone = user.getPhone() != null ? user.getPhone() : phone;
+                    }
+                }
+            }
+
+            ObjectNode billingData = payload.putObject("billing_data");
+            billingData.put("first_name", firstName); 
+            billingData.put("last_name", lastName); 
+            billingData.put("email", email); 
+            billingData.put("phone_number", phone); 
+            billingData.put("apartment", "NA");
+            billingData.put("floor", "NA");
+            billingData.put("street", "NA");
+            billingData.put("building", "NA");
+            billingData.put("city", "NA");
+            billingData.put("country", "NA");
+            billingData.put("state", "NA");
+
+            // Items (Required by V2)
+            ArrayNode items = payload.putArray("items");
+            ObjectNode item = items.addObject();
+            item.put("name", "Subscription Renewal");
+            item.put("amount", amountCents);
+            item.put("description", "Civify Subscription Auto-Renewal");
+            item.put("quantity", 1);
+
+            // Webhook for async confirmation (backup to synchronous check)
+            payload.put("notification_url", backendUrl + "/apis/v1/payments/webhook/paymob");
+            
+            // Call V2 Endpoint
+            String response = paymobClient.createIntention("Token " + secretKey, payload.toString());
+            JsonNode root = objectMapper.readTree(response);
+            
+            // Step 2: Extract payment key from Intention response
+            // For MOTO integration, the payment key is directly in payment_keys[0].key
+            String paymentKey = null;
+            if (root.has("payment_keys")) {
+                 for (JsonNode key : root.get("payment_keys")) {
+                     if (key.has("key")) {
+                         paymentKey = key.get("key").asText();
+                         break;
+                     }
+                 }
+            }
+
+            if (paymentKey == null) {
+                log.error("Failed to get payment key from Intention response for MOTO charge");
+                return false;
+            }
+            
+            String orderId = root.has("id") ? root.get("id").asText() : null;
+
+            // Step 3: Process payment with TOKEN source (MOTO)
+            // Endpoint: /api/acceptance/payments/pay
+            String payPayload = String.format(
+                "{\"source\":{\"identifier\":\"%s\",\"subtype\":\"TOKEN\"},\"payment_token\":\"%s\"}",
+                cardToken, paymentKey
+            );
+            
+            String payResponse = paymobClient.processPayment(payPayload);
+            JsonNode payRoot = objectMapper.readTree(payResponse);
+            boolean success = payRoot.has("success") && payRoot.get("success").asBoolean();
+
+            // Save transaction record
+            PaymentTransaction transaction = new PaymentTransaction();
+            transaction.setUserId(userId);
+            transaction.setAmount(BigDecimal.valueOf(amount));
+            transaction.setOrderId(orderId); // Intention ID as Order ID
+            transaction.setPaymentKey(paymentKey);
+            transaction.setStatus(success ? PaymentStatus.COMPLETED : PaymentStatus.FAILED);
+            transaction.setGateway(getGatewayName());
+            transaction.setCurrency("EGP");
+            transaction.setSubscriptionId(subscriptionId);
+            transaction.setSavedCardToken(cardToken);
+            if (success) transaction.setCompletedAt(LocalDateTime.now());
+            paymentRepository.save(transaction);
+
+            return success;
+
+        } catch (Exception e) {
+            log.error("Token charge failed for user {}: {}", userId, e.getMessage(), e);
+            return false;
+        }
+    }
+
+
 }

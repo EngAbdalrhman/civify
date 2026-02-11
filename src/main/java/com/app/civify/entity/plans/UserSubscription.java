@@ -84,6 +84,27 @@ public class UserSubscription extends BaseEntity {
     @ColumnDefault("1")
     private Integer currentCycleCount = 1;
 
+    /** Paymob saved card token for auto-renewal charges */
+    @Column(name = "saved_card_token", length = 512)
+    private String savedCardToken;
+
+    /** Masked PAN for display (e.g., "**** 1234") */
+    @Column(name = "card_masked_pan", length = 30)
+    private String cardMaskedPan;
+
+    /** Card network (e.g., "Visa", "MasterCard") */
+    @Column(name = "card_type", length = 20)
+    private String cardType;
+
+    /** Last auto-charge attempt timestamp */
+    @Column(name = "last_auto_charge_attempt")
+    private LocalDateTime lastAutoChargeAttempt;
+
+    /** Count of consecutive auto-charge failures */
+    @Column(name = "auto_charge_failure_count")
+    @ColumnDefault("0")
+    private Integer autoChargeFailureCount = 0;
+
     /**
      * Check if subscription is currently active and not expired
      */

@@ -45,6 +45,10 @@ public class PaymentTransaction extends BaseEntity {
     // Link to subscription
     private Long subscriptionId;
 
+    /** Card token used for this transaction (for auto-renewals) */
+    @Column(name = "saved_card_token", length = 512)
+    private String savedCardToken;
+
     // Additional metadata (JSONB for PostgreSQL)
     @Column(columnDefinition = "jsonb")
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
