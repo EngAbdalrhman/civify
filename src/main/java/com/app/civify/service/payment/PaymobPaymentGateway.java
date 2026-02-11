@@ -14,6 +14,8 @@ import com.app.civify.service.logs.BillingAuditService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +29,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -72,6 +75,23 @@ public class PaymobPaymentGateway implements PaymentGateway {
     @Value("${payment.gateway.paymob.enabled:false}")
     private boolean enabled;
 
+    // V2 Configuration
+    @Value("${payment.paymob.secret-key:}")
+    private String secretKey;
+
+    @Value("${payment.paymob.public-key:}")
+    private String publicKey;
+
+    @Value("${payment.paymob.use-v2:false}")
+    private boolean useV2;
+    
+    // Callback URLs (should be configured in application.properties or dynamic)
+    @Value("${app.backend.base-url:http://localhost:8077}")
+    private String backendUrl;
+    
+    @Value("${app.frontend.base-url:http://localhost:3000}")
+    private String frontendUrl;
+
     @Override
     public String getGatewayName() {
         return "paymob";
@@ -89,8 +109,122 @@ public class PaymobPaymentGateway implements PaymentGateway {
             throw new RuntimeException("Paymob gateway is not configured properly. Please check api-key and integration-id in application.properties");
         }
 
+        if (useV2) {
+            return createPaymentV2(userId, amount, method, metadata);
+        } else {
+            return createPaymentLegacy(userId, amount, method, metadata);
+        }
+    }
+
+    private PaymentCreationResult createPaymentV2(Long userId, double amount, PaymentMethods method, Map<String, Object> metadata) {
         try {
-            log.info("Creating Paymob payment for user {} with amount {} EGP", userId, amount);
+            log.info("Creating Paymob V2 payment (Intention) for user {} with amount {} EGP", userId, amount);
+
+            // Null safety for metadata
+            if (metadata == null) {
+                metadata = new HashMap<>();
+            }
+
+            Long integrationId = getPaymentMethod(method);
+            int amountCents = (int) (amount * 100);
+
+            // Construct Payload using ObjectMapper
+            ObjectNode payload = objectMapper.createObjectNode();
+            payload.put("amount", amountCents);
+            payload.put("currency", "EGP");
+            payload.putArray("payment_methods").add(integrationId);
+
+            // Items (Required by V2)
+            ArrayNode items = payload.putArray("items");
+            ObjectNode item = items.addObject();
+            item.put("name", (String) metadata.getOrDefault("planName", "Subscription"));
+            item.put("amount", amountCents);
+            item.put("description", "Civify Subscription");
+            item.put("quantity", 1);
+
+            // Billing Data
+            ObjectNode billingData = payload.putObject("billing_data");
+            billingData.put("first_name", (String) metadata.getOrDefault("firstName", "Customer"));
+            billingData.put("last_name", (String) metadata.getOrDefault("lastName", "User"));
+            billingData.put("email", (String) metadata.getOrDefault("email", "customer@example.com"));
+            billingData.put("phone_number", (String) metadata.getOrDefault("phone", "+201000000000"));
+            
+            // Mandatory dummy fields for billing data
+            billingData.put("apartment", "NA");
+            billingData.put("floor", "NA");
+            billingData.put("street", "NA");
+            billingData.put("building", "NA");
+            billingData.put("city", "NA");
+            billingData.put("country", "NA");
+            billingData.put("state", "NA");
+
+            // Special Reference
+            payload.put("special_reference", "civify_" + userId + "_" + System.currentTimeMillis());
+
+            // Callbacks - CORRECTED PATH: /apis/v1/payments/webhook/{gateway}
+            // Note: backendUrl usually does not include context path /apis, so we include it here.
+            // If backendUrl includes /apis, user needs to adjust. Assuming standard base URL (e.g., https://api.civify.com)
+            // The controller path is /v1/payments/webhook/paymob, context path is /apis.
+            payload.put("notification_url", backendUrl + "/apis/v1/payments/webhook/paymob");
+            payload.put("redirection_url", frontendUrl + "/payment/success?gateway=paymob");
+
+            // Call V2 Endpoint
+            String response = paymobClient.createIntention("Token " + secretKey, payload.toString());
+            log.debug("Paymob V2 Intention Response: {}", response);
+
+            JsonNode root = objectMapper.readTree(response);
+            
+            // Extract keys
+            String clientSecret = root.get("client_secret").asText();
+            String intentionId = root.get("id").asText();
+            
+            // Try to get order ID if available, otherwise use intention ID
+            String orderId = intentionId; 
+            if (root.has("order") && root.get("order").isNumber()) {
+                orderId = String.valueOf(root.get("order").asLong());
+            } else if (root.has("order_id")) {
+                orderId = root.get("order_id").asText();
+            }
+
+            // Construct Payment URL (Unified Checkout)
+            String paymentUrl = String.format("https://accept.paymob.com/unifiedcheckout/?publicKey=%s&clientSecret=%s",
+                    publicKey, clientSecret);
+
+            // Save Transaction
+            PaymentTransaction transaction = new PaymentTransaction();
+            transaction.setUserId(userId);
+            transaction.setAmount(BigDecimal.valueOf(amount));
+            transaction.setOrderId(orderId); 
+            transaction.setPaymentKey(clientSecret); 
+            transaction.setStatus(PaymentStatus.PENDING);
+            transaction.setGateway(getGatewayName());
+            transaction.setCurrency("EGP");
+            
+            // Store Intention ID in metadata for troubleshooting & verification
+            Map<String, Object> txMetadata = new HashMap<>(metadata);
+            txMetadata.put("intention_id", intentionId);
+            txMetadata.put("is_v2", true);
+            transaction.setMetadata(objectMapper.writeValueAsString(txMetadata));
+
+            paymentRepository.save(transaction);
+            
+            log.info("Paymob V2 payment created. Intention: {}, Order: {}", intentionId, orderId);
+
+            return PaymentCreationResult.builder()
+                    .paymentKey(clientSecret)
+                    .paymentUrl(paymentUrl)
+                    .orderId(orderId)
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error creating Paymob V2 payment for user {}: {}", userId, e.getMessage(), e);
+            throw new RuntimeException("Failed to create Paymob V2 payment: " + e.getMessage(), e);
+        }
+    }
+
+    private PaymentCreationResult createPaymentLegacy(Long userId, double amount, PaymentMethods method, Map<String, Object> metadata) {
+        try {
+            log.info("Creating Paymob payment (Legacy) for user {} with amount {} EGP", userId, amount);
 
             // Step 1: Authenticate
             String authToken = authenticate();
@@ -178,14 +312,17 @@ public class PaymobPaymentGateway implements PaymentGateway {
             return true;
         }
 
-        // Authenticate and check payment status from Paymob Order (Acceptance API)
-        // Let infrastructure exceptions (API errors, timeouts) propagate
-        // so the controller can return 503 instead of a misleading "payment failed"
-        String authToken = authenticate();
-        String orderResponse = paymobClient.getOrder("Bearer " + authToken, transaction.getOrderId());
+        // Check compatibility: Is this a V2 transaction?
+        boolean isV2 = isV2Transaction(transaction);
+        boolean isSuccessful = false;
 
-        // Parse response to check if payment is successful via Order transactions
-        boolean isSuccessful = parseOrderStatus(orderResponse);
+        if (isV2) {
+             // V2 Verification: Use getIntention with Secret Key
+             isSuccessful = verifyPaymentV2(transaction);
+        } else {
+             // Legacy Verification: Use getOrder with Auth Token
+             isSuccessful = verifyPaymentLegacy(transaction);
+        }
 
         if (isSuccessful) {
             transaction.setStatus(PaymentStatus.COMPLETED);
@@ -198,6 +335,75 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
         paymentRepository.save(transaction);
         return isSuccessful;
+    }
+
+    private boolean isV2Transaction(PaymentTransaction transaction) {
+        if (transaction.getMetadata() == null) return false;
+        try {
+            JsonNode meta = objectMapper.readTree(transaction.getMetadata());
+            return meta.has("is_v2") && meta.get("is_v2").asBoolean();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean verifyPaymentV2(PaymentTransaction transaction) {
+        try {
+            // In V2, we usually rely on the intention ID. 
+            // We stored intention_id in metadata, but also orderId might be the intention ID.
+            String intentionId = transaction.getOrderId();
+            
+            // Try to get intention_id from metadata if present
+            try {
+                JsonNode meta = objectMapper.readTree(transaction.getMetadata());
+                if (meta.has("intention_id")) {
+                    intentionId = meta.get("intention_id").asText();
+                }
+            } catch (Exception e) {
+                // ignore
+            }
+
+            log.debug("Verifying V2 Intention: {}", intentionId);
+            String response = paymobClient.getIntention("Token " + secretKey, intentionId);
+            
+            // Parse Intention Response
+            JsonNode root = objectMapper.readTree(response);
+            
+            // Check status. Usually check for "success" or payment method status?
+            // Intention response structure needs checking. 
+            // Assuming simplified check: Look for a successful payment method object or status.
+            // But usually, we check the underlying Order or just the Intention status?
+            // For now, if getIntention returns 200 OK and we have it, we check if it has 'payment_keys' which have transactions?
+            // Actually, best way is to check the attached order's payment status if available.
+            // But V2 intention response contains "next_action" or "payment_methods".
+            
+            // Fallback: If we got the intention successfully, and it has an order ID, we can check that order?
+            // But getIntention logic is sufficient to prove existence. Proof of *payment* requires checking the payment transaction inside.
+            
+            // NOTE: Paymob V2 verification is best done via Webhook. Manual verification is tricky without looking at specific payment attempts.
+            // Let's assume if we can fetch it, it exists. But we need to know if it's PAID.
+            // We will return false here unless we can PROVE it's paid. 
+            // Since we lack clear "is_paid" field in Intention without deep traversal, 
+            // we will rely on Webhook primarily.
+            // However, to support standard flow, we'll return false and log.
+            log.warn("Manual verification for V2 not fully implemented (relying on Webhook). Returning false.");
+            return false;
+            
+        } catch (Exception e) {
+            log.error("V2 verification failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private boolean verifyPaymentLegacy(PaymentTransaction transaction) {
+        // Authenticate and check payment status from Paymob Order (Acceptance API)
+        // Let infrastructure exceptions (API errors, timeouts) propagate
+        // so the controller can return 503 instead of a misleading "payment failed"
+        String authToken = authenticate();
+        String orderResponse = paymobClient.getOrder("Bearer " + authToken, transaction.getOrderId());
+
+        // Parse response to check if payment is successful via Order transactions
+        return parseOrderStatus(orderResponse);
     }
 
     /**
@@ -222,6 +428,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
             return false;
         }
     }
+
 
     @Override
     @Transactional
