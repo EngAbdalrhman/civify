@@ -46,6 +46,7 @@ public class TokenPurchase extends BaseEntity {
     /**
      * Link to the payment transaction/order
      */
+    @Column(columnDefinition = "TEXT")
     private String paymentTransactionId; // The 'orderId' or 'paymentKey' from gateway
 
     @Enumerated(EnumType.STRING)

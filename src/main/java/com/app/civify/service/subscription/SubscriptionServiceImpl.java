@@ -143,7 +143,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             UserSubscription pending = pendingSubscription.get();
             // Check if it's stale (older than 5 minutes)
             if (pending.getCreatedAt() != null && 
-                pending.getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(2))) {
+                pending.getCreatedAt().isBefore(LocalDateTime.now().minusSeconds(10))) {
                 
                 log.info("Found stale pending subscription {} created at {}. Marking as CANCELLED.", 
                         pending.getId(), pending.getCreatedAt());
