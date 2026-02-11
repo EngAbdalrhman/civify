@@ -26,21 +26,40 @@ import lombok.extern.slf4j.Slf4j;
 public class CivifyApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(CivifyApplication.class, args);
+        SpringApplication app = new SpringApplication(CivifyApplication.class);
+        app.setBannerMode(org.springframework.boot.Banner.Mode.OFF);
+        app.run(args);
         logLogo();
     }
 
     private static void logLogo() {
-        String ridersLogo
-                = "\n ######  #### ##     ## #### ######## ##    ##\r\n"
-                + "##    ##  ##  ##     ##  ##  ##        ##  ## \r\n"
-                + "##        ##  ##     ##  ##  ##         ####  \r\n"
-                + "##        ##  ##     ##  ##  ######      ##   \r\n"
-                + "##        ##   ##   ##   ##  ##          ##   \r\n"
-                + "##    ##  ##    ## ##    ##  ##          ##   \r\n"
-                + " ######  ####    ###    #### ##          ##   ";
+        String civifyLogo = """
+                  
+                                                                                                                            
+                                                                                                           
+        CCCCCCCCCCCCC  iiii                            iiii     ffffffffffffffff                           
+     CCC::::::::::::C i::::i                          i::::i   f::::::::::::::::f                          
+   CC:::::::::::::::C  iiii                            iiii   f::::::::::::::::::f                         
+  C:::::CCCCCCCC::::C                                         f::::::fffffff:::::f                         
+ C:::::C       CCCCCCiiiiiiivvvvvvv           vvvvvvviiiiiii  f:::::f       ffffffyyyyyyy           yyyyyyy
+C:::::C              i:::::i v:::::v         v:::::v i:::::i  f:::::f              y:::::y         y:::::y 
+C:::::C               i::::i  v:::::v       v:::::v   i::::i f:::::::ffffff         y:::::y       y:::::y  
+C:::::C               i::::i   v:::::v     v:::::v    i::::i f::::::::::::f          y:::::y     y:::::y   
+C:::::C               i::::i    v:::::v   v:::::v     i::::i f::::::::::::f           y:::::y   y:::::y    
+C:::::C               i::::i     v:::::v v:::::v      i::::i f:::::::ffffff            y:::::y y:::::y     
+C:::::C               i::::i      v:::::v:::::v       i::::i  f:::::f                   y:::::y:::::y      
+ C:::::C       CCCCCC i::::i       v:::::::::v        i::::i  f:::::f                    y:::::::::y       
+  C:::::CCCCCCCC::::Ci::::::i       v:::::::v        i::::::if:::::::f                    y:::::::y        
+   CC:::::::::::::::Ci::::::i        v:::::v         i::::::if:::::::f                     y:::::y         
+     CCC::::::::::::Ci::::::i         v:::v          i::::::if:::::::f                    y:::::y          
+        CCCCCCCCCCCCCiiiiiiii          vvv           iiiiiiiifffffffff                   y:::::y           
+                                                                                        y:::::y            
+                                                                                       y:::::y             
+                                                                                      y:::::y              
+                                                                                     y:::::y  
+                  """;
 
-        log.info(ridersLogo);
+        log.info(civifyLogo);
     }
 
 }
