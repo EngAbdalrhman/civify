@@ -284,6 +284,13 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- JSON Logging for Google Cloud -->
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>7.4</version>
+        </dependency>
+
         <!-- =========================
              ENCODING & UTILITIES
              ========================= -->
