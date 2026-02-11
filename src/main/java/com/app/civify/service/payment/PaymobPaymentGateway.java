@@ -159,14 +159,16 @@ public class PaymobPaymentGateway implements PaymentGateway {
             billingData.put("state", "NA");
 
             // Special Reference
-            payload.put("special_reference", "civify_" + userId + "_" + System.currentTimeMillis());
+            payload.put("special_reference", "civify_" + userId + "_" + System.currentTimeMillis() + "_" + java.util.UUID.randomUUID().toString().substring(0, 8));
 
             // Callbacks - CORRECTED PATH: /apis/v1/payments/webhook/{gateway}
             // Note: backendUrl usually does not include context path /apis, so we include it here.
             // If backendUrl includes /apis, user needs to adjust. Assuming standard base URL (e.g., https://api.civify.com)
             // The controller path is /v1/payments/webhook/paymob, context path is /apis.
             payload.put("notification_url", backendUrl + "/apis/v1/payments/webhook/paymob");
-            payload.put("redirection_url", frontendUrl + "/payment/success?gateway=paymob");
+            
+            // Use locale-specific success URL (could be dynamic based on user locale, defaulting to 'en')
+            payload.put("redirection_url", frontendUrl + "/en/payment/success?gateway=paymob");
 
             // Call V2 Endpoint
             String response = paymobClient.createIntention("Token " + secretKey, payload.toString());
@@ -329,8 +331,15 @@ public class PaymobPaymentGateway implements PaymentGateway {
             transaction.setCompletedAt(LocalDateTime.now());
             log.info("Paymob payment verified successfully for user {}", transaction.getUserId());
         } else {
-            transaction.setStatus(PaymentStatus.FAILED);
-            log.warn("Paymob payment verification failed for user {}", transaction.getUserId());
+            // For V2 transactions, manual verification failure might just mean "pending" or "not yet processed by webhook".
+            // We should NOT mark it as FAILED immediately, because the webhook might arrive later with success.
+            // Only legacy transactions (that rely on synchronous check) should be marked failed here if check fails.
+            if (!isV2) {
+                transaction.setStatus(PaymentStatus.FAILED);
+                log.warn("Paymob payment verification failed for user {}", transaction.getUserId());
+            } else {
+                 log.info("Paymob V2 verification check returned false (likely pending). Keeping status as PENDING and waiting for webhook. User: {}", transaction.getUserId());
+            }
         }
 
         paymentRepository.save(transaction);
