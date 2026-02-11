@@ -63,12 +63,12 @@ public class PaymentController {
             @RequestParam(required = false) String promoCode,
             @RequestParam(defaultValue = "false") boolean isAnnual,
             @RequestParam(required = false) String gateway,
-            @RequestParam(required = false) PaymentMethods method,
+            @RequestParam(required = false) PaymentMethods paymentMethod,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
         try {
             Long userId = userPrincipal.getId();
-            PaymentInitiationResponse response = paymentUseCase.initiatePayment(userId, planId, isAnnual, promoCode, gateway, method);
+            PaymentInitiationResponse response = paymentUseCase.initiatePayment(userId, planId, isAnnual, promoCode, gateway, paymentMethod);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {

@@ -208,7 +208,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         // Validate and apply promo code if provided
         if (promoCode != null && !promoCode.isEmpty()) {
-            PromoCode promo = validateAndApplyPromoCode(userId, planId, promoCode);
+            PromoCode promo = validatePromoCode(userId, planId, promoCode);
             subscription.setPromoCode(promo);
         }
 
@@ -219,9 +219,9 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     }
 
     /**
-     * Validate promo code and record usage. Returns the promo if valid.
+     * Validate promo code without recording usage. Returns the promo if valid.
      */
-    private PromoCode validateAndApplyPromoCode(Long userId, Long planId, String promoCode) {
+    private PromoCode validatePromoCode(Long userId, Long planId, String promoCode) {
         PromoCode promo = promoCodeRepository.findByCodeAndActiveTrue(promoCode)
                 .orElseThrow(() -> new BadRequestException("promo.invalid"));
 
@@ -243,18 +243,6 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         if (userPromoUsageRepository.existsByUserIdAndPromoCodeId(userId, promo.getId())) {
             throw new BadRequestException("promo.alreadyused");
         }
-
-        // Record promo usage for this user
-        UserPromoUsage usage = UserPromoUsage.builder()
-                .user(userRepository.getReferenceById(userId))
-                .promoCode(promo)
-                .usedAt(LocalDateTime.now())
-                .build();
-        userPromoUsageRepository.save(usage);
-
-        // Increment global promo usage count
-        promo.setUsedCount(promo.getUsedCount() + 1);
-        promoCodeRepository.save(promo);
 
         return promo;
     }
@@ -544,6 +532,26 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         // Activate the new subscription
         subscription.setStatus(SubscriptionStatus.ACTIVE);
         subscriptionRepository.save(subscription);
+
+        // Record promo usage if applicable
+        if (subscription.getPromoCode() != null) {
+            PromoCode promo = subscription.getPromoCode();
+            
+            // Check if usage already recorded (idempotency for activation)
+            if (!userPromoUsageRepository.existsByUserIdAndPromoCodeId(user.getId(), promo.getId())) {
+                 UserPromoUsage usage = UserPromoUsage.builder()
+                        .user(user)
+                        .promoCode(promo)
+                        .usedAt(LocalDateTime.now())
+                        .build();
+                userPromoUsageRepository.save(usage);
+
+                // Increment global promo usage count
+                promo.setUsedCount(promo.getUsedCount() + 1);
+                promoCodeRepository.save(promo);
+                log.info("Recorded promo code usage for user {} and promo {}", user.getId(), promo.getCode());
+            }
+        }
 
         // Update user role if plan grants licensed status
         // Update user group based on plan
