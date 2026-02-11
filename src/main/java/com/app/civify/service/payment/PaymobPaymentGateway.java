@@ -847,22 +847,51 @@ public class PaymobPaymentGateway implements PaymentGateway {
     private String buildBillingData(Map<String, Object> metadata) {
         String firstName = "Customer";
         String lastName = "User";
-        String email = "customer@example.com";
+        String email = "customer@civify.cv";
         String phone = "+201000000000";
 
         if (metadata != null) {
-            firstName = (String) metadata.getOrDefault("firstName", firstName);
-            lastName = (String) metadata.getOrDefault("lastName", lastName);
-            email = (String) metadata.getOrDefault("email", email);
-            phone = (String) metadata.getOrDefault("phone", phone);
+            Object fn = metadata.get("firstName");
+            if (fn != null && !fn.toString().isBlank()) firstName = fn.toString();
+            
+            Object ln = metadata.get("lastName");
+            if (ln != null && !ln.toString().isBlank()) lastName = ln.toString();
+
+            Object em = metadata.get("email");
+            if (em != null && !em.toString().isBlank()) email = em.toString();
+
+            Object ph = metadata.get("phone");
+            if (ph != null && !ph.toString().isBlank()) phone = ph.toString();
         }
 
-        return String.format(
+        // Create billing data map
+        java.util.Map<String, String> billingData = new java.util.HashMap<>();
+        billingData.put("apartment", "NA");
+        billingData.put("email", email);
+        billingData.put("floor", "NA");
+        billingData.put("first_name", firstName);
+        billingData.put("street", "NA");
+        billingData.put("building", "NA");
+        billingData.put("phone_number", phone);
+        billingData.put("shipping_method", "NA");
+        billingData.put("postal_code", "NA");
+        billingData.put("city", "NA");
+        billingData.put("country", "NA");
+        billingData.put("last_name", lastName);
+        billingData.put("state", "NA");
+
+        try {
+            return objectMapper.writeValueAsString(billingData);
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize billing data, using fallback", e);
+            // Fallback to manual construction if serialization fails
+            return String.format(
                 "{\"apartment\":\"NA\",\"email\":\"%s\",\"floor\":\"NA\",\"first_name\":\"%s\"," +
                 "\"street\":\"NA\",\"building\":\"NA\",\"phone_number\":\"%s\",\"shipping_method\":\"NA\"," +
                 "\"postal_code\":\"NA\",\"city\":\"NA\",\"country\":\"NA\",\"last_name\":\"%s\",\"state\":\"NA\"}",
                 email, firstName, phone, lastName
-        );
+            );
+        }
     }
 
     /**
