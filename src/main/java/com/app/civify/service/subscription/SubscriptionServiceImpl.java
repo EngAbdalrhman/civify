@@ -143,7 +143,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             UserSubscription pending = pendingSubscription.get();
             // Check if it's stale (older than 5 minutes)
             if (pending.getCreatedAt() != null && 
-                pending.getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(5))) {
+                pending.getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(2))) {
                 
                 log.info("Found stale pending subscription {} created at {}. Marking as CANCELLED.", 
                         pending.getId(), pending.getCreatedAt());
@@ -333,11 +333,11 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, PaymentMethods method) {
         log.info("Initiating payment for user {} with plan {} using gateway {}", userId, planId, gateway);
 
-        // Create subscription first (with PENDING status)
-        UserSubscription subscription = createSubscription(userId, planId, promoCode, isAnnual);
-
-        // Calculate total price
+        // Calculate total price first (before marking promo as used)
         PriceCalculationResponse priceCalc = calculateTotalPrice(userId, planId, isAnnual, promoCode);
+
+        // Create subscription (with PENDING status) - this marks promo as used
+        UserSubscription subscription = createSubscription(userId, planId, promoCode, isAnnual);
 
         // Check if price is zero (Free plan or 100% discount)
         if (priceCalc.getTotalPrice().compareTo(BigDecimal.ZERO) <= 0) {
