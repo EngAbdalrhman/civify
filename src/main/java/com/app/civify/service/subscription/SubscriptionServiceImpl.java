@@ -208,7 +208,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         // Validate and apply promo code if provided
         if (promoCode != null && !promoCode.isEmpty()) {
-            PromoCode promo = validateAndApplyPromoCode(userId, planId, promoCode);
+            PromoCode promo = validatePromoCode(userId, planId, promoCode);
             subscription.setPromoCode(promo);
         }
 
@@ -221,7 +221,11 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     /**
      * Validate promo code and record usage. Returns the promo if valid.
      */
-    private PromoCode validateAndApplyPromoCode(Long userId, Long planId, String promoCode) {
+    /**
+     * Validate promo code. Returns the promo if valid.
+     * Does NOT record usage (deferred to activation).
+     */
+    private PromoCode validatePromoCode(Long userId, Long planId, String promoCode) {
         PromoCode promo = promoCodeRepository.findByCodeAndActiveTrue(promoCode)
                 .orElseThrow(() -> new BadRequestException("promo.invalid"));
 
@@ -244,6 +248,16 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             throw new BadRequestException("promo.alreadyused");
         }
 
+        return promo;
+    }
+
+    private void recordPromoUsage(Long userId, PromoCode promo) {
+        // Re-check to avoid double usage if multiple pending subs were created
+        if (userPromoUsageRepository.existsByUserIdAndPromoCodeId(userId, promo.getId())) {
+            log.warn("Promo code {} already recorded for user {}. Skipping duplicate recording.", promo.getCode(), userId);
+            return;
+        }
+
         // Record promo usage for this user
         UserPromoUsage usage = UserPromoUsage.builder()
                 .user(userRepository.getReferenceById(userId))
@@ -255,8 +269,6 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         // Increment global promo usage count
         promo.setUsedCount(promo.getUsedCount() + 1);
         promoCodeRepository.save(promo);
-
-        return promo;
     }
 
     @Override
@@ -547,6 +559,11 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         // Activate the new subscription
         subscription.setStatus(SubscriptionStatus.ACTIVE);
         subscriptionRepository.save(subscription);
+
+        // Record promo usage if applicable
+        if (subscription.getPromoCode() != null) {
+            recordPromoUsage(user.getId(), subscription.getPromoCode());
+        }
 
         // Update user role if plan grants licensed status
         // Update user group based on plan
