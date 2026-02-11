@@ -219,7 +219,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     }
 
     /**
-     * Validate promo code and record usage. Returns the promo if valid.
+     * Validate promo code without recording usage. Returns the promo if valid.
      */
     /**
      * Validate promo code. Returns the promo if valid.
@@ -380,7 +380,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             metadata.put("lastName", user.getLastName());
             metadata.put("email", user.getEmail());
             // Prioritize passed phone number (e.g. for wallet payment), otherwise use user profile phone
-            String phoneToUse = (phoneNumber != null && !phoneNumber.isEmpty()) ? phoneNumber : 
+            String phoneToUse = (phoneNumber != null && !phoneNumber.isEmpty()) ? phoneNumber :
                                (user.getPhoneNumber() != null ? user.getPhoneNumber() : user.getPhone());
             metadata.put("phone", phoneToUse);
         }
