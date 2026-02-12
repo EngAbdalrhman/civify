@@ -17,6 +17,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.app.civify.dto.external.ExternalUserProfileResponse;
+
 
 @ApiV1Controller
 @RequestMapping("/external/cvs")
@@ -27,6 +29,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class ExternalCvController {
 
     private final ExternalCvService externalCvService;
+
 
     @Operation(
             summary = "Mask CV (External)",
@@ -113,6 +116,19 @@ public class ExternalCvController {
             return ResponseEntity.internalServerError().body(CvTailorResponse.builder()
                     .build());
         }
+    }
+
+
+    @Operation(
+            summary = "Get User Profile (External)",
+            description = "Get basic user profile and plan details. Requires X-API-KEY header.",
+            security = @SecurityRequirement(name = "api-key")
+    )
+    @GetMapping("/user/profile")
+    public ResponseEntity<ExternalUserProfileResponse> getUserProfile(
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        
+        return ResponseEntity.ok(externalCvService.getUserProfile(userPrincipal.getUser()));
     }
 }
 
