@@ -14,6 +14,9 @@ import com.app.civify.service.document.CvParsingService;
 import com.app.civify.service.document.masking.MaskingService;
 import com.app.civify.service.document.pdf.PdfGenerationService;
 import com.app.civify.service.subscription.SubscriptionService;
+import com.app.civify.dto.external.ExternalUserProfileResponse;
+import com.app.civify.entity.plans.UserSubscription;
+import java.util.Optional;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.RequiredArgsConstructor;
@@ -262,6 +265,32 @@ public class ExternalCvService {
             );
             throw e;
         }
+    }
+
+    public ExternalUserProfileResponse getUserProfile(User user) {
+        Optional<UserSubscription> subOpt = subscriptionService.getActiveSubscription(user.getId());
+
+        String planName = "Free";
+        int credits = 0;
+
+        if (subOpt.isPresent()) {
+            UserSubscription sub = subOpt.get();
+            planName = sub.getPlan().getName();
+            // Calculate total tokens: Subscription remaining + User Wallet (extraTokens)
+            credits = sub.getRemainingSubscriptionTokens() + user.getExtraTokens();
+        } else {
+            // No active subscription, check if they have extra tokens (wallet)
+            credits = user.getExtraTokens();
+        }
+
+        return ExternalUserProfileResponse.builder()
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .planName(planName)
+                .creditsRemaining(credits)
+                .build();
     }
 }
 
