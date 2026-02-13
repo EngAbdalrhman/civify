@@ -91,6 +91,61 @@ public class SecurityConfig {
     }
 
     @Bean
+    public org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient<org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient() {
+        org.springframework.security.oauth2.client.endpoint.DefaultAuthorizationCodeTokenResponseClient accessTokenResponseClient =
+                new org.springframework.security.oauth2.client.endpoint.DefaultAuthorizationCodeTokenResponseClient();
+
+        org.springframework.security.oauth2.core.http.converter.OAuth2AccessTokenResponseHttpMessageConverter tokenResponseHttpMessageConverter =
+                new org.springframework.security.oauth2.core.http.converter.OAuth2AccessTokenResponseHttpMessageConverter();
+
+        tokenResponseHttpMessageConverter.setAccessTokenResponseConverter(new org.springframework.core.convert.converter.Converter<java.util.Map<String, Object>, org.springframework.security.oauth2.core.endpoint.OAuth2AccessTokenResponse>() {
+            @Override
+            public org.springframework.security.oauth2.core.endpoint.OAuth2AccessTokenResponse convert(java.util.Map<String, Object> tokenResponseParameters) {
+                String accessToken = (String) tokenResponseParameters.get(org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames.ACCESS_TOKEN);
+                
+                org.springframework.security.oauth2.core.OAuth2AccessToken.TokenType accessTokenType = org.springframework.security.oauth2.core.OAuth2AccessToken.TokenType.BEARER;
+                if (tokenResponseParameters.containsKey(org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames.TOKEN_TYPE)) {
+                    String tokenType = (String) tokenResponseParameters.get(org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames.TOKEN_TYPE);
+                    if (org.springframework.security.oauth2.core.OAuth2AccessToken.TokenType.BEARER.getValue().equalsIgnoreCase(tokenType)) {
+                        accessTokenType = org.springframework.security.oauth2.core.OAuth2AccessToken.TokenType.BEARER;
+                    } else {
+                        accessTokenType = null;
+                    }
+                }
+
+                long expiresIn = 0;
+                if (tokenResponseParameters.containsKey(org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames.EXPIRES_IN)) {
+                    try {
+                        expiresIn = Long.parseLong(tokenResponseParameters.get(org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames.EXPIRES_IN).toString());
+                    } catch (NumberFormatException ex) {
+                    }
+                }
+
+                java.util.Set<String> scopes = java.util.Collections.emptySet();
+                if (tokenResponseParameters.containsKey(org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames.SCOPE)) {
+                    String scope = (String) tokenResponseParameters.get(org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames.SCOPE);
+                    scopes = new java.util.HashSet<>(java.util.Arrays.asList(org.springframework.util.StringUtils.delimitedListToStringArray(scope, " ")));
+                }
+
+                return org.springframework.security.oauth2.core.endpoint.OAuth2AccessTokenResponse.withToken(accessToken)
+                        .tokenType(accessTokenType)
+                        .expiresIn(expiresIn)
+                        .scopes(scopes)
+                        .additionalParameters(tokenResponseParameters)
+                        .build();
+            }
+        });
+
+        org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate(java.util.Arrays.asList(
+                new org.springframework.http.converter.FormHttpMessageConverter(), tokenResponseHttpMessageConverter));
+
+        restTemplate.setErrorHandler(new org.springframework.security.oauth2.client.http.OAuth2ErrorResponseErrorHandler());
+
+        accessTokenResponseClient.setRestOperations(restTemplate);
+        return accessTokenResponseClient;
+    }
+
+    @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationManager authenticationManager) throws Exception {
 
 
@@ -137,6 +192,9 @@ public class SecurityConfig {
                 .oauth2Login(oauth2 -> oauth2
                         .userInfoEndpoint(userInfo -> userInfo
                                 .userService(oAuth2UserService)
+                        )
+                        .tokenEndpoint(token -> token
+                                .accessTokenResponseClient(accessTokenResponseClient())
                         )
                         .successHandler(oAuth2SuccessHandler)
                         .failureHandler((request, response, exception) -> {
