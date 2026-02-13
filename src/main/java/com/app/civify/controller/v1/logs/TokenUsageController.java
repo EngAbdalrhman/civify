@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import com.app.civify.util.filter.PagedResponse;
 import org.springframework.web.bind.annotation.*;
 
 @ApiV1Controller
@@ -27,12 +28,12 @@ public class TokenUsageController {
 
     @Operation(summary = "Get my token usage history")
     @GetMapping("/users/me")
-    public ResponseEntity<Page<TokenUsageDto>> getMyTokenUsage(
+    public ResponseEntity<PagedResponse<TokenUsageDto>> getMyTokenUsage(
             @AuthenticationPrincipal UserPrincipal user,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Page<TokenUsageDto> usage = auditLogUseCase.getMyTokenUsageHistory(user, page, size);
-        return ResponseEntity.ok(usage);
+        return ResponseEntity.ok(PagedResponse.of(usage));
     }
 
     @Operation(summary = "Get my monthly token usage summary")
