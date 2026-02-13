@@ -223,10 +223,6 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     /**
      * Validate promo code without recording usage. Returns the promo if valid.
      */
-    /**
-     * Validate promo code. Returns the promo if valid.
-     * Does NOT record usage (deferred to activation).
-     */
     private PromoCode validatePromoCode(Long userId, Long planId, String promoCode) {
         PromoCode promo = promoCodeRepository.findByCodeAndActiveTrue(promoCode)
                 .orElseThrow(() -> new BadRequestException("promo.invalid"));
