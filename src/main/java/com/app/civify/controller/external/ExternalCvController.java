@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import com.app.civify.dto.external.ExternalUserProfileResponse;
 
-
 @ApiV1Controller
 @RequestMapping("/external/cvs")
 @RequiredArgsConstructor
@@ -29,7 +28,6 @@ import com.app.civify.dto.external.ExternalUserProfileResponse;
 public class ExternalCvController {
 
     private final ExternalCvService externalCvService;
-
 
     @Operation(
             summary = "Mask CV (External)",
@@ -127,7 +125,6 @@ public class ExternalCvController {
     @GetMapping("/user/profile")
     public ResponseEntity<ExternalUserProfileResponse> getUserProfile(
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
-        
         return ResponseEntity.ok(externalCvService.getUserProfile(userPrincipal.getUser()));
     }
 }
