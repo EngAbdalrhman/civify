@@ -151,10 +151,10 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
             // Billing Data
             ObjectNode billingData = payload.putObject("billing_data");
-            billingData.put("first_name", (String) metadata.getOrDefault("firstName", "Customer"));
-            billingData.put("last_name", (String) metadata.getOrDefault("lastName", "User"));
-            billingData.put("email", (String) metadata.getOrDefault("email", "customer@example.com"));
-            billingData.put("phone_number", (String) metadata.getOrDefault("phone", "+201000000000"));
+            billingData.put("first_name", getMetadataStringOrDefault(metadata, "firstName", "Customer"));
+            billingData.put("last_name", getMetadataStringOrDefault(metadata, "lastName", "User"));
+            billingData.put("email", getMetadataStringOrDefault(metadata, "email", "customer@example.com"));
+            billingData.put("phone_number", getMetadataStringOrDefault(metadata, "phone", "+201000000000"));
             
             // Mandatory dummy fields for billing data
             billingData.put("apartment", "NA");
@@ -1183,4 +1183,11 @@ public class PaymobPaymentGateway implements PaymentGateway {
     }
 
 
+    private String getMetadataStringOrDefault(Map<String, Object> metadata, String key, String defaultValue) {
+        Object value = metadata.get(key);
+        if (value == null || value.toString().isBlank()) {
+            return defaultValue;
+        }
+        return value.toString();
+    }
 }
