@@ -117,8 +117,8 @@ public class PaymentFulfillmentService {
 
             if (!invoiceHandled) {
                 // No invoice found - activate subscription (initial purchase flow)
-                log.info("Processing SUBSCRIPTION activation for paymentKey: {}", transaction.getPaymentKey());
-                subscriptionService.activateSubscription(transaction.getPaymentKey());
+                log.info("Processing SUBSCRIPTION activation for orderId: {}", transaction.getOrderId());
+                subscriptionService.activateSubscription(transaction.getOrderId());
             } else {
                 log.info("Invoice payment processed for order: {}", transaction.getOrderId());
             }

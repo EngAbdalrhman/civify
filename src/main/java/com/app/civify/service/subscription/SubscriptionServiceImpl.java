@@ -390,8 +390,8 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), gateway, method, metadata);
 
-        // Link payment to subscription
-        subscription.setPaymentTransactionId(paymentResult.getPaymentKey());
+        // Link payment to subscription using orderId (same ID used for lookup in activateSubscription)
+        subscription.setPaymentTransactionId(paymentResult.getOrderId());
         subscriptionRepository.save(subscription);
 
         // Link PaymentTransaction → Subscription (needed for token extraction in webhook)
