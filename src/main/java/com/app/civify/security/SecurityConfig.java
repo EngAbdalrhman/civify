@@ -24,6 +24,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -48,6 +49,7 @@ public class SecurityConfig {
     private final JwtUtil jwtUtil;
     private final CustomOAuth2UserService oAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
+    private final org.springframework.security.oauth2.client.registration.ClientRegistrationRepository clientRegistrationRepository;
 
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
     private final RateLimitFilter rateLimitFilter;
@@ -145,6 +147,21 @@ public class SecurityConfig {
         return accessTokenResponseClient;
     }
 
+    private org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver linkedInAuthorizationRequestResolver() {
+        org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver defaultResolver =
+                new org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver(
+                        clientRegistrationRepository, "/oauth2/authorization");
+
+        defaultResolver.setAuthorizationRequestCustomizer(customizer -> {
+            // Remove nonce for all providers — LinkedIn doesn't support it properly
+            // Google ignores extra params so this is harmless for other providers
+            customizer.additionalParameters(params -> params.remove("nonce"));
+            customizer.attributes(attrs -> attrs.remove("nonce"));
+        });
+
+        return defaultResolver;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationManager authenticationManager) throws Exception {
 
@@ -190,6 +207,9 @@ public class SecurityConfig {
                 .addFilterAfter(jwtRefreshFilter, JwtValidationFilter.class) // refresh token filter
                 .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .oauth2Login(oauth2 -> oauth2
+                        .authorizationEndpoint(auth -> auth
+                                .authorizationRequestResolver(linkedInAuthorizationRequestResolver())
+                        )
                         .userInfoEndpoint(userInfo -> userInfo
                                 .userService(oAuth2UserService)
                         )
