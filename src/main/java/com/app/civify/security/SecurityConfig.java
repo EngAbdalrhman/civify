@@ -24,6 +24,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -48,6 +49,7 @@ public class SecurityConfig {
     private final JwtUtil jwtUtil;
     private final CustomOAuth2UserService oAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
+    private final org.springframework.security.oauth2.client.registration.ClientRegistrationRepository clientRegistrationRepository;
 
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
     private final RateLimitFilter rateLimitFilter;
@@ -88,6 +90,76 @@ public class SecurityConfig {
                 daoAuthenticationProvider(),
                 jwtAuthenticationProvider()
         ));
+    }
+
+    @Bean
+    public org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient<org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient() {
+        org.springframework.security.oauth2.client.endpoint.DefaultAuthorizationCodeTokenResponseClient accessTokenResponseClient =
+                new org.springframework.security.oauth2.client.endpoint.DefaultAuthorizationCodeTokenResponseClient();
+
+        org.springframework.security.oauth2.core.http.converter.OAuth2AccessTokenResponseHttpMessageConverter tokenResponseHttpMessageConverter =
+                new org.springframework.security.oauth2.core.http.converter.OAuth2AccessTokenResponseHttpMessageConverter();
+
+        tokenResponseHttpMessageConverter.setAccessTokenResponseConverter(new org.springframework.core.convert.converter.Converter<java.util.Map<String, Object>, org.springframework.security.oauth2.core.endpoint.OAuth2AccessTokenResponse>() {
+            @Override
+            public org.springframework.security.oauth2.core.endpoint.OAuth2AccessTokenResponse convert(java.util.Map<String, Object> tokenResponseParameters) {
+                String accessToken = (String) tokenResponseParameters.get(org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames.ACCESS_TOKEN);
+                
+                org.springframework.security.oauth2.core.OAuth2AccessToken.TokenType accessTokenType = org.springframework.security.oauth2.core.OAuth2AccessToken.TokenType.BEARER;
+                if (tokenResponseParameters.containsKey(org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames.TOKEN_TYPE)) {
+                    String tokenType = (String) tokenResponseParameters.get(org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames.TOKEN_TYPE);
+                    if (org.springframework.security.oauth2.core.OAuth2AccessToken.TokenType.BEARER.getValue().equalsIgnoreCase(tokenType)) {
+                        accessTokenType = org.springframework.security.oauth2.core.OAuth2AccessToken.TokenType.BEARER;
+                    } else {
+                        accessTokenType = null;
+                    }
+                }
+
+                long expiresIn = 0;
+                if (tokenResponseParameters.containsKey(org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames.EXPIRES_IN)) {
+                    try {
+                        expiresIn = Long.parseLong(tokenResponseParameters.get(org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames.EXPIRES_IN).toString());
+                    } catch (NumberFormatException ex) {
+                    }
+                }
+
+                java.util.Set<String> scopes = java.util.Collections.emptySet();
+                if (tokenResponseParameters.containsKey(org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames.SCOPE)) {
+                    String scope = (String) tokenResponseParameters.get(org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames.SCOPE);
+                    scopes = new java.util.HashSet<>(java.util.Arrays.asList(org.springframework.util.StringUtils.delimitedListToStringArray(scope, " ")));
+                }
+
+                return org.springframework.security.oauth2.core.endpoint.OAuth2AccessTokenResponse.withToken(accessToken)
+                        .tokenType(accessTokenType)
+                        .expiresIn(expiresIn)
+                        .scopes(scopes)
+                        .additionalParameters(tokenResponseParameters)
+                        .build();
+            }
+        });
+
+        org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate(java.util.Arrays.asList(
+                new org.springframework.http.converter.FormHttpMessageConverter(), tokenResponseHttpMessageConverter));
+
+        restTemplate.setErrorHandler(new org.springframework.security.oauth2.client.http.OAuth2ErrorResponseErrorHandler());
+
+        accessTokenResponseClient.setRestOperations(restTemplate);
+        return accessTokenResponseClient;
+    }
+
+    private org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver linkedInAuthorizationRequestResolver() {
+        org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver defaultResolver =
+                new org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver(
+                        clientRegistrationRepository, "/oauth2/authorization");
+
+        defaultResolver.setAuthorizationRequestCustomizer(customizer -> {
+            // Remove nonce for all providers — LinkedIn doesn't support it properly
+            // Google ignores extra params so this is harmless for other providers
+            customizer.additionalParameters(params -> params.remove("nonce"));
+            customizer.attributes(attrs -> attrs.remove("nonce"));
+        });
+
+        return defaultResolver;
     }
 
     @Bean
@@ -135,8 +207,14 @@ public class SecurityConfig {
                 .addFilterAfter(jwtRefreshFilter, JwtValidationFilter.class) // refresh token filter
                 .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .oauth2Login(oauth2 -> oauth2
+                        .authorizationEndpoint(auth -> auth
+                                .authorizationRequestResolver(linkedInAuthorizationRequestResolver())
+                        )
                         .userInfoEndpoint(userInfo -> userInfo
                                 .userService(oAuth2UserService)
+                        )
+                        .tokenEndpoint(token -> token
+                                .accessTokenResponseClient(accessTokenResponseClient())
                         )
                         .successHandler(oAuth2SuccessHandler)
                         .failureHandler((request, response, exception) -> {

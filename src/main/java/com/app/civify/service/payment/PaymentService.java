@@ -63,4 +63,10 @@ public interface PaymentService {
      * @return List of enabled gateway names
      */
     List<String> getEnabledGateways();
+
+    /**
+     * Charge a saved card token (MOTO / recurring).
+     * @return true if charge succeeded
+     */
+    boolean chargeWithToken(Long userId, double amount, String cardToken, Long subscriptionId);
 }

@@ -2,10 +2,6 @@ package com.app.civify.dto.user;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-import java.time.LocalDateTime;
-
-
-import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -64,5 +60,11 @@ public class UserDto {
 
     @Schema(description = "List of user permissions")
     private java.util.Set<String> permissions;
+
+    @Schema(description = "OAuth Provider (GOOGLE, LINKEDIN, etc.)")
+    private String oauthProvider;
+
+    @Schema(description = "OAuth Subject (User ID from Provider)")
+    private String oauthSubject;
 
 }

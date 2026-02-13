@@ -48,25 +48,32 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
         OAuth2User oauth2User = (OAuth2User) authentication.getPrincipal();
 
-        // Extract user info from Google
+        // Extract user info from OAuth2 provider
         String email = oauth2User.getAttribute("email");
         String name = oauth2User.getAttribute("name");
-        String googleId = oauth2User.getAttribute("sub");
+        String providerId = oauth2User.getAttribute("sub"); // 'sub' is standard in OIDC for Google & LinkedIn
 
         log.info("OAuth2 login successful for email: {}", email);
 
+        // Extract provider from authentication token
+        String provider = "google"; // Default fallback
+        if (authentication instanceof org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken authToken) {
+            provider = authToken.getAuthorizedClientRegistrationId();
+        }
+
         // Find or create user
+        String finalProvider = provider;
         User user = userRepository.findByEmail(email).orElseGet(() -> {
-            log.info("Creating new user from OAuth2: {}", email);
+            log.info("Creating new user from OAuth2 provider [{}]: {}", finalProvider, email);
 
             // Create new user
             User newUser = new User();
             newUser.setEmail(email);
             newUser.setUsername(email); // Use email as username
             newUser.setPassword(UUID.randomUUID().toString()); // No password for OAuth users
-            newUser.setIsEmailVerified(true); // Auto-verified by Google
-            newUser.setOauthProvider("google");
-            newUser.setOauthSubject(googleId);
+            newUser.setIsEmailVerified(true); // Auto-verified by provider
+            newUser.setOauthProvider(finalProvider);
+            newUser.setOauthSubject(providerId);
             newUser.setTwoFactorEnabled(false);
 
             // Assign default group
@@ -79,6 +86,8 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 if (nameParts.length > 1) {
                     newUser.setLastName(nameParts[1]);
                 }
+            } else {
+                 newUser.setFirstName("User");
             }
 
             User savedUser = userRepository.save(newUser);

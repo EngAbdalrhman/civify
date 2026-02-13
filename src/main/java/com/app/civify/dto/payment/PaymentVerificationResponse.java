@@ -12,4 +12,5 @@ import lombok.NoArgsConstructor;
 public class PaymentVerificationResponse {
     private boolean verified;
     private String message;
+    private boolean retryable;
 }

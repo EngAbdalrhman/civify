@@ -27,6 +27,7 @@ import com.app.civify.service.payment.PaymentService;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
 import com.app.civify.util.persistence.CommonService;
+import com.app.civify.repository.plans.PaymentRepository;
 import com.app.civify.service.i18n.MessageService;
 import com.app.civify.util.EmailService;
 import lombok.RequiredArgsConstructor;
@@ -61,6 +62,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     private final UserRepository userRepository;
     private final PaymentService paymentService;
     private final MessageService messageService;
+    private final PaymentRepository paymentRepository;
     private final InvoiceService invoiceService;
     private final TokenUsageService tokenUsageService;
     private final EmailService emailService;
@@ -247,6 +249,26 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         return promo;
     }
 
+    private void recordPromoUsage(Long userId, PromoCode promo) {
+        // Re-check to avoid double usage if multiple pending subs were created
+        if (userPromoUsageRepository.existsByUserIdAndPromoCodeId(userId, promo.getId())) {
+            log.warn("Promo code {} already recorded for user {}. Skipping duplicate recording.", promo.getCode(), userId);
+            return;
+        }
+
+        // Record promo usage for this user
+        UserPromoUsage usage = UserPromoUsage.builder()
+                .user(userRepository.getReferenceById(userId))
+                .promoCode(promo)
+                .usedAt(LocalDateTime.now())
+                .build();
+        userPromoUsageRepository.save(usage);
+
+        // Increment global promo usage count
+        promo.setUsedCount(promo.getUsedCount() + 1);
+        promoCodeRepository.save(promo);
+    }
+
     @Override
     public Optional<UserSubscription> getActiveSubscription(Long userId) {
         return subscriptionRepository.findByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE)
@@ -318,7 +340,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
     @Override
     @Transactional
-    public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, PaymentMethods method) {
+    public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, PaymentMethods method, String phoneNumber) {
         log.info("Initiating payment for user {} with plan {} using gateway {}", userId, planId, gateway);
 
         // Calculate total price first (before marking promo as used)
@@ -355,14 +377,24 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             metadata.put("firstName", user.getFirstName());
             metadata.put("lastName", user.getLastName());
             metadata.put("email", user.getEmail());
-            metadata.put("phone", user.getPhoneNumber() != null ? user.getPhoneNumber() : user.getPhone());
+            // Prioritize passed phone number (e.g. for wallet payment), otherwise use user profile phone
+            String phoneToUse = (phoneNumber != null && !phoneNumber.isEmpty()) ? phoneNumber :
+                               (user.getPhoneNumber() != null ? user.getPhoneNumber() : user.getPhone());
+            metadata.put("phone", phoneToUse);
+            metadata.put("subscriptionId", subscription.getId());
         }
 
         PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), gateway, method, metadata);
 
-        // Link payment to subscription
-        subscription.setPaymentTransactionId(paymentResult.getPaymentKey());
+        // Link payment to subscription using orderId (same ID used for lookup in activateSubscription)
+        subscription.setPaymentTransactionId(paymentResult.getOrderId());
         subscriptionRepository.save(subscription);
+
+        // Link PaymentTransaction → Subscription (needed for token extraction in webhook)
+        paymentRepository.findByOrderId(paymentResult.getOrderId()).ifPresent(tx -> {
+            tx.setSubscriptionId(subscription.getId());
+            paymentRepository.save(tx);
+        });
 
         log.info("Payment initiated successfully for user {} with payment key {}", userId, paymentResult.getPaymentKey());
 
@@ -535,22 +567,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         // Record promo usage if applicable
         if (subscription.getPromoCode() != null) {
-            PromoCode promo = subscription.getPromoCode();
-            
-            // Check if usage already recorded (idempotency for activation)
-            if (!userPromoUsageRepository.existsByUserIdAndPromoCodeId(user.getId(), promo.getId())) {
-                 UserPromoUsage usage = UserPromoUsage.builder()
-                        .user(user)
-                        .promoCode(promo)
-                        .usedAt(LocalDateTime.now())
-                        .build();
-                userPromoUsageRepository.save(usage);
-
-                // Increment global promo usage count
-                promo.setUsedCount(promo.getUsedCount() + 1);
-                promoCodeRepository.save(promo);
-                log.info("Recorded promo code usage for user {} and promo {}", user.getId(), promo.getCode());
-            }
+            recordPromoUsage(user.getId(), subscription.getPromoCode());
         }
 
         // Update user role if plan grants licensed status

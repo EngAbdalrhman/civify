@@ -79,4 +79,12 @@ public interface PaymentGateway {
     boolean isEnabled();
 
     Long getPaymentMethod(PaymentMethods paymentMethods);
+
+    /**
+     * Charge a saved card token (MOTO / recurring).
+     * @return true if charge succeeded
+     */
+    default boolean chargeWithToken(Long userId, double amount, String cardToken, Long subscriptionId) {
+        throw new UnsupportedOperationException("Token charging not supported");
+    }
 }

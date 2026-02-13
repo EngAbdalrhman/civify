@@ -1,35 +1,26 @@
 package com.app.civify.security;
 
-import com.app.civify.entity.User;
-import com.app.civify.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
+/**
+ * Custom OAuth2 user service.
+ * With openid scope + v2/userinfo, LinkedIn returns email, name, sub directly.
+ * No custom processing needed — this service exists as an extension point.
+ */
 @Service
-@RequiredArgsConstructor
+@Slf4j
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
-    private final UserRepository userRepository;
-
     @Override
-    public OAuth2User loadUser(OAuth2UserRequest userRequest) {
-        OAuth2User u = super.loadUser(userRequest);
-        String provider = userRequest.getClientRegistration().getRegistrationId();
-        String subject = u.getName();
-        String email = (String) u.getAttributes().getOrDefault("email", subject + "@" + provider + ".oauth");
-        User existing = userRepository.findByEmail(email).orElse(null);
-        if (existing == null) {
-            User user = new User();
-            user.setUsername(email);
-            user.setEmail(email);
-            user.setPassword("{noop}oauth");
-            user.setOauthProvider(provider);
-            user.setOauthSubject(subject);
-            userRepository.save(user);
-        }
-        return u;
+    public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
+        OAuth2User oAuth2User = super.loadUser(userRequest);
+        String registrationId = userRequest.getClientRegistration().getRegistrationId();
+        log.info("OAuth2 user loaded for provider [{}]: attributes={}", registrationId, oAuth2User.getAttributes().keySet());
+        return oAuth2User;
     }
 }

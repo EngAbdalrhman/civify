@@ -48,6 +48,7 @@ public class SubscriptionJob implements Job {
     private final EmailService emailService;
     private final SubscriptionAuditService subscriptionAuditService;
     private final UserRepository userRepository;
+    private final com.app.civify.service.payment.PaymentService paymentService;
 
     @Value("${app.frontend.base-url}")
     private String frontendUrl;
@@ -90,6 +91,7 @@ public class SubscriptionJob implements Job {
         int invoiceCount = 0;
         int reminderCount = 0;
         int autoExtendCount = 0;
+        int autoChargeCount = 0;
         int skippedCount = 0;
 
         for (UserSubscription sub : expiringSubscriptions) {
@@ -133,6 +135,17 @@ public class SubscriptionJob implements Job {
                     continue;
                 }
 
+                // Attempt Auto-charge
+                if (sub.getSavedCardToken() != null && !sub.getSavedCardToken().isBlank()) {
+                    boolean charged = attemptAutoCharge(sub, amount, isAnnual);
+                    if (charged) {
+                        autoChargeCount++;
+                        continue; // Skip invoice creation — payment handled
+                    }
+                    // Auto-charge failed — fall through to manual invoice + email
+                    log.warn("Auto-charge failed for subscription {}. Falling back to manual invoice.", sub.getId());
+                }
+
                 // Paid plans - handle invoicing and reminders
                 Optional<Invoice> existingInvoice = invoiceService.findPendingInvoice(sub.getId());
 
@@ -168,11 +181,103 @@ public class SubscriptionJob implements Job {
             }
         }
 
-        log.info("📝 Created {} invoices, sent {} reminders, auto-extended {} subscriptions, skipped {}.",
-                invoiceCount, reminderCount, autoExtendCount, skippedCount);
+        log.info("📝 Created {} invoices, sent {} reminders, auto-extended {} subscriptions, auto-charged {}, skipped {}.",
+                invoiceCount, reminderCount, autoExtendCount, autoChargeCount, skippedCount);
     }
 
     // Helper methods remain private as they are internal to this logic
+    private static final int MAX_AUTO_CHARGE_FAILURES = 3;
+
+    private boolean attemptAutoCharge(UserSubscription sub, BigDecimal amount, boolean isAnnual) {
+        try {
+            if (sub.getAutoChargeFailureCount() >= MAX_AUTO_CHARGE_FAILURES) {
+                log.warn("🚫 Auto-charge disabled for subscription {} after {} failures. Skipping.", sub.getId(), sub.getAutoChargeFailureCount());
+                // Optionally start falling back immediately
+                return false;
+            }
+
+            log.info("💳 Attempting auto-charge for subscription {} ({})", sub.getId(), sub.getCardMaskedPan());
+
+            sub.setLastAutoChargeAttempt(LocalDateTime.now());
+
+            // Delegate to PaymentService
+            boolean success = paymentService.chargeWithToken(
+                sub.getUser().getId(),
+                amount.doubleValue(),
+                sub.getSavedCardToken(),
+                sub.getId()
+            );
+
+            if (success) {
+                // Extend subscription
+                LocalDateTime currentEnd = sub.getEndDate();
+                LocalDateTime newEnd = isAnnual ? currentEnd.plusYears(1) : currentEnd.plusMonths(1);
+                sub.setEndDate(newEnd);
+                sub.setCurrentCycleCount(sub.getCurrentCycleCount() + 1);
+                sub.setAutoChargeFailureCount(0);
+                subscriptionRepository.save(sub);
+
+                log.info("✅ Auto-charge successful for subscription {}. Extended to {}", sub.getId(), newEnd.toLocalDate());
+
+                // Send confirmation email
+                sendAutoChargeSuccessEmail(sub, amount, newEnd, isAnnual);
+
+                // Audit log
+                subscriptionAuditService.logEvent(
+                    sub.getUser().getId(), sub.getId(),
+                    SubscriptionAuditType.AUTO_EXTEND, null,
+                    sub.getPlan().getId(), "scheduler",
+                    "Auto-charged " + amount + " EGP via saved card (****" + sub.getCardMaskedPan() + ")"
+                );
+
+                return true;
+            } else {
+                sub.setAutoChargeFailureCount(sub.getAutoChargeFailureCount() + 1);
+                subscriptionRepository.save(sub);
+                return false;
+            }
+
+        } catch (Exception e) {
+            log.error("❌ Auto-charge failed for subscription {}: {}", sub.getId(), e.getMessage());
+            sub.setAutoChargeFailureCount(sub.getAutoChargeFailureCount() + 1);
+            subscriptionRepository.save(sub);
+            return false;
+        }
+    }
+
+    private void sendAutoChargeSuccessEmail(UserSubscription sub, BigDecimal amount, LocalDateTime newEndDate, boolean isAnnual) {
+        try {
+            String subject = "Subscription Renewed Successfully";
+            String bodyContent = String.format("""
+                    <p>Hello <strong>%s</strong>,</p>
+                    
+                    <p>Your <strong>%s</strong> subscription to <strong>%s</strong> plan has been successfully renewed.</p>
+                    
+                    <div style="background-color: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                        <p style="margin: 0;"><strong>Amount Paid:</strong> %.2f EGP</p>
+                        <p style="margin: 5px 0 0 0;"><strong>Payment Method:</strong> Card ending in %s</p>
+                        <p style="margin: 5px 0 0 0;"><strong>New Expiration Date:</strong> %s</p>
+                    </div>
+                    
+                    <p>Thank you for continuing with Civify!</p>
+                    
+                    <p>Best regards,<br>The Civify Team</p>
+                    """,
+                    sub.getUser().getName(),
+                    isAnnual ? "annual" : "monthly",
+                    sub.getPlan().getName(),
+                    amount.doubleValue(),
+                    sub.getCardMaskedPan() != null ? sub.getCardMaskedPan() : "****",
+                    newEndDate.toLocalDate().toString()
+            );
+
+            emailService.sendHtmlEmailToUser(sub.getUser().getId(), sub.getUser().getEmail(), subject, bodyContent);
+            log.info("📧 Sent auto-charge success email for subscription {} to {}", sub.getId(), sub.getUser().getEmail());
+        } catch (Exception e) {
+            log.warn("⚠️ Failed to send auto-charge success email for subscription {}: {}", sub.getId(), e.getMessage());
+        }
+    }
+
     private void autoExtendSubscription(UserSubscription sub, boolean isAnnual) {
         try {
             LocalDateTime currentEnd = sub.getEndDate();

@@ -24,9 +24,8 @@ public class PaymentUseCaseImpl implements PaymentUseCase {
     private final InvoiceService invoiceService;
 
     @Override
-    public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, PaymentMethods method) {
-        log.debug("Initiating payment for user {} with plan {}", userId, planId);
-        return subscriptionService.initiatePayment(userId, planId, isAnnual, promoCode, gateway, method);
+    public PaymentInitiationResponse initiatePayment(Long userId, Long planId, boolean isAnnual, String promoCode, String gateway, PaymentMethods method, String phoneNumber) {
+        return subscriptionService.initiatePayment(userId, planId, isAnnual, promoCode, gateway, method, phoneNumber);
     }
 
     @Override

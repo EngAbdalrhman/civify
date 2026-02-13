@@ -160,17 +160,16 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     @Override
     @Transactional
     public boolean verifyPayment(String paymentKey) {
+        log.info("Verifying Fawaterak payment with key/order: {}", paymentKey);
+
+        PaymentTransaction transaction = paymentRepository.findByOrderId(paymentKey)
+                .orElseGet(() -> paymentRepository.findByPaymentKey(paymentKey)
+                .orElseThrow(() -> new RuntimeException("Transaction not found")));
+
+        Long invoiceId = Long.parseLong(transaction.getOrderId());
+        String response = fawaterakClient.getInvoiceStatus("Bearer " + apiKey, invoiceId);
+
         try {
-            log.info("Verifying Fawaterak payment with key/order: {}", paymentKey);
-
-            // Try orderId first (frontend now sends orderId from redirect params)
-            PaymentTransaction transaction = paymentRepository.findByOrderId(paymentKey)
-                    .orElseGet(() -> paymentRepository.findByPaymentKey(paymentKey)
-                    .orElseThrow(() -> new RuntimeException("Transaction not found")));
-
-            Long invoiceId = Long.parseLong(transaction.getOrderId());
-            String response = fawaterakClient.getInvoiceStatus("Bearer " + apiKey, invoiceId);
-
             JsonNode root = objectMapper.readTree(response);
             if (root.has("status") && "success".equalsIgnoreCase(root.get("status").asText())) {
                 JsonNode data = root.get("data");
@@ -186,13 +185,11 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                     paymentRepository.save(transaction);
                 }
             }
-
-            return false;
-
         } catch (Exception e) {
-            log.error("Error verifying Fawaterak payment: {}", e.getMessage(), e);
-            return false;
+             throw new RuntimeException("Error parsing Fawaterak response", e);
         }
+
+        return false;
     }
 
     @Override

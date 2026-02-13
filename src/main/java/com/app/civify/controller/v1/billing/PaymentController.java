@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -64,11 +65,12 @@ public class PaymentController {
             @RequestParam(defaultValue = "false") boolean isAnnual,
             @RequestParam(required = false) String gateway,
             @RequestParam(required = false) PaymentMethods paymentMethod,
+            @RequestParam(required = false) String phoneNumber,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
         try {
             Long userId = userPrincipal.getId();
-            PaymentInitiationResponse response = paymentUseCase.initiatePayment(userId, planId, isAnnual, promoCode, gateway, paymentMethod);
+            PaymentInitiationResponse response = paymentUseCase.initiatePayment(userId, planId, isAnnual, promoCode, gateway, paymentMethod, phoneNumber);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -186,9 +188,11 @@ public class PaymentController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Error verifying payment: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(PaymentVerificationResponse.builder()
+            // Infrastructure error (API timeout, Paymob unavailable) — return 503 with retryable flag
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(PaymentVerificationResponse.builder()
                     .verified(false)
-                    .message(e.getMessage())
+                    .retryable(true)
+                    .message("Payment verification temporarily unavailable. Please try again.")
                     .build());
         }
     }
