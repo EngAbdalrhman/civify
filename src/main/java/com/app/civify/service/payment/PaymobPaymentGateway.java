@@ -165,16 +165,13 @@ public class PaymobPaymentGateway implements PaymentGateway {
             billingData.put("country", "NA");
             billingData.put("state", "NA");
 
-            // Special Reference
-            payload.put("special_reference", "civify_" + userId + "_" + System.currentTimeMillis() + "_" + java.util.UUID.randomUUID().toString().substring(0, 8));
+            // Special Reference — this is our unique identifier that Paymob echoes back as
+            // merchant_order_id in both redirect params and webhook payloads
+            String specialReference = "civify_" + userId + "_" + System.currentTimeMillis() + "_" + java.util.UUID.randomUUID().toString().substring(0, 8);
+            payload.put("special_reference", specialReference);
 
-            // Callbacks - CORRECTED PATH: /apis/v1/payments/webhook/{gateway}
-            // Note: backendUrl usually does not include context path /apis, so we include it here.
-            // If backendUrl includes /apis, user needs to adjust. Assuming standard base URL (e.g., https://api.civify.com)
-            // The controller path is /v1/payments/webhook/paymob, context path is /apis.
+            // Callbacks
             payload.put("notification_url", backendUrl + "/apis/v1/payments/webhook/paymob");
-            
-            // Use locale-specific success URL (could be dynamic based on user locale, defaulting to 'en')
             payload.put("redirection_url", frontendUrl + "/en/payment/success?gateway=paymob");
 
             // Call V2 Endpoint
@@ -187,13 +184,9 @@ public class PaymobPaymentGateway implements PaymentGateway {
             String clientSecret = root.get("client_secret").asText();
             String intentionId = root.get("id").asText();
             
-            // Try to get order ID if available, otherwise use intention ID
-            String orderId = intentionId; 
-            if (root.has("order") && root.get("order").isNumber()) {
-                orderId = String.valueOf(root.get("order").asLong());
-            } else if (root.has("order_id")) {
-                orderId = root.get("order_id").asText();
-            }
+            // Use special_reference as orderId — Paymob returns it as merchant_order_id
+            // in both redirects and webhooks, ensuring consistent lookup
+            String orderId = specialReference;
 
             // Construct Payment URL (Unified Checkout)
             String paymentUrl = String.format("https://accept.paymob.com/unifiedcheckout/?publicKey=%s&clientSecret=%s",
@@ -632,22 +625,30 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
             log.debug("Callback data: {}", dataNode);
 
-            // 2. Extract order ID from callback
-            String orderId = extractOrderId(dataNode.get("order"));
+            // 2. Extract order ID and merchant_order_id from callback
+            String paymobOrderId = extractOrderId(dataNode.get("order"));
+            String merchantOrderId = dataNode.has("merchant_order_id") ? dataNode.get("merchant_order_id").asText(null) : null;
 
-            if (orderId == null || orderId.isEmpty()) {
-                log.warn("Order ID missing in callback data");
+            if ((paymobOrderId == null || paymobOrderId.isEmpty()) && (merchantOrderId == null || merchantOrderId.isEmpty())) {
+                log.warn("Both order ID and merchant_order_id missing in callback data");
                 result.setSuccess(false);
                 result.setMessage("Order ID missing");
                 return result;
             }
             
+            String orderId = merchantOrderId != null ? merchantOrderId : paymobOrderId;
             result.setOrderId(orderId);
             result.setTransactionId(extractOrderId(dataNode.get("id")));
 
-            // 3. Find transaction
-            PaymentTransaction transaction = paymentRepository.findByOrderId(orderId)
-                    .orElse(null); // Use orElse(null) to handle token callbacks that might not have a transaction yet
+            // 3. Find transaction — try by merchant_order_id (our special_reference stored as orderId)
+            //    first, then fallback to Paymob's numeric order ID
+            PaymentTransaction transaction = null;
+            if (merchantOrderId != null && !merchantOrderId.isEmpty()) {
+                transaction = paymentRepository.findByOrderId(merchantOrderId).orElse(null);
+            }
+            if (transaction == null && paymobOrderId != null && !paymobOrderId.isEmpty()) {
+                transaction = paymentRepository.findByOrderId(paymobOrderId).orElse(null);
+            }
 
             // Parse callback success status
             boolean isSuccessful = parseCallbackSuccess(dataNode);
