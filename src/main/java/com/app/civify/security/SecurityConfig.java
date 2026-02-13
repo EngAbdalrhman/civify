@@ -214,7 +214,8 @@ public class SecurityConfig {
                 "www.".concat(frontendUrl),
                 // Zoho CRM domains for extension widgets
                 "https://*.zoho.com",
-                "https://*.zappsusercontent.com"
+                "https://*.zappsusercontent.com",
+                "chrome-extension://*"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of("*"));
