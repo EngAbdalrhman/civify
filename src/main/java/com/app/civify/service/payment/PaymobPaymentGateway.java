@@ -376,88 +376,49 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
     private boolean verifyPaymentV2(PaymentTransaction transaction) {
         try {
-            // In V2, we usually rely on the intention ID. 
-            // We stored intention_id in metadata, but also orderId might be the intention ID.
-            String intentionId = transaction.getOrderId();
+            // V2 Verification: Use Transaction Inquiry API with merchant_order_id
+            // Our orderId IS the special_reference (merchant_order_id in Paymob's terms)
+            String merchantOrderId = transaction.getOrderId();
             
-            // Try to get intention_id from metadata if present
-            try {
-                JsonNode meta = objectMapper.readTree(transaction.getMetadata());
-                if (meta.has("intention_id")) {
-                    intentionId = meta.get("intention_id").asText();
-                }
-            } catch (Exception e) {
-                // ignore
-            }
-
-            log.debug("Verifying V2 Intention: {}", intentionId);
-            String response = paymobClient.getIntention("Token " + secretKey, intentionId);
+            log.debug("Verifying V2 payment via Transaction Inquiry for merchant_order_id: {}", merchantOrderId);
             
-            // Parse Intention Response
+            // Authenticate to get legacy auth token (required by Transaction Inquiry API)
+            String authToken = authenticate();
+            
+            // Build Transaction Inquiry payload
+            ObjectNode inquiryPayload = objectMapper.createObjectNode();
+            inquiryPayload.put("auth_token", authToken);
+            inquiryPayload.put("merchant_order_id", merchantOrderId);
+            
+            String response = paymobClient.transactionInquiry(inquiryPayload.toString());
             JsonNode root = objectMapper.readTree(response);
             
-            // Paymob V2 Intention "payment_keys" array contains transactions
-            if (root.has("payment_keys")) {
-                 for (JsonNode key : root.get("payment_keys")) {
-                     // Each payment key might have a list of transactions?
-                     // Or check key itself? Usually transactions are nested or key has status.
-                     // The structure is payment_keys -> [ { key, ... } ]? 
-                     // Actually, Intention object -> payment_keys (array) -> transaction object??
-                     // To be safe, let's look for "success_transaction" or "transactions" array.
-                     
-                     // Checking Paymob docs: Intention has "payment_keys".
-                     // payment_keys is a list of payment key objects.
-                     // Each payment key object has "transaction_id" if paid? No.
-                     // Let's assume the safest way is to check the root order status if present using legacy means if possible,
-                     // OR rely on webhooks. But we need synchronous check.
-                     
-                     // Let's try to extract transaction from inside if possible.
-                     // V2 Intention response is huge.
-                     // Let's look for known success indicators.
-                }
-            }
-
-            // A robust indicator in V2 Intention response is "payment_keys" array.
-            // If any payment key has a transaction with "success": true, we are good.
-            // Let's iterate deeply.
-            if (root.has("payment_keys")) {
-                JsonNode keys = root.get("payment_keys");
-                if (keys.isArray()) {
-                    for (JsonNode pk : keys) {
-                        if (pk.has("children_transactions")) { // Sometimes called children_transactions
-                             for (JsonNode tx : pk.get("children_transactions")) {
-                                 if (tx.has("success") && tx.get("success").asBoolean()) {
-                                     log.info("Found successful V2 transaction: {}", tx.get("id"));
-                                     return true;
-                                 }
-                             }
-                        }
+            // The response contains order details with a "payment_status" or we check
+            // the latest transaction in the order for success
+            // Check if any transaction in the order is successful
+            if (root.isArray()) {
+                // Response is an array of transactions
+                for (JsonNode tx : root) {
+                    if (tx.has("success") && tx.get("success").asBoolean()) {
+                        log.info("V2 Transaction Inquiry: Found successful transaction {} for merchant_order_id: {}",
+                                tx.has("id") ? tx.get("id").asText() : "unknown", merchantOrderId);
+                        return true;
                     }
                 }
-            }
-
-            // If we have an order ID, we can try to fall back to Legacy check IF we have an API Key.
-            // This covers the case where the user has both keys (likely during migration).
-            if (apiKey != null && !apiKey.isEmpty() && root.has("order")) {
-                String orderId = root.get("order").asText(); // can be object or ID?
-                // Sometimes order is an object in V2 response? 
-                if (root.get("order").isObject()) {
-                    orderId = root.get("order").get("id").asText();
+            } else if (root.isObject()) {
+                // Response might be a single order object
+                if (root.has("success") && root.get("success").asBoolean()) {
+                    log.info("V2 Transaction Inquiry: Payment successful for merchant_order_id: {}", merchantOrderId);
+                    return true;
                 }
-                
-                log.info("V2 Verification: Falling back to Legacy Order Check for Order ID: {}", orderId);
-                try {
-                     String authToken = authenticate();
-                     String orderResponse = paymobClient.getOrder("Bearer " + authToken, orderId);
-                     if (parseOrderStatus(orderResponse)) {
-                         return true;
-                     }
-                } catch (Exception ex) {
-                    log.warn("V2 Legacy fallback failed: {}", ex.getMessage());
+                // Check if it has a "paid_amount_cents" > 0 as success indicator
+                if (root.has("paid_amount_cents") && root.get("paid_amount_cents").asInt() > 0) {
+                    log.info("V2 Transaction Inquiry: paid_amount_cents > 0 for merchant_order_id: {}", merchantOrderId);
+                    return true;
                 }
             }
 
-            log.warn("Manual verification for V2: No successful transaction found in Intention response yet. Returning false.");
+            log.warn("V2 Transaction Inquiry: No successful transaction found yet for merchant_order_id: {}", merchantOrderId);
             return false;
             
         } catch (Exception e) {
