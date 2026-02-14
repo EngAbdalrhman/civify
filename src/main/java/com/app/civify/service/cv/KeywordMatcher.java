@@ -3,7 +3,7 @@ package com.app.civify.service.cv;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
-import java.util.regex.Matcher;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -13,6 +13,8 @@ import java.util.stream.Collectors;
  */
 @Component
 public class KeywordMatcher {
+
+    private static final Map<String, Pattern> PATTERN_CACHE = new ConcurrentHashMap<>();
 
     private static final Set<String> STOP_WORDS = Set.of(
             "a", "an", "the", "and", "or", "but", "if", "then", "else", "when",
@@ -36,34 +38,57 @@ public class KeywordMatcher {
 
     /**
      * Match keywords between resume and job description.
+     * Uses deterministic word-boundary matching for multi-word phrases.
      *
-     * @param resumeText The full text of the resume (or summary).
+     * @param resumeText The full text of the resume.
      * @param jobDescription The full text of the job description.
      * @return A MatchResult containing the score and missing keywords.
      */
     public MatchResult match(String resumeText, String jobDescription) {
+        // 1. Extract potential keywords from JD (n-grams up to 3 words)
+        // For simplicity and speed in this deterministic matcher, we still rely on
+        // significant tokens but now we check for their presence more accurately.
+        // IMPROVEMENT: Ideally we would have a phrase dictionary.
+        // For now, we extract single tokens from JD as "keywords" but we match them
+        // using word boundaries in CV to avoid substring false positives (e.g. "arc" in "architect").
         Set<String> jdKeywords = extractKeywords(jobDescription);
-        Set<String> resumeKeywords = extractKeywords(resumeText);
-
+        
         if (jdKeywords.isEmpty()) {
             return new MatchResult(0, Collections.emptyList());
         }
 
-        // Calculate intersection
-        Set<String> intersection = new HashSet<>(jdKeywords);
-        intersection.retainAll(resumeKeywords);
+        // 2. Normalize resume text once
+        String normalizedResume = resumeText.toLowerCase();
 
-        // Calculate score (simple percentage of JD keywords present in CV)
-        double score = (double) intersection.size() / jdKeywords.size() * 100.0;
+        // 3. Check for specific keywords using word boundaries
+        Set<String> matchedKeywords = new HashSet<>();
+        for (String keyword : jdKeywords) {
+            if (containsKeyword(normalizedResume, keyword)) {
+                matchedKeywords.add(keyword);
+            }
+        }
+
+        // Calculate score
+        double score = (double) matchedKeywords.size() / jdKeywords.size() * 100.0;
         
         // Find missing keywords
         List<String> missingKeywords = jdKeywords.stream()
-                .filter(k -> !resumeKeywords.contains(k))
+                .filter(k -> !matchedKeywords.contains(k))
                 .sorted()
-                .limit(20) // Limit to top 20 missing to avoid overwhelming
+                .limit(20)
                 .collect(Collectors.toList());
 
         return new MatchResult((int) Math.round(score), missingKeywords);
+    }
+    
+    public boolean containsKeyword(String text, String keyword) {
+        try {
+            Pattern pattern = PATTERN_CACHE.computeIfAbsent(keyword,
+                k -> Pattern.compile("\\b" + Pattern.quote(k) + "\\b"));
+            return pattern.matcher(text).find();
+        } catch (Exception e) {
+            return text.contains(keyword);
+        }
     }
 
     /**
