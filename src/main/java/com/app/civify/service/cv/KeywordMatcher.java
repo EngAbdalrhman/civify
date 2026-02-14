@@ -33,7 +33,10 @@ public class KeywordMatcher {
             "me", "him", "her", "us", "them", "my", "your", "his", "its", "our", "their",
             "mine", "yours", "hers", "ours", "theirs", "this", "that", "these", "those",
             "job", "description", "requirements", "responsibilities", "qualifications",
-            "experience", "skills", "role", "work", "team", "company", "candidate"
+            "experience", "skills", "role", "work", "team", "company", "candidate",
+            "strong", "excellent", "good", "proficient", "proven", "track", "record",
+            "ability", "demonstrated", "familiarity", "background", "including", "working",
+            "hands-on", "knowledge", "understanding"
     );
 
     /**
@@ -83,8 +86,10 @@ public class KeywordMatcher {
     
     public boolean containsKeyword(String text, String keyword) {
         try {
-            Pattern pattern = PATTERN_CACHE.computeIfAbsent(keyword,
-                k -> Pattern.compile("\\b" + Pattern.quote(k) + "\\b"));
+            // Use custom boundary matching to handle special chars like C++, C#, .NET, Node.js
+            // \b is unreliable for these. matching (^|[^a-z0-9])KEYWORD($|[^a-z0-9]) is safer.
+            Pattern pattern = PATTERN_CACHE.computeIfAbsent(keyword, k -> 
+                Pattern.compile("(?i)(^|[^a-z0-9])" + Pattern.quote(k) + "($|[^a-z0-9])"));
             return pattern.matcher(text).find();
         } catch (Exception e) {
             return text.contains(keyword);
@@ -92,8 +97,7 @@ public class KeywordMatcher {
     }
 
     /**
-     * Extract significant keywords from text.
-     * Tokenizes, lowercases, removes punctuation and stop words.
+     * Extract keywords including bigrams and technical terms with special chars (C++, C#, .NET).
      */
     public Set<String> extractKeywords(String text) {
         if (text == null || text.isBlank()) {
@@ -101,16 +105,62 @@ public class KeywordMatcher {
         }
 
         Set<String> keywords = new HashSet<>();
-        // Split by non-word characters
-        String[] tokens = text.toLowerCase().split("[^a-zA-Z0-9]+");
-
+        
+        // Split by whitespace to preserve sequence, then clean punctuation from edges
+        String[] rawTokens = text.toLowerCase().split("\\s+");
+        List<String> tokens = new ArrayList<>();
+        
+        for (String w : rawTokens) {
+             // Retain alphanumeric and +, #, . (for C++, C#, .NET, Node.js)
+             // Remove leading/trailing other punctuation (like , : ; ! ? " ' ( ) [ ])
+             String cleaned = w.replaceAll("^[^a-z0-9+#.]+|[^a-z0-9+#.]+$", "");
+             
+             // Issue fix: remove trailing dot specifically if present (e.g. "Node.js." -> "Node.js")
+             if (cleaned.endsWith(".")) {
+                 cleaned = cleaned.substring(0, cleaned.length() - 1);
+             }
+             
+             if (!cleaned.isEmpty()) {
+                 tokens.add(cleaned);
+             }
+        }
+        
+        // 1. Unigrams
         for (String token : tokens) {
-            if (token.length() > 2 && !STOP_WORDS.contains(token)) {
+            if (isValidKeyword(token)) {
                 keywords.add(token);
             }
         }
+
+        // 2. Bigrams (two consecutive valid keywords)
+        // e.g., "machine learning", "static analysis", "react native"
+        for (int i = 0; i < tokens.size() - 1; i++) {
+            String w1 = tokens.get(i);
+            String w2 = tokens.get(i+1);
+            
+            // Allow bigrams where both parts are valid keywords
+            // OR if it's a known pattern like "node js" (if extracted as such)
+            if (isValidKeyword(w1) && isValidKeyword(w2)) {
+                keywords.add(w1 + " " + w2);
+            }
+        }
+        
         return keywords;
     }
+    
+    private boolean isValidKeyword(String token) {
+        // Allow shorter tokens if they are special (e.g., C+, R, Go - 'R' and 'Go' might be tricky stop words 
+        // effectively handling specific short lang names requires a whitelist, ignoring for now)
+        // Normal rule: length > 2
+        
+        // Special Case: "C++", "C#", "R" (if we whitelist R), "Go"
+        if (token.equals("c++") || token.equals("c#") || token.equals("golang") || token.equals("ci/cd")) {
+            return true;
+        }
+        
+        return token.length() > 2 && !STOP_WORDS.contains(token);
+    }
+
 
     public record MatchResult(int score, List<String> missingKeywords) {}
 }
