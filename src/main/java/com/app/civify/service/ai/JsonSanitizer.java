@@ -3,6 +3,8 @@ package com.app.civify.service.ai;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 /**
  * Service to sanitize and fix malformed JSON responses from AI models.
  * Handles common issues like Markdown code blocks, truncation, and trailing commas.
@@ -10,6 +12,12 @@ import org.springframework.stereotype.Component;
 @Component
 @Slf4j
 public class JsonSanitizer {
+
+    private final ObjectMapper objectMapper;
+
+    public JsonSanitizer(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     /**
      * Sanitizes and attempts to fix JSON string.
@@ -117,5 +125,49 @@ public class JsonSanitizer {
         }
         
         return sb.toString();
+    }
+
+    /**
+     * Cleans AI response by removing markdown blocks and extracting content if nested in Gemini structure.
+     */
+    public String cleanAiResponse(String response) {
+        if (response == null) return "";
+
+        String cleaned = response.trim();
+
+        // Extract from Gemini response structure if present
+        cleaned = extractContentFromGeminiResponse(cleaned);
+
+        // Remove markdown code blocks
+        if (cleaned.startsWith("```yaml")) {
+            cleaned = cleaned.substring(7);
+        } else if (cleaned.startsWith("```json")) {
+            cleaned = cleaned.substring(7);
+        } else if (cleaned.startsWith("```")) {
+            cleaned = cleaned.substring(3);
+        }
+
+        if (cleaned.endsWith("```")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 3);
+        }
+
+        return cleaned.trim();
+    }
+
+    private String extractContentFromGeminiResponse(String response) {
+        try {
+            var root = objectMapper.readTree(response);
+            var candidates = root.path("candidates");
+            if (candidates.isArray() && !candidates.isEmpty()) {
+                var content = candidates.get(0).path("content");
+                var parts = content.path("parts");
+                if (parts.isArray() && !parts.isEmpty()) {
+                    return parts.get(0).path("text").asText();
+                }
+            }
+            return response;
+        } catch (Exception e) {
+            return response;
+        }
     }
 }

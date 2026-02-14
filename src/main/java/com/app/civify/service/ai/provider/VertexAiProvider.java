@@ -28,11 +28,20 @@ public class VertexAiProvider implements AiProvider {
         try {
             // Build Vertex AI API request structure (Same as Gemini for this endpoint)
             Map<String, Object> textPart = Map.of("text", prompt);
-            Map<String, Object> parts = Map.of("parts", List.of(textPart));
+            // unused parts variable removed
             Map<String, Object> rolePart = Map.of("role", "user", "parts", List.of(textPart));
             
+            // Add generation config
+            Map<String, Object> generationConfig = Map.of(
+                "temperature", 0.2,
+                "maxOutputTokens", 8192
+            );
+            
             // Vertex AI typically expects "contents" array
-            Map<String, Object> requestMap = Map.of("contents", List.of(rolePart));
+            Map<String, Object> requestMap = Map.of(
+                "contents", List.of(rolePart),
+                "generationConfig", generationConfig
+            );
 
             String requestBody = objectMapper.writeValueAsString(requestMap);
 

@@ -6,14 +6,13 @@ import com.app.civify.dto.document.ProcessedDocument;
 import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.entity.enums.TokenUsageType;
 import com.app.civify.exception.BadRequestException;
-import com.app.civify.service.ResumeService;
 import com.app.civify.service.ai.AiService;
 import com.app.civify.service.ai.TokenizerService;
+import com.app.civify.service.ai.JsonSanitizer;
 import com.app.civify.service.subscription.SubscriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import software.amazon.awssdk.services.s3.S3Client;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
@@ -22,7 +21,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.security.MessageDigest;
 import java.util.HexFormat;
-import java.time.LocalDate;
 
 /**
  * Service for parsing CVs/Resumes into structured data. Integrates document
@@ -35,11 +33,11 @@ public class CvParsingService {
 
     private final DocumentProcessorService documentProcessorService;
     private final AiService aiService;
-    private final ResumeService resumeService;
     private final SubscriptionService subscriptionService;
     private final TokenizerService tokenizerService;
     private final ObjectMapper objectMapper;
     private final BucketService bucketService;
+    private final JsonSanitizer jsonSanitizer;
 
     @Value("${ai.default.provider:gemini}")
     private String defaultProvider;
@@ -365,37 +363,6 @@ public class CvParsingService {
     }
 
     /**
-     * Remove markdown code blocks from JSON/YAML response. 
-     * AI models sometimes wrap content in ```json ... ``` or ```yaml ... ``` blocks.
-     */
-    private String cleanMarkdownJson(String text) {
-        if (text == null) {
-            return null;
-        }
-
-        String cleaned = text.trim();
-
-        // Remove ```json, ```yaml, or ``` prefix
-        if (cleaned.startsWith("```json")) {
-            cleaned = cleaned.substring(7);
-        } else if (cleaned.startsWith("```yaml")) {
-            cleaned = cleaned.substring(7);
-        } else if (cleaned.startsWith("```")) {
-            cleaned = cleaned.substring(3);
-        }
-        
-        // Sometimes the model just outputs "yaml" or "json" at the start without backticks
-        if (cleaned.startsWith("yaml\n") || cleaned.startsWith("yaml ")) {
-             cleaned = cleaned.substring(5);
-        }
-
-        // Remove trailing ```
-        if (cleaned.endsWith("```")) {
-            cleaned = cleaned.substring(0, cleaned.length() - 3);
-        }
-
-        return cleaned.trim();
-    }
 
     /**
      * Attempt to parse the AI output as YAML; return null on failure (caller may retry).
@@ -406,8 +373,7 @@ public class CvParsingService {
             return null;
         }
 
-        String contentText = extractContentFromGeminiResponse(response);
-        contentText = cleanMarkdownJson(contentText);
+        String contentText = jsonSanitizer.cleanAiResponse(response);
         log.debug("AI Response Content (Cleaned): {}", contentText);
 
         try {
@@ -467,33 +433,5 @@ public class CvParsingService {
         return parseTextWithAi(text, piiOnly);
     }
     
-    private String generateFileHash(byte[] fileBytes) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(fileBytes);
-            return HexFormat.of().formatHex(hash);
-        } catch (Exception e) {
-            log.warn("Failed to generate file hash", e);
-            return String.valueOf(System.currentTimeMillis()); // Fallback
-        }
-    }
-
-    private String extractContentFromGeminiResponse(String response) {
-        try {
-            var root = objectMapper.readTree(response);
-            var candidates = root.path("candidates");
-            if (candidates.isArray() && !candidates.isEmpty()) {
-                var content = candidates.get(0).path("content");
-                var parts = content.path("parts");
-                if (parts.isArray() && !parts.isEmpty()) {
-                    return parts.get(0).path("text").asText();
-                }
-            }
-            return response; // Fallback
-        } catch (Exception e) {
-            log.warn("Failed to parse Gemini response structure: {}", e.getMessage());
-            return response;
-        }
-    }
     
 }

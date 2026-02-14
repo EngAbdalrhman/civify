@@ -307,7 +307,7 @@ public class CvEnhancementService {
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
             
             // 1. Clean AI response (remove markdown blocks, extract content)
-            String cleanedResponse = cleanAiResponse(response);
+            String cleanedResponse = jsonSanitizer.cleanAiResponse(response);
             
             // 2. Parse Valid YAML to Object
             ResumeData rawData = parseYamlToResumeData(cleanedResponse);
@@ -337,7 +337,7 @@ public class CvEnhancementService {
             String prompt = String.format(ATS_SCORE_PROMPT, jobDescription, cvSummary);
             
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
-            String cleanedResponse = cleanAiResponse(response);
+            String cleanedResponse = jsonSanitizer.cleanAiResponse(response);
             
             AtsScore aiScore = parseYamlToAtsScore(cleanedResponse);
             
@@ -392,7 +392,7 @@ public class CvEnhancementService {
             String prompt = String.format(GENERAL_ATS_SCORE_PROMPT, cvSummary);
             
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
-            String cleanedResponse = cleanAiResponse(response);
+            String cleanedResponse = jsonSanitizer.cleanAiResponse(response);
             
             return parseYamlToAtsScore(cleanedResponse);
         } catch (Exception e) {
@@ -420,7 +420,7 @@ public class CvEnhancementService {
             log.debug("Interview questions AI response (first 300 chars): {}", 
                 response != null ? response.substring(0, Math.min(300, response.length())) : "null");
             
-            String cleanedResponse = cleanAiResponse(response);
+            String cleanedResponse = jsonSanitizer.cleanAiResponse(response);
             InterviewPrep result = parseYamlToInterviewPrep(cleanedResponse);
             
             if (result == null || result.getQuestions() == null || result.getQuestions().isEmpty()) {
@@ -445,7 +445,7 @@ public class CvEnhancementService {
             log.debug("Roadmap AI response (first 300 chars): {}", 
                 response != null ? response.substring(0, Math.min(300, response.length())) : "null");
             
-            String cleanedResponse = cleanAiResponse(response);
+            String cleanedResponse = jsonSanitizer.cleanAiResponse(response);
             Roadmap result = parseYamlToRoadmap(cleanedResponse);
             
             if (result == null || result.getSteps() == null || result.getSteps().isEmpty()) {
@@ -484,7 +484,7 @@ public class CvEnhancementService {
             log.debug("Cover letter AI response (first 300 chars): {}", 
                 response != null ? response.substring(0, Math.min(300, response.length())) : "null");
             
-            String result = cleanAiResponse(response);
+            String result = jsonSanitizer.cleanAiResponse(response);
             if (result == null || result.isBlank()) {
                 log.warn("Cover letter generation returned empty result");
                 return "";
@@ -524,45 +524,7 @@ public class CvEnhancementService {
         }
     }
 
-    private String cleanAiResponse(String response) {
-        if (response == null) return "";
-        
-        String cleaned = response.trim();
-        
-        // Extract from Gemini response structure if present
-        cleaned = extractContentFromGeminiResponse(cleaned);
-        
-        // Remove markdown code blocks
-        if (cleaned.startsWith("```yaml")) {
-            cleaned = cleaned.substring(7);
-        } else if (cleaned.startsWith("```json")) {
-            cleaned = cleaned.substring(7);
-        } else if (cleaned.startsWith("```")) {
-            cleaned = cleaned.substring(3);
-        }
-        
-        if (cleaned.endsWith("```")) {
-            cleaned = cleaned.substring(0, cleaned.length() - 3);
-        }
-        
-        return cleaned.trim();
-    }
-
-    private String extractContentFromGeminiResponse(String response) {
-        try {
-            var root = objectMapper.readTree(response);
-            var candidates = root.path("candidates");
-            if (candidates.isArray() && !candidates.isEmpty()) {
-                var parts = candidates.get(0).path("content").path("parts");
-                if (parts.isArray() && !parts.isEmpty()) {
-                    return parts.get(0).path("text").asText();
-                }
-            }
-            return response;
-        } catch (Exception e) {
-            return response;
-        }
-    }
+    // Local cleaning methods removed - using JsonSanitizer
 
     private ResumeData parseYamlToResumeData(String yaml) {
         try {

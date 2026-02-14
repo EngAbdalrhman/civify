@@ -4,6 +4,7 @@ import com.app.civify.service.ai.AiProvider;
 import com.app.civify.service.ai.GeminiAiClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -15,6 +16,9 @@ public class GeminiAiProvider implements AiProvider {
     private final GeminiAiClient client;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Value("${gemini.api.key:}")
+    private String apiKey;
+
     public GeminiAiProvider(GeminiAiClient client) {
         this.client = client;
     }
@@ -25,7 +29,17 @@ public class GeminiAiProvider implements AiProvider {
             // Build Gemini API request using proper JSON serialization
             Map<String, Object> textPart = Map.of("text", prompt);
             Map<String, Object> parts = Map.of("parts", List.of(textPart));
-            Map<String, Object> requestMap = Map.of("contents", List.of(parts));
+            
+            // Add generation config for better structured output control
+            Map<String, Object> generationConfig = Map.of(
+                "temperature", 0.2,
+                "maxOutputTokens", 8192
+            );
+            
+            Map<String, Object> requestMap = Map.of(
+                "contents", List.of(parts),
+                "generationConfig", generationConfig
+            );
 
             String requestBody = objectMapper.writeValueAsString(requestMap);
 
@@ -41,5 +55,10 @@ public class GeminiAiProvider implements AiProvider {
     @Override
     public String getProviderName() {
         return "gemini";
+    }
+
+    @Override
+    public boolean isAvailable() {
+        return apiKey != null && !apiKey.isEmpty();
     }
 }
