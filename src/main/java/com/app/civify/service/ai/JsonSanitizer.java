@@ -101,6 +101,7 @@ public class JsonSanitizer {
         }
         
         while (openBraces > 0 || openBrackets > 0) {
+            // Close brackets before braces (arrays are typically nested inside objects)
             if (openBrackets > 0) {
                 sb.append("]");
                 openBrackets--;
@@ -176,12 +177,24 @@ public class JsonSanitizer {
                 if (personalInfo.isNull() || personalInfo.isEmpty()) {
                     return true;
                 }
-            } else if (node.has("basics")) { // standard resume schema
+            }
+            
+            // Check for generic sections array (ResumeData structure)
+            if (node.has("sections")) {
+                 JsonNode sections = node.get("sections");
+                 if (sections.isArray()) {
+                     // If sections array exists but is empty, it's suspicious for a CV
+                     if (sections.isEmpty()) return true;
+                     
+                     // If sections array has only 1 item (e.g. just education), it MIGHT be truncated
+                     // but we can't be sure.
+                 }
+            } else if (node.has("basics")) { // JSON Resume schema fallback
                  JsonNode basics = node.get("basics");
                  if (basics.isNull() || basics.isEmpty()) return true;
             }
 
-            // Check specific arrays that usually have content
+            // Check specific arrays that usually have content (for JSON Resume schema)
             String[] suspiciousEmptyArrays = {"workExperience", "education", "skills", "projects"};
             for (String key : suspiciousEmptyArrays) {
                 if (node.has(key)) {
