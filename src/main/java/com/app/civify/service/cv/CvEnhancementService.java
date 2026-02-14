@@ -306,13 +306,20 @@ public class CvEnhancementService {
             
             String response = aiService.callModel(prompt, defaultProvider, defaultModel);
             
-            // 1. Sanitize JSON (Resilience)
-            String sanitizedResponse = jsonSanitizer.sanitize(response);
+            // 1. Clean AI response (remove markdown blocks, extract content)
+            String cleanedResponse = cleanAiResponse(response);
             
-            // 2. Parse Valid JSON to Object
-            ResumeData rawData = parseYamlToResumeData(sanitizedResponse);
+            // 2. Parse Valid YAML to Object
+            ResumeData rawData = parseYamlToResumeData(cleanedResponse);
             
-            // 3. Clean "AI Clichés" (Polish) from values
+            // 3. Guard: if parsing failed, fall back to original
+            if (rawData == null || rawData.getPersonalInfo() == null
+                    || rawData.getPersonalInfo().getFullName() == null) {
+                log.warn("YAML parsing produced empty result, falling back to original CV");
+                return resumeData;
+            }
+            
+            // 4. Clean "AI Clichés" (Polish) from values
             return contentCleaner.clean(rawData);
         } catch (Exception e) {
             log.error("Error tailoring CV content: {}", e.getMessage());
