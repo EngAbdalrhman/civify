@@ -94,6 +94,8 @@ public class AiServiceImpl implements AiService {
             throw new RuntimeException("Failed to call AI model: " + e.getMessage(), e);
         }
 
+    }
+
     /**
      * Recovery method called after all retry attempts fail
      */

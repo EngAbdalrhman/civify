@@ -154,6 +154,80 @@ public class JsonSanitizer {
         return cleaned.trim();
     }
 
+    public <T> T cleanAiResponse(String jsonResponse, Class<T> targetType) {
+        try {
+            // Use the string overload to standardise extraction and markdown stripping
+            String cleanJson = cleanAiResponse(jsonResponse);
+            
+            // Check for potential truncation before parsing if possible, or parse first
+            // Parse first to check structural truncation
+            T result = objectMapper.readValue(cleanJson, targetType);
+            
+            if (isTruncated(result)) {
+                log.warn("AI response appears truncated. Missing critical fields or empty lists.");
+                // We log warning but still return result, or throw exception if strict?
+                // Throwing exception allows retry to kick in?
+                // But retry with same prompt might fail again.
+                // For now, just log. Or better, throw if critical.
+                // Let's throw Exception to trigger retry? NO, user might want partial data.
+                // Resume-Matcher logs warning. I'll log warning.
+            }
+            return result;
+        } catch (Exception e) {
+            log.warn("Failed to clean AI response, attempting raw parse: {}", e.getMessage());
+            try {
+                return objectMapper.readValue(jsonResponse, targetType);
+            } catch (Exception ex) {
+                log.error("Failed to parse AI response: {}", ex.getMessage());
+                throw new RuntimeException("Failed to parsing AI response", ex);
+            }
+        }
+    }
+
+    private boolean isTruncated(Object result) {
+        if (result == null) return true;
+        
+        // Use reflection or convert to JsonNode to check fields?
+        // Convert to JsonNode for generic checking
+        try {
+            com.fasterxml.jackson.databind.JsonNode node = objectMapper.valueToTree(result);
+            
+            // Check for personalInfo (required for CVs)
+            if (node.has("personalInfo")) {
+                com.fasterxml.jackson.databind.JsonNode personalInfo = node.get("personalInfo");
+                if (personalInfo.isNull() || personalInfo.isEmpty()) {
+                    return true;
+                }
+            } else if (node.has("basics")) { // standard resume schema
+                 com.fasterxml.jackson.databind.JsonNode basics = node.get("basics");
+                 if (basics.isNull() || basics.isEmpty()) return true;
+            } else {
+                 // Unknown schema, cannot determine critical fields easily. 
+                 // Assuming non-CV objects might be fine.
+                 // But if it's ResumeData, it should have one of these.
+                 // Let's check for empty arrays that shouldn't be empty if keys exist
+            }
+
+            // Check specific arrays that usually have content
+            String[] suspiciousEmptyArrays = {"workExperience", "education", "skills", "projects"};
+            for (String key : suspiciousEmptyArrays) {
+                if (node.has(key)) {
+                     com.fasterxml.jackson.databind.JsonNode array = node.get(key);
+                     if (array.isArray() && array.isEmpty()) {
+                         log.debug("Suspicious empty array: {}", key);
+                         // Don't mark truncated just for empty array, user might have no experience.
+                         // But it is suspicious. 
+                     }
+                }
+            }
+            
+            return false;
+        } catch (Exception e) {
+            log.warn("Error checking for truncation", e);
+            return false;
+        }
+    }
+
     private String extractContentFromGeminiResponse(String response) {
         try {
             var root = objectMapper.readTree(response);
