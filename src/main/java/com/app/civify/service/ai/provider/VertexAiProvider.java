@@ -14,13 +14,14 @@ import java.util.Map;
 public class VertexAiProvider implements AiProvider {
 
     private final VertexAiClient client;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     @Value("${vertex.api.key:}")
     private String apiKey;
 
-    public VertexAiProvider(VertexAiClient client) {
+    public VertexAiProvider(VertexAiClient client, ObjectMapper objectMapper) {
         this.client = client;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -28,7 +29,7 @@ public class VertexAiProvider implements AiProvider {
         try {
             // Build Vertex AI API request structure (Same as Gemini for this endpoint)
             Map<String, Object> textPart = Map.of("text", prompt);
-            // unused parts variable removed
+            
             Map<String, Object> rolePart = Map.of("role", "user", "parts", List.of(textPart));
             
             // Add generation config

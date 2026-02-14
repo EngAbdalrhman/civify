@@ -1,7 +1,7 @@
 package com.app.civify.service.document.ocr;
 
 import com.app.civify.dto.document.OcrResult;
-import com.app.civify.service.ai.GeminiAiClient;
+import com.app.civify.service.ai.client.GeminiAiClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;

@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * Service to sanitize and fix malformed JSON responses from AI models.
@@ -165,12 +166,6 @@ public class JsonSanitizer {
             
             if (isTruncated(result)) {
                 log.warn("AI response appears truncated. Missing critical fields or empty lists.");
-                // We log warning but still return result, or throw exception if strict?
-                // Throwing exception allows retry to kick in?
-                // But retry with same prompt might fail again.
-                // For now, just log. Or better, throw if critical.
-                // Let's throw Exception to trigger retry? NO, user might want partial data.
-                // Resume-Matcher logs warning. I'll log warning.
             }
             return result;
         } catch (Exception e) {
@@ -190,16 +185,16 @@ public class JsonSanitizer {
         // Use reflection or convert to JsonNode to check fields?
         // Convert to JsonNode for generic checking
         try {
-            com.fasterxml.jackson.databind.JsonNode node = objectMapper.valueToTree(result);
+            JsonNode node = objectMapper.valueToTree(result);
             
             // Check for personalInfo (required for CVs)
             if (node.has("personalInfo")) {
-                com.fasterxml.jackson.databind.JsonNode personalInfo = node.get("personalInfo");
+                JsonNode personalInfo = node.get("personalInfo");
                 if (personalInfo.isNull() || personalInfo.isEmpty()) {
                     return true;
                 }
             } else if (node.has("basics")) { // standard resume schema
-                 com.fasterxml.jackson.databind.JsonNode basics = node.get("basics");
+                 JsonNode basics = node.get("basics");
                  if (basics.isNull() || basics.isEmpty()) return true;
             } else {
                  // Unknown schema, cannot determine critical fields easily. 
@@ -212,11 +207,9 @@ public class JsonSanitizer {
             String[] suspiciousEmptyArrays = {"workExperience", "education", "skills", "projects"};
             for (String key : suspiciousEmptyArrays) {
                 if (node.has(key)) {
-                     com.fasterxml.jackson.databind.JsonNode array = node.get(key);
+                     JsonNode array = node.get(key);
                      if (array.isArray() && array.isEmpty()) {
                          log.debug("Suspicious empty array: {}", key);
-                         // Don't mark truncated just for empty array, user might have no experience.
-                         // But it is suspicious. 
                      }
                 }
             }

@@ -26,17 +26,13 @@ public class AiServiceImpl implements AiService {
 
     private final Map<String, AiProvider> providers;
 
-    @Value("${ai.default.provider:gemini}")
-    private String defaultProvider;
+    // Default configuration (unused in current implementation but kept for reference/logging)
+    // private final String defaultProvider;
+    // private final String defaultModel;
 
-    @Value("${ai.default.model:gemini-pro}")
-    private String defaultModel;
-
-    @Value("${ai.fallback.provider:}")
-    private String fallbackProvider;
-
-    @Value("${ai.fallback.model:gemini-pro}")
-    private String fallbackModel;
+    // Fallback logic to be implemented later if needed
+    // private final String fallbackProvider;
+    // private final String fallbackModel;
 
     // Constructor for Spring injection of all available providers
     public AiServiceImpl(List<AiProvider> aiProviders,
@@ -45,10 +41,10 @@ public class AiServiceImpl implements AiService {
             @Value("${ai.fallback.provider:}") String fallbackProvider,
             @Value("${ai.fallback.model:gemini-pro}") String fallbackModel) {
         
-        this.defaultProvider = defaultProvider;
-        this.defaultModel = defaultModel;
-        this.fallbackProvider = fallbackProvider;
-        this.fallbackModel = fallbackModel;
+        // this.defaultProvider = defaultProvider;
+        // this.defaultModel = defaultModel;
+        // this.fallbackProvider = fallbackProvider;
+        // this.fallbackModel = fallbackModel;
 
         // Auto-discover and register providers
         this.providers = aiProviders.stream()
@@ -60,7 +56,7 @@ public class AiServiceImpl implements AiService {
                 ));
 
         log.info("AI Service initialized with providers: {}", providers.keySet());
-        log.info("Default provider: {}, model: {}", defaultProvider, defaultModel);
+        // log.info("Default provider: {}, model: {}", defaultProvider, defaultModel);
         
         if (fallbackProvider != null && !fallbackProvider.isEmpty()) {
             log.info("Fallback provider configured: {}, model: {}", fallbackProvider, fallbackModel);

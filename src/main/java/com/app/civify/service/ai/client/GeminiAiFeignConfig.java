@@ -1,4 +1,4 @@
-package com.app.civify.service.ai;
+package com.app.civify.service.ai.client;
 
 import feign.Request;
 import feign.RetryableException;

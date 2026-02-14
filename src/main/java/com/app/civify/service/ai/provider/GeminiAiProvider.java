@@ -1,7 +1,7 @@
 package com.app.civify.service.ai.provider;
 
 import com.app.civify.service.ai.AiProvider;
-import com.app.civify.service.ai.GeminiAiClient;
+import com.app.civify.service.ai.client.GeminiAiClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,13 +14,14 @@ import java.util.Map;
 public class GeminiAiProvider implements AiProvider {
 
     private final GeminiAiClient client;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     @Value("${gemini.api.key:}")
     private String apiKey;
 
-    public GeminiAiProvider(GeminiAiClient client) {
+    public GeminiAiProvider(GeminiAiClient client, ObjectMapper objectMapper) {
         this.client = client;
+        this.objectMapper = objectMapper;
     }
 
     @Override
