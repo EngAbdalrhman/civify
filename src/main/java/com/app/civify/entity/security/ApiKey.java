@@ -33,6 +33,9 @@ public class ApiKey extends BaseEntity {
     @Column
     private LocalDateTime lastUsedAt;
 
+    @Column(length = 255)
+    private String name;
+
     @Column(nullable = false)
     private Boolean isActive = true;
 }
