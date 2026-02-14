@@ -50,7 +50,7 @@ public class JsonSanitizer {
         // If it doesn't end with typical JSON closers, it might be cut off.
         if (!isValidJsonEnd(sanitized)) {
             log.warn("JSON appears truncated, attempting auto-repair...");
-            sanitized = balanaceJson(sanitized);
+            sanitized = balanceJson(sanitized);
         }
 
         return sanitized;
@@ -64,7 +64,7 @@ public class JsonSanitizer {
      * naive validater/balancer that closes open braces/brackets.
      * This is a simple heuristic approach.
      */
-    private String balanaceJson(String json) {
+    private String balanceJson(String json) {
         StringBuilder sb = new StringBuilder(json);
         int openBraces = 0;
         int openBrackets = 0;
@@ -101,21 +101,6 @@ public class JsonSanitizer {
         }
         
         while (openBraces > 0 || openBrackets > 0) {
-            // Heuristic: determine which one to close based on stack concept (simplified here)
-            // A better parser would track the stack. 
-            // For simple resume object structures, we usually just need to close } or ]
-            
-            // If we assume standard object nesting, usually } is needed last for root object.
-            // Let's just append proper closers. 
-            // NOTE: A proper stack is needed for exact correctness, but for truncation at end:
-            // It's usually safe to close ] then } if we assume strict hierarchy or simply count.
-            
-            // Let's just append based on counts. Order matters! 
-            // Ideally we'd scan backwards to see what opened last, but that's complex.
-            // fallback: just append '}' or ']' until balanced.
-            
-            // FIXME: This naive loop is dangerous if mixed. 
-            // Simple fix for now: Close everything with a best guess.
             if (openBrackets > 0) {
                 sb.append("]");
                 openBrackets--;
@@ -174,16 +159,14 @@ public class JsonSanitizer {
                 return objectMapper.readValue(jsonResponse, targetType);
             } catch (Exception ex) {
                 log.error("Failed to parse AI response: {}", ex.getMessage());
-                throw new RuntimeException("Failed to parsing AI response", ex);
+                throw new RuntimeException("Failed to parse AI response", ex);
             }
         }
     }
 
-    private boolean isTruncated(Object result) {
+    public boolean isTruncated(Object result) {
         if (result == null) return true;
         
-        // Use reflection or convert to JsonNode to check fields?
-        // Convert to JsonNode for generic checking
         try {
             JsonNode node = objectMapper.valueToTree(result);
             
@@ -196,11 +179,6 @@ public class JsonSanitizer {
             } else if (node.has("basics")) { // standard resume schema
                  JsonNode basics = node.get("basics");
                  if (basics.isNull() || basics.isEmpty()) return true;
-            } else {
-                 // Unknown schema, cannot determine critical fields easily. 
-                 // Assuming non-CV objects might be fine.
-                 // But if it's ResumeData, it should have one of these.
-                 // Let's check for empty arrays that shouldn't be empty if keys exist
             }
 
             // Check specific arrays that usually have content

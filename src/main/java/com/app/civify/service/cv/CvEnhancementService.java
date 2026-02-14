@@ -313,9 +313,8 @@ public class CvEnhancementService {
             ResumeData rawData = parseYamlToResumeData(cleanedResponse);
             
             // 3. Guard: if parsing failed, fall back to original
-            if (rawData == null || rawData.getPersonalInfo() == null
-                    || rawData.getPersonalInfo().getFullName() == null) {
-                log.warn("YAML parsing produced empty result, falling back to original CV");
+            if (rawData == null || jsonSanitizer.isTruncated(rawData)) {
+                log.warn("Tailored CV parsing failed or resulted in truncated data, falling back to original CV");
                 return resumeData;
             }
             

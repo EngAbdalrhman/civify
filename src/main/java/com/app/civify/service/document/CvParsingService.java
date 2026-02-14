@@ -315,38 +315,21 @@ public class CvParsingService {
             try {
                 ObjectMapper yamlMapper = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
                 yamlMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-                return yamlMapper.readValue(parsedContent, ResumeData.class);
+                ResumeData data = yamlMapper.readValue(parsedContent, ResumeData.class);
+                
+                if (jsonSanitizer.isTruncated(data)) {
+                    log.warn("Parsed ResumeData appears truncated (missing critical fields)");
+                }
+                return data;
             } catch (Exception yamlEx) {
                 // Fallback to JSON
                 try {
-                    return objectMapper.readValue(parsedContent, ResumeData.class);
+                    ResumeData data = objectMapper.readValue(parsedContent, ResumeData.class);
+                    if (jsonSanitizer.isTruncated(data)) {
+                         log.warn("Parsed ResumeData appears truncated (missing critical fields)");
+                    }
+                    return data;
                 } catch (Exception jsonEx) {
-                    // One last try: if custom template, maybe they want a Map/Object structure but ResumeData is strict.
-                    // If userTemplate is used, mapping to ResumeData might fail if the fields don't match CvParseRequest's ResumeData class.
-                    // However, the requirement said "provide optional userTemplate that if he want to parse the data in specific format".
-                    // If the return type is 'CvParseResponse' which contains 'ResumeData', then 'ResumeData' class structure is fixed.
-                    // If the user provides a template that essentially just renames fields or provides a different structure, we can't map it to 'ResumeData' class easily unless it's just a generic Map.
-                    // 'ResumeData' is a strong-typed Java object.
-                    // If the user wants a COMPLETELY custom structure, we might need to return Object or Map<String, Object> in the response.
-                    // But 'CvParseRequest' returns 'CvParseResponse' which has 'ResumeData'.
-                    // Let's assume for now the user template is to guide the AI for better extraction but still maps somewhat to our ResumeData OR we allow lenient mapping.
-                    // Wait, if the user wants "specific format" they probably expect that format back.
-                    // If they send a template with keys "my_name", "my_jobs", mapping to "ResumeData" (which has "personalInfo", "sections") will fail or be empty.
-                    // To support truly custom templates, 'ResumeData' might need to be flexible or we return strict JSON node.
-                    
-                    // But changing 'ResumeData' is a big change. 
-                    // Let's re-read: "if he want to parse the data in specific format"
-                    // If I am strictly bound to ResumeData, the user template effectively just prompts the AI, but then I try to deserialized into ResumeData.
-                    // Use case: Maybe they want extraction of specific fields we miss, or different structure.
-                    // If I can't deserialize to ResumeData, I should probably try to return the raw Map/JsonNode if possible, but the signature of parseCv returns CvParseResponse -> ResumeData.
-                    
-                    // Solution: The 'ResumeData' class might be flexible enough if it uses generic sections?
-                    // Or, for this feature, maybe we should return a generic 'Object' payload in a derived DTO?
-                    // For now, let's keep it simple: We try to map to ResumeData. If validation fails, we might just have to return what we can. 
-                    
-                    // Actually, if the User Template is provided, we should probably be lenient with mapping or use a flexible mapper.
-                    // Since I can't easily change the return type of the service method everywhere without breaking things,
-                    // I will log the error. 
                     
                     log.error("❌ Parsing failed for both YAML and JSON.");
                     log.error("YAML Error: {}", yamlEx.getMessage());
