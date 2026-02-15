@@ -149,7 +149,8 @@ public class MaskingServiceImpl implements MaskingService {
         try {
             // Use AI to find names (NER)
             String prompt = String.format(NER_PROMPT, text);
-            String response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            var aiResponse = aiService.callModel(prompt, defaultProvider, defaultModel);
+            String response = aiResponse.getContent();
 
             // Extract actual content from Gemini response structure
             String contentText = extractContentFromGeminiResponse(response);
