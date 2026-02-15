@@ -1,5 +1,6 @@
 package com.app.civify.controller.general;
 
+import com.app.civify.dto.security.CreateApiKeyRequest;
 import com.app.civify.entity.security.ApiKey;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.ApiKeyService;
@@ -19,8 +20,8 @@ public class ApiKeyController {
     private final ApiKeyService apiKeyService;
 
     @PostMapping
-    public ResponseEntity<?> createApiKey(@AuthenticationPrincipal UserPrincipal userDetails) {
-        String rawKey = apiKeyService.createApiKey(userDetails.getUser());
+    public ResponseEntity<?> createApiKey(@AuthenticationPrincipal UserPrincipal userDetails, @RequestBody CreateApiKeyRequest request) {
+        String rawKey = apiKeyService.createApiKey(userDetails.getUser(), request.getName());
         return ResponseEntity.ok(Map.of("key", rawKey));
     }
 

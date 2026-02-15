@@ -6,14 +6,13 @@ import com.app.civify.dto.document.ProcessedDocument;
 import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.entity.enums.TokenUsageType;
 import com.app.civify.exception.BadRequestException;
-import com.app.civify.service.ResumeService;
 import com.app.civify.service.ai.AiService;
 import com.app.civify.service.ai.TokenizerService;
+import com.app.civify.service.ai.JsonSanitizer;
 import com.app.civify.service.subscription.SubscriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import software.amazon.awssdk.services.s3.S3Client;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
@@ -22,7 +21,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.security.MessageDigest;
 import java.util.HexFormat;
-import java.time.LocalDate;
 
 /**
  * Service for parsing CVs/Resumes into structured data. Integrates document
@@ -35,11 +33,11 @@ public class CvParsingService {
 
     private final DocumentProcessorService documentProcessorService;
     private final AiService aiService;
-    private final ResumeService resumeService;
     private final SubscriptionService subscriptionService;
     private final TokenizerService tokenizerService;
     private final ObjectMapper objectMapper;
     private final BucketService bucketService;
+    private final JsonSanitizer jsonSanitizer;
 
     @Value("${ai.default.provider:gemini}")
     private String defaultProvider;
@@ -317,38 +315,21 @@ public class CvParsingService {
             try {
                 ObjectMapper yamlMapper = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
                 yamlMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-                return yamlMapper.readValue(parsedContent, ResumeData.class);
+                ResumeData data = yamlMapper.readValue(parsedContent, ResumeData.class);
+                
+                if (jsonSanitizer.isTruncated(data)) {
+                    log.warn("Parsed ResumeData appears truncated (missing critical fields)");
+                }
+                return data;
             } catch (Exception yamlEx) {
                 // Fallback to JSON
                 try {
-                    return objectMapper.readValue(parsedContent, ResumeData.class);
+                    ResumeData data = objectMapper.readValue(parsedContent, ResumeData.class);
+                    if (jsonSanitizer.isTruncated(data)) {
+                         log.warn("Parsed ResumeData appears truncated (missing critical fields)");
+                    }
+                    return data;
                 } catch (Exception jsonEx) {
-                    // One last try: if custom template, maybe they want a Map/Object structure but ResumeData is strict.
-                    // If userTemplate is used, mapping to ResumeData might fail if the fields don't match CvParseRequest's ResumeData class.
-                    // However, the requirement said "provide optional userTemplate that if he want to parse the data in specific format".
-                    // If the return type is 'CvParseResponse' which contains 'ResumeData', then 'ResumeData' class structure is fixed.
-                    // If the user provides a template that essentially just renames fields or provides a different structure, we can't map it to 'ResumeData' class easily unless it's just a generic Map.
-                    // 'ResumeData' is a strong-typed Java object.
-                    // If the user wants a COMPLETELY custom structure, we might need to return Object or Map<String, Object> in the response.
-                    // But 'CvParseRequest' returns 'CvParseResponse' which has 'ResumeData'.
-                    // Let's assume for now the user template is to guide the AI for better extraction but still maps somewhat to our ResumeData OR we allow lenient mapping.
-                    // Wait, if the user wants "specific format" they probably expect that format back.
-                    // If they send a template with keys "my_name", "my_jobs", mapping to "ResumeData" (which has "personalInfo", "sections") will fail or be empty.
-                    // To support truly custom templates, 'ResumeData' might need to be flexible or we return strict JSON node.
-                    
-                    // But changing 'ResumeData' is a big change. 
-                    // Let's re-read: "if he want to parse the data in specific format"
-                    // If I am strictly bound to ResumeData, the user template effectively just prompts the AI, but then I try to deserialized into ResumeData.
-                    // Use case: Maybe they want extraction of specific fields we miss, or different structure.
-                    // If I can't deserialize to ResumeData, I should probably try to return the raw Map/JsonNode if possible, but the signature of parseCv returns CvParseResponse -> ResumeData.
-                    
-                    // Solution: The 'ResumeData' class might be flexible enough if it uses generic sections?
-                    // Or, for this feature, maybe we should return a generic 'Object' payload in a derived DTO?
-                    // For now, let's keep it simple: We try to map to ResumeData. If validation fails, we might just have to return what we can. 
-                    
-                    // Actually, if the User Template is provided, we should probably be lenient with mapping or use a flexible mapper.
-                    // Since I can't easily change the return type of the service method everywhere without breaking things,
-                    // I will log the error. 
                     
                     log.error("❌ Parsing failed for both YAML and JSON.");
                     log.error("YAML Error: {}", yamlEx.getMessage());
@@ -365,37 +346,6 @@ public class CvParsingService {
     }
 
     /**
-     * Remove markdown code blocks from JSON/YAML response. 
-     * AI models sometimes wrap content in ```json ... ``` or ```yaml ... ``` blocks.
-     */
-    private String cleanMarkdownJson(String text) {
-        if (text == null) {
-            return null;
-        }
-
-        String cleaned = text.trim();
-
-        // Remove ```json, ```yaml, or ``` prefix
-        if (cleaned.startsWith("```json")) {
-            cleaned = cleaned.substring(7);
-        } else if (cleaned.startsWith("```yaml")) {
-            cleaned = cleaned.substring(7);
-        } else if (cleaned.startsWith("```")) {
-            cleaned = cleaned.substring(3);
-        }
-        
-        // Sometimes the model just outputs "yaml" or "json" at the start without backticks
-        if (cleaned.startsWith("yaml\n") || cleaned.startsWith("yaml ")) {
-             cleaned = cleaned.substring(5);
-        }
-
-        // Remove trailing ```
-        if (cleaned.endsWith("```")) {
-            cleaned = cleaned.substring(0, cleaned.length() - 3);
-        }
-
-        return cleaned.trim();
-    }
 
     /**
      * Attempt to parse the AI output as YAML; return null on failure (caller may retry).
@@ -406,8 +356,7 @@ public class CvParsingService {
             return null;
         }
 
-        String contentText = extractContentFromGeminiResponse(response);
-        contentText = cleanMarkdownJson(contentText);
+        String contentText = jsonSanitizer.cleanAiResponse(response);
         log.debug("AI Response Content (Cleaned): {}", contentText);
 
         try {
@@ -467,33 +416,5 @@ public class CvParsingService {
         return parseTextWithAi(text, piiOnly);
     }
     
-    private String generateFileHash(byte[] fileBytes) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(fileBytes);
-            return HexFormat.of().formatHex(hash);
-        } catch (Exception e) {
-            log.warn("Failed to generate file hash", e);
-            return String.valueOf(System.currentTimeMillis()); // Fallback
-        }
-    }
-
-    private String extractContentFromGeminiResponse(String response) {
-        try {
-            var root = objectMapper.readTree(response);
-            var candidates = root.path("candidates");
-            if (candidates.isArray() && !candidates.isEmpty()) {
-                var content = candidates.get(0).path("content");
-                var parts = content.path("parts");
-                if (parts.isArray() && !parts.isEmpty()) {
-                    return parts.get(0).path("text").asText();
-                }
-            }
-            return response; // Fallback
-        } catch (Exception e) {
-            log.warn("Failed to parse Gemini response structure: {}", e.getMessage());
-            return response;
-        }
-    }
     
 }

@@ -18,6 +18,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import com.app.civify.util.filter.PagedResponse;
 
 import java.util.Map;
 
@@ -41,7 +42,7 @@ public class NotificationController {
      * Get recent notifications (user specific + broadcast)
      */
     @GetMapping
-    public ResponseEntity<Page<Notification>> getRecentNotifications(
+    public ResponseEntity<PagedResponse<Notification>> getRecentNotifications(
             @AuthenticationPrincipal UserPrincipal userPrincipal,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
@@ -49,7 +50,7 @@ public class NotificationController {
         Pageable pageable = PageRequest.of(page, size);
         Page<Notification> notifications = notificationUseCase.getRecentNotifications(userPrincipal.getId(), pageable);
         
-        return ResponseEntity.ok(notifications);
+        return ResponseEntity.ok(PagedResponse.of(notifications));
     }
 
     /**

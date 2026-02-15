@@ -33,7 +33,16 @@ public class ContentCleaner {
             "cutting-edge",
             "seamlessly integrated",
             "pivotal role",
-            "championed"
+            "championed",
+            "visionary",
+            "transformative",
+            "unparalleled",
+            "super hero",
+            "synergistic",
+            "best-in-class",
+            "world-class",
+            "cutting-edge",
+            "state-of-the-art"
     );
 
     /**
@@ -46,6 +55,11 @@ public class ContentCleaner {
         }
 
         String cleaned = text;
+        
+        // 1. Remove Markdown Bolding (**text**) commonly used by AI for emphasis
+        cleaned = cleaned.replaceAll("\\*\\*(.*?)\\*\\*", "$1");
+        
+        // 2. Remove AI Phrases
         for (String phrase : AI_PHRASES) {
             // Simple replacement strategy: replace with empty string or simpler term depending on context.
             // For this implementation, we will try to remove the "fluff" adjectives/adverbs.

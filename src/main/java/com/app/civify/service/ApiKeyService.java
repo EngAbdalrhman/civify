@@ -5,7 +5,6 @@ import com.app.civify.entity.User;
 import com.app.civify.entity.logs.ApiKeyUsageLog;
 import com.app.civify.repository.security.ApiKeyRepository;
 import com.app.civify.repository.logs.ApiKeyUsageLogRepository;
-import com.app.civify.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +21,6 @@ import java.util.List;
 public class ApiKeyService {
 
     private final ApiKeyRepository apiKeyRepository;
-    private final UserRepository userRepository;
 
     private final ApiKeyUsageLogRepository apiKeyUsageLogRepository;
 
@@ -30,7 +28,7 @@ public class ApiKeyService {
     private static final int KEY_LENGTH = 32;
 
     @Transactional
-    public String createApiKey(User user) {
+    public String createApiKey(User user, String name) {
         String rawKey = generateSecureKey();
         String keyHash = hashKey(rawKey);
         
@@ -38,6 +36,7 @@ public class ApiKeyService {
         apiKey.setUser(user);
         apiKey.setKeyHash(keyHash);
         apiKey.setKeyPreview(maskKey(rawKey));
+        apiKey.setName(name);
         apiKey.setIsActive(true);
         
         apiKeyRepository.save(apiKey);

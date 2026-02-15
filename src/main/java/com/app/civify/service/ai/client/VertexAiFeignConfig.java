@@ -1,10 +1,13 @@
 package com.app.civify.service.ai.client;
 
+import feign.Request;
 import feign.RetryableException;
 import feign.Retryer;
 import feign.codec.ErrorDecoder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpStatus;
+
+import java.util.concurrent.TimeUnit;
 
 public class VertexAiFeignConfig {
 
@@ -24,12 +27,22 @@ public class VertexAiFeignConfig {
                         response.status(),
                         "Too Many Requests (429) from Vertex AI",
                         response.request().httpMethod(),
-                        (java.util.Date) null,
+                        (Long) null,
                         response.request()
                     );
                 }
                 return super.decode(methodKey, response);
             }
         };
+    }
+
+    @Bean
+    public Request.Options options() {
+        // Connect timeout: 10s, Read timeout: 120s
+        return new Request.Options(
+            10, TimeUnit.SECONDS,
+            120, TimeUnit.SECONDS,
+            true
+        );
     }
 }

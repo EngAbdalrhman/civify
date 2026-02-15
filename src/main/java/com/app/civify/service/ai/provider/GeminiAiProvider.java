@@ -1,9 +1,10 @@
 package com.app.civify.service.ai.provider;
 
 import com.app.civify.service.ai.AiProvider;
-import com.app.civify.service.ai.GeminiAiClient;
+import com.app.civify.service.ai.client.GeminiAiClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -13,10 +14,14 @@ import java.util.Map;
 public class GeminiAiProvider implements AiProvider {
 
     private final GeminiAiClient client;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
-    public GeminiAiProvider(GeminiAiClient client) {
+    @Value("${gemini.api.key:}")
+    private String apiKey;
+
+    public GeminiAiProvider(GeminiAiClient client, ObjectMapper objectMapper) {
         this.client = client;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -25,7 +30,17 @@ public class GeminiAiProvider implements AiProvider {
             // Build Gemini API request using proper JSON serialization
             Map<String, Object> textPart = Map.of("text", prompt);
             Map<String, Object> parts = Map.of("parts", List.of(textPart));
-            Map<String, Object> requestMap = Map.of("contents", List.of(parts));
+            
+            // Add generation config for better structured output control
+            Map<String, Object> generationConfig = Map.of(
+                "temperature", 0.2,
+                "maxOutputTokens", 8192
+            );
+            
+            Map<String, Object> requestMap = Map.of(
+                "contents", List.of(parts),
+                "generationConfig", generationConfig
+            );
 
             String requestBody = objectMapper.writeValueAsString(requestMap);
 
@@ -41,5 +56,10 @@ public class GeminiAiProvider implements AiProvider {
     @Override
     public String getProviderName() {
         return "gemini";
+    }
+
+    @Override
+    public boolean isAvailable() {
+        return apiKey != null && !apiKey.isEmpty();
     }
 }

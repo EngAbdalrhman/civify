@@ -3,6 +3,9 @@ package com.app.civify.service.ai;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+
 /**
  * Service to sanitize and fix malformed JSON responses from AI models.
  * Handles common issues like Markdown code blocks, truncation, and trailing commas.
@@ -10,6 +13,12 @@ import org.springframework.stereotype.Component;
 @Component
 @Slf4j
 public class JsonSanitizer {
+
+    private final ObjectMapper objectMapper;
+
+    public JsonSanitizer(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     /**
      * Sanitizes and attempts to fix JSON string.
@@ -41,7 +50,7 @@ public class JsonSanitizer {
         // If it doesn't end with typical JSON closers, it might be cut off.
         if (!isValidJsonEnd(sanitized)) {
             log.warn("JSON appears truncated, attempting auto-repair...");
-            sanitized = balanaceJson(sanitized);
+            sanitized = balanceJson(sanitized);
         }
 
         return sanitized;
@@ -55,7 +64,7 @@ public class JsonSanitizer {
      * naive validater/balancer that closes open braces/brackets.
      * This is a simple heuristic approach.
      */
-    private String balanaceJson(String json) {
+    private String balanceJson(String json) {
         StringBuilder sb = new StringBuilder(json);
         int openBraces = 0;
         int openBrackets = 0;
@@ -92,21 +101,7 @@ public class JsonSanitizer {
         }
         
         while (openBraces > 0 || openBrackets > 0) {
-            // Heuristic: determine which one to close based on stack concept (simplified here)
-            // A better parser would track the stack. 
-            // For simple resume object structures, we usually just need to close } or ]
-            
-            // If we assume standard object nesting, usually } is needed last for root object.
-            // Let's just append proper closers. 
-            // NOTE: A proper stack is needed for exact correctness, but for truncation at end:
-            // It's usually safe to close ] then } if we assume strict hierarchy or simply count.
-            
-            // Let's just append based on counts. Order matters! 
-            // Ideally we'd scan backwards to see what opened last, but that's complex.
-            // fallback: just append '}' or ']' until balanced.
-            
-            // FIXME: This naive loop is dangerous if mixed. 
-            // Simple fix for now: Close everything with a best guess.
+            // Close brackets before braces (arrays are typically nested inside objects)
             if (openBrackets > 0) {
                 sb.append("]");
                 openBrackets--;
@@ -117,5 +112,120 @@ public class JsonSanitizer {
         }
         
         return sb.toString();
+    }
+
+    /**
+     * Cleans AI response by removing markdown blocks and extracting content if nested in Gemini structure.
+     */
+    public String cleanAiResponse(String response) {
+        if (response == null) return "";
+
+        String cleaned = response.trim();
+
+        // Extract from Gemini response structure if present
+        cleaned = extractContentFromGeminiResponse(cleaned);
+
+        // Remove markdown code blocks
+        if (cleaned.startsWith("```yaml")) {
+            cleaned = cleaned.substring(7);
+        } else if (cleaned.startsWith("```json")) {
+            cleaned = cleaned.substring(7);
+        } else if (cleaned.startsWith("```")) {
+            cleaned = cleaned.substring(3);
+        }
+
+        if (cleaned.endsWith("```")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 3);
+        }
+
+        return cleaned.trim();
+    }
+
+    public <T> T cleanAiResponse(String jsonResponse, Class<T> targetType) {
+        try {
+            // Use the string overload to standardise extraction and markdown stripping
+            String cleanJson = cleanAiResponse(jsonResponse);
+            
+            // Check for potential truncation before parsing if possible, or parse first
+            // Parse first to check structural truncation
+            T result = objectMapper.readValue(cleanJson, targetType);
+            
+            if (isTruncated(result)) {
+                log.warn("AI response appears truncated. Missing critical fields or empty lists.");
+            }
+            return result;
+        } catch (Exception e) {
+            log.warn("Failed to clean AI response, attempting raw parse: {}", e.getMessage());
+            try {
+                return objectMapper.readValue(jsonResponse, targetType);
+            } catch (Exception ex) {
+                log.error("Failed to parse AI response: {}", ex.getMessage());
+                throw new RuntimeException("Failed to parse AI response", ex);
+            }
+        }
+    }
+
+    public boolean isTruncated(Object result) {
+        if (result == null) return true;
+        
+        try {
+            JsonNode node = objectMapper.valueToTree(result);
+            
+            // Check for personalInfo (required for CVs)
+            if (node.has("personalInfo")) {
+                JsonNode personalInfo = node.get("personalInfo");
+                if (personalInfo.isNull() || personalInfo.isEmpty()) {
+                    return true;
+                }
+            }
+            
+            // Check for generic sections array (ResumeData structure)
+            if (node.has("sections")) {
+                 JsonNode sections = node.get("sections");
+                 if (sections.isArray()) {
+                     // If sections array exists but is empty, it's suspicious for a CV
+                     if (sections.isEmpty()) return true;
+                     
+                     // If sections array has only 1 item (e.g. just education), it MIGHT be truncated
+                     // but we can't be sure.
+                 }
+            } else if (node.has("basics")) { // JSON Resume schema fallback
+                 JsonNode basics = node.get("basics");
+                 if (basics.isNull() || basics.isEmpty()) return true;
+            }
+
+            // Check specific arrays that usually have content (for JSON Resume schema)
+            String[] suspiciousEmptyArrays = {"workExperience", "education", "skills", "projects"};
+            for (String key : suspiciousEmptyArrays) {
+                if (node.has(key)) {
+                     JsonNode array = node.get(key);
+                     if (array.isArray() && array.isEmpty()) {
+                         log.debug("Suspicious empty array: {}", key);
+                     }
+                }
+            }
+            
+            return false;
+        } catch (Exception e) {
+            log.warn("Error checking for truncation", e);
+            return false;
+        }
+    }
+
+    private String extractContentFromGeminiResponse(String response) {
+        try {
+            var root = objectMapper.readTree(response);
+            var candidates = root.path("candidates");
+            if (candidates.isArray() && !candidates.isEmpty()) {
+                var content = candidates.get(0).path("content");
+                var parts = content.path("parts");
+                if (parts.isArray() && !parts.isEmpty()) {
+                    return parts.get(0).path("text").asText();
+                }
+            }
+            return response;
+        } catch (Exception e) {
+            return response;
+        }
     }
 }
