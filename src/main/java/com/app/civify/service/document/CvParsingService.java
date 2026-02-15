@@ -7,6 +7,7 @@ import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.entity.enums.TokenUsageType;
 import com.app.civify.exception.BadRequestException;
 import com.app.civify.service.ai.AiService;
+import com.app.civify.dto.ai.AiModelResponse;
 import com.app.civify.service.ai.TokenizerService;
 import com.app.civify.service.ai.JsonSanitizer;
 import com.app.civify.service.subscription.SubscriptionService;
@@ -19,8 +20,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.security.MessageDigest;
-import java.util.HexFormat;
+
 
 /**
  * Service for parsing CVs/Resumes into structured data. Integrates document
@@ -135,11 +135,11 @@ public class CvParsingService {
                         .build();
             }
 
-            ResumeData resumeData = parseTextWithAi(truncatedText, request);
+            ParsedCvResult parseResult = parseTextWithAi(truncatedText, request);
             long aiTime = System.currentTimeMillis() - aiStart;
             log.info("AI Parsing Time: {}ms", aiTime);
 
-            if (resumeData == null) {
+            if (parseResult == null || parseResult.resumeData == null) {
                 return CvParseResponse.builder()
                         .success(false)
                         .message("Failed to parse CV content with AI")
@@ -147,32 +147,26 @@ public class CvParsingService {
                         .build();
             }
 
-            // Step 3: Optionally save to database (only for authenticated users)
-            String resumeId = null;
-//            if (request.isSaveToDatabase()) {
-//                if (userId != null) {
-//                    String title = request.getResumeTitle() != null ? request.getResumeTitle() : "Parsed CV";
-//                    var savedResume = resumeService.createResume(userId, title, resumeData);
-//                    resumeId = savedResume.getId();
-//                    log.info("Resume saved with ID: {}", resumeId);
-//                } else {
-//                    log.warn("Guest user attempted to save CV - operation skipped");
-//                }
-//            }
+            ResumeData resumeData = parseResult.resumeData;
+            int actualTokens = parseResult.tokensUsed;
+
+
 
             // Step 4: Charge tokens after successful parse
             if (userId != null) {
-                subscriptionService.chargeTokens(userId, estimatedTokens, TokenUsageType.CV_PARSE, "CV Upload Parsing");
+                // Charge ACTUAL tokens instead of estimated
+                subscriptionService.chargeTokens(userId, actualTokens, TokenUsageType.CV_PARSE, "CV Upload Parsing");
+                log.info("Charged {} tokens (Estimated: {}) to user {}", actualTokens, estimatedTokens, userId);
             }
 
             return CvParseResponse.builder()
                     .success(true)
                     .resumeData(resumeData)
-                    .resumeId(resumeId)
                     .confidence(processedDoc.getConfidence())
                     .processingMethod(processedDoc.getProcessingMethod())
                     .detectedLanguage(processedDoc.getPrimaryLanguage())
                     .processingTimeMs(System.currentTimeMillis() - startTime)
+                    .tokensUsed(actualTokens)
                     .build();
 
         } catch (Exception e) {
@@ -231,13 +225,13 @@ public class CvParsingService {
         """;
 
     /**
-     * Parse extracted text using AI to produce structured ResumeData.
+     * Result holder for parsed CV data and token usage.
      */
-    private ResumeData parseTextWithAi(String text, boolean piiOnly) {
-         return parseTextWithAi(text, CvParseRequest.builder().piiOnly(piiOnly).build());
-    }
+    private record ParsedCvResult(ResumeData resumeData, int tokensUsed) {}
 
-    private ResumeData parseTextWithAi(String text, CvParseRequest request) {
+
+
+    private ParsedCvResult parseTextWithAi(String text, CvParseRequest request) {
         try {
             String promptTemplate;
             boolean useCustomTemplate = request.getUserTemplate() != null && !request.getUserTemplate().isBlank();
@@ -288,14 +282,15 @@ public class CvParsingService {
 
             String prompt = String.format(promptTemplate, wrapUserText(text));
 
-            String response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            AiModelResponse response = aiService.callModel(prompt, defaultProvider, defaultModel);
 
-            if (response == null || response.isEmpty()) {
+            if (response == null || response.getContent() == null || response.getContent().isEmpty()) {
                 log.error("Empty response from AI");
                 return null;
             }
 
-            String parsedContent = tryParseContent(response, request.isPiiOnly());
+            String parsedContent = tryParseContent(response.getContent(), request.isPiiOnly());
+            int totalTokens = response.getTotalTokens();
 
             if (parsedContent == null) {
                 log.warn("LLM output invalid, retrying with corrective prompt");
@@ -303,8 +298,9 @@ public class CvParsingService {
                         + "\n\nOutput was not valid "
                         + (request.isPiiOnly() ? "YAML" : "structured data")
                         + ". Return STRICT structured data only, no prose, no markdown fences.";
-                String retryResponse = aiService.callModel(repairPrompt, defaultProvider, defaultModel);
-                parsedContent = tryParseContent(retryResponse, request.isPiiOnly());
+                AiModelResponse retryResponse = aiService.callModel(repairPrompt, defaultProvider, defaultModel);
+                parsedContent = tryParseContent(retryResponse.getContent(), request.isPiiOnly());
+                totalTokens += retryResponse.getTotalTokens(); // Add corrective tokens
             }
 
             if (parsedContent == null) {
@@ -320,7 +316,7 @@ public class CvParsingService {
                 if (jsonSanitizer.isTruncated(data)) {
                     log.warn("Parsed ResumeData appears truncated (missing critical fields)");
                 }
-                return data;
+                return new ParsedCvResult(data, totalTokens);
             } catch (Exception yamlEx) {
                 // Fallback to JSON
                 try {
@@ -328,7 +324,7 @@ public class CvParsingService {
                     if (jsonSanitizer.isTruncated(data)) {
                          log.warn("Parsed ResumeData appears truncated (missing critical fields)");
                     }
-                    return data;
+                    return new ParsedCvResult(data, totalTokens);
                 } catch (Exception jsonEx) {
                     
                     log.error("❌ Parsing failed for both YAML and JSON.");
@@ -413,7 +409,8 @@ public class CvParsingService {
      */
     @Cacheable(value = "cv-parsing", key = "#fileHash")
     public ResumeData parseCvCached(String fileHash, String text, boolean piiOnly) {
-        return parseTextWithAi(text, piiOnly);
+        ParsedCvResult result = parseTextWithAi(text, CvParseRequest.builder().piiOnly(piiOnly).build());
+        return result != null ? result.resumeData : null;
     }
     
     

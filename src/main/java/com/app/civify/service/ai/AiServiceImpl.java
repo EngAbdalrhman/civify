@@ -1,5 +1,6 @@
 package com.app.civify.service.ai;
 
+import com.app.civify.dto.ai.AiModelResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.retry.annotation.Backoff;
@@ -44,7 +45,7 @@ public class AiServiceImpl implements AiService {
     @Override
     @Retryable(value = {Exception.class}, maxAttempts = 2, backoff = @Backoff(delay = 500, multiplier = 2))
     @Cacheable(value = "ai_responses", key = "{#prompt, #provider, #model}") 
-    public String callModel(String prompt, String provider, String model) {
+    public AiModelResponse callModel(String prompt, String provider, String model) {
         log.info("Calling AI model - Provider: {}, Model: {}", provider, model);
 
         AiProvider aiProvider = providers.get(provider.toLowerCase());
@@ -58,8 +59,8 @@ public class AiServiceImpl implements AiService {
         }
 
         try {
-            String response = aiProvider.callModel(prompt, model);
-            log.debug("AI model call successful - Provider: {}, Response length: {}", provider, response.length());
+            AiModelResponse response = aiProvider.callModel(prompt, model);
+            log.debug("AI model call successful - Provider: {}, Tokens: {}", provider, response.getTotalTokens());
             return response;
         } catch (Exception e) {
             log.error("Error calling AI model (Provider: {}, Model: {}): {}", provider, model, e.getMessage());
@@ -72,7 +73,7 @@ public class AiServiceImpl implements AiService {
      * Recovery method called after all retry attempts fail
      */
     @Recover
-    public String recoverAiCall(Exception e, String prompt, String provider, String model) {
+    public AiModelResponse recoverAiCall(Exception e, String prompt, String provider, String model) {
         log.error("All retry attempts exhausted for AI call. Provider: {}, Model: {}, Error: {}",
                 provider, model, e.getMessage());
         throw new RuntimeException(

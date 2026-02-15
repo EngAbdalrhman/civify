@@ -64,6 +64,11 @@ public class CvTailorResponse {
      */
     private long processingTimeMs;
 
+    /**
+     * Total tokens consumed across all AI operations for this request.
+     */
+    private int totalTokensUsed;
+
     // ==================== Nested DTOs ====================
 
     @Data
@@ -95,6 +100,11 @@ public class CvTailorResponse {
          * Improvement suggestions.
          */
         private List<String> suggestions;
+        
+        /**
+         * Tokens used for this ATS analysis.
+         */
+        private int tokensUsed;
     }
 
     @Data
@@ -106,6 +116,11 @@ public class CvTailorResponse {
          * List of potential interview questions.
          */
         private List<InterviewQuestion> questions;
+        
+        /**
+         * Tokens used for generating interview prep.
+         */
+        private int tokensUsed;
     }
 
     @Data
@@ -132,6 +147,11 @@ public class CvTailorResponse {
          * Actionable steps with timeframes.
          */
         private List<RoadmapStep> steps;
+        
+        /**
+         * Tokens used for generating roadmap.
+         */
+        private int tokensUsed;
     }
 
     @Data

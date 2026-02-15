@@ -1,18 +1,22 @@
 package com.app.civify.service.ai;
 
+import com.app.civify.dto.ai.AiModelResponse;
+
 /**
  * Interface that all AI providers must implement
  */
 public interface AiProvider {
+
+
 
     /**
      * Call the AI model with given prompt
      *
      * @param prompt The prompt to send
      * @param model The specific model to use
-     * @return AI response
+     * @return AI response with content and token metadata
      */
-    String callModel(String prompt, String model);
+    AiModelResponse callModel(String prompt, String model);
 
     /**
      * Get provider name
