@@ -276,12 +276,26 @@ public class CvEnhancementService {
                 interviewFuture, roadmapFuture, coverLetterFuture).join();
 
             AtsScore tailoredAtsScore = tailoredAtsScoreFuture.get();
-        
-            
-            // Start: Truthfulness Validation
+            AtsScore originalAtsScore = originalAtsScoreFuture.get();
+
+            // Score Floor Guarantee: tailored must never score lower than original
+            if (tailoredAtsScore.getOverall() < originalAtsScore.getOverall()) {
+                log.warn("ATS score regression detected: tailored={} < original={}. Applying floor.",
+                    tailoredAtsScore.getOverall(), originalAtsScore.getOverall());
+                tailoredAtsScore = AtsScore.builder()
+                    .overall(originalAtsScore.getOverall())
+                    .keywordMatch(Math.max(tailoredAtsScore.getKeywordMatch(), originalAtsScore.getKeywordMatch()))
+                    .skillsMatch(Math.max(tailoredAtsScore.getSkillsMatch(), originalAtsScore.getSkillsMatch()))
+                    .missingKeywords(tailoredAtsScore.getMissingKeywords())
+                    .suggestions(tailoredAtsScore.getSuggestions())
+                    .tokensUsed(tailoredAtsScore.getTokensUsed())
+                    .build();
+            }
+
+            // Truthfulness Validation
             List<String> validationWarnings = validateAlignment(request.getResumeData(), refinedCv);
             
-            // NEW: Generate Change Diffs using Robust Service
+            // Generate Change Diffs using Robust Service
             List<String> changes = resumeDiffService.calculateDiff(request.getResumeData(), refinedCv);
 
             int totalTokens = tokenTracker.get();
@@ -289,8 +303,8 @@ public class CvEnhancementService {
 
             return CvTailorResponse.builder()
                     .tailoredCv(refinedCv)
-                    .atsScore(tailoredAtsScore)              // Score for TAILORED CV
-                    .originalAtsScore(originalAtsScoreFuture.get())     // Score for ORIGINAL CV
+                    .atsScore(tailoredAtsScore)
+                    .originalAtsScore(originalAtsScore)
                     .interviewPrep(interviewFuture.get())
                     .roadmap(roadmapFuture.get())
                     .coverLetter(coverLetterFuture.get())
@@ -381,12 +395,14 @@ public class CvEnhancementService {
             // Weigh AI score 60% and Keyword score 40%
             int hybridOverall = (int) Math.round((aiScore.getOverall() * 0.6) + (keywordResult.score() * 0.4));
             
+            // Deterministic floor: hybrid score must not fall below keyword score
+            hybridOverall = Math.max(hybridOverall, keywordResult.score());
+            
             // Merge missing keywords (AI + Deterministic)
             List<String> mergedMissingKeywords = new ArrayList<>();
             if (aiScore.getMissingKeywords() != null) {
                 mergedMissingKeywords.addAll(aiScore.getMissingKeywords());
             }
-            // Add top 10 missing keywords from deterministic matcher if not already present
             for (String kw : keywordResult.missingKeywords()) {
                  if (mergedMissingKeywords.size() >= 15) break; 
                  if (!mergedMissingKeywords.contains(kw)) {
@@ -396,11 +412,11 @@ public class CvEnhancementService {
             
             return AtsScore.builder()
                     .overall(hybridOverall)
-                    .keywordMatch(keywordResult.score()) // Use the real keyword score here for accuracy
-                    .skillsMatch(aiScore.getSkillsMatch())
+                    .keywordMatch(keywordResult.score())
+                    .skillsMatch(Math.max(aiScore.getSkillsMatch(), 0))
                     .missingKeywords(mergedMissingKeywords)
                     .suggestions(aiScore.getSuggestions())
-                    .tokensUsed(response.getTotalTokens()) // Capture tokens for this specific score op
+                    .tokensUsed(response.getTotalTokens())
                     .build();
 
         } catch (Exception e) {
@@ -454,12 +470,15 @@ public class CvEnhancementService {
      * This ensures fairness and prevents score regression.
      */
     private ResumeData refineAfterTailoring(ResumeData original, ResumeData tailored, String jd) {
+        // Step 1: Restore any section items (courses, skills) dropped by the AI
+        restoreLostSectionItems(original, tailored);
+        
         String originalText = extractFullText(original).toLowerCase();
         String tailoredText = extractFullText(tailored).toLowerCase();
         
         Set<String> jdKeywords = keywordMatcher.extractKeywords(jd);
         
-        // Find keywords that are in JD but MISSING from Tailored CV
+        // Step 2: Find JD keywords missing from Tailored CV
         List<String> missingFromTailored = jdKeywords.stream()
             .filter(kw -> !keywordMatcher.containsKeyword(tailoredText, kw))
             .collect(Collectors.toList());
@@ -477,6 +496,60 @@ public class CvEnhancementService {
         }
         
         return tailored;
+    }
+    
+    /**
+     * Restores section items (e.g. skill titles, course titles) that existed in the original CV
+     * but were dropped by the AI during tailoring.
+     */
+    private void restoreLostSectionItems(ResumeData original, ResumeData tailored) {
+        if (original.getSections() == null || tailored.getSections() == null) return;
+        
+        for (ResumeData.ResumeSection origSection : original.getSections()) {
+            if (origSection.getItems() == null || origSection.getItems().isEmpty()) continue;
+            
+            // Find matching section in tailored CV by id or type+title
+            ResumeData.ResumeSection tailoredSection = tailored.getSections().stream()
+                .filter(s -> matchesSection(origSection, s))
+                .findFirst()
+                .orElse(null);
+                
+            if (tailoredSection == null) {
+                // Section entirely missing — restore it
+                tailored.getSections().add(origSection);
+                log.info("Restored entirely lost section: {}", origSection.getTitle());
+                continue;
+            }
+            
+            if (tailoredSection.getItems() == null) {
+                tailoredSection.setItems(new ArrayList<>());
+            }
+            
+            // Restore missing items within the section
+            Set<String> tailoredTitles = tailoredSection.getItems().stream()
+                .map(i -> i.getTitle() != null ? i.getTitle().trim().toLowerCase() : "")
+                .collect(Collectors.toSet());
+                
+            int restored = 0;
+            for (ResumeData.SectionItem origItem : origSection.getItems()) {
+                String origTitle = origItem.getTitle() != null ? origItem.getTitle().trim().toLowerCase() : "";
+                if (!origTitle.isEmpty() && !tailoredTitles.contains(origTitle)) {
+                    tailoredSection.getItems().add(origItem);
+                    restored++;
+                }
+            }
+            
+            if (restored > 0) {
+                log.info("Restored {} lost items in section '{}'", restored, origSection.getTitle());
+            }
+        }
+    }
+    
+    private boolean matchesSection(ResumeData.ResumeSection a, ResumeData.ResumeSection b) {
+        if (a.getId() != null && a.getId().equals(b.getId())) return true;
+        if (a.getType() != null && a.getType().equalsIgnoreCase(b.getType())
+            && a.getTitle() != null && a.getTitle().equalsIgnoreCase(b.getTitle())) return true;
+        return false;
     }
 
     private ResumeData injectMissingKeywords(ResumeData tailored, List<String> keywordsToInject) {
