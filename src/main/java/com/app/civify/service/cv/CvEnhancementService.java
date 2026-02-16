@@ -76,7 +76,7 @@ public class CvEnhancementService {
         2. DO NOT use hyperbole like "superhero", "rockstar", "ninja", "unparalleled".
         3. KEEP ORIGINAL dates, locations, company names, job titles.
         4. YOU MAY rephrase descriptions to align with JD terminology ONLY IF the underlying work supports it.
-        5. DO NOT add "implied" skills unless you are 100% certain the candidate has them based on the text.
+        5. DO NOT add "implied" skills unless you are 100%% certain the candidate has them based on the text.
         
         Job Description:
         %s
@@ -749,11 +749,50 @@ public class CvEnhancementService {
 
     private AtsScore parseYamlToAtsScore(String yaml) {
         try {
-            return YAML_MAPPER.readValue(yaml, AtsScore.class);
+            com.fasterxml.jackson.databind.JsonNode root = YAML_MAPPER.readTree(yaml);
+            
+            return AtsScore.builder()
+                .overall(root.path("overall").asInt(0))
+                .keywordMatch(root.path("keywordMatch").asInt(0))
+                .skillsMatch(root.path("skillsMatch").asInt(0))
+                .missingKeywords(extractStringList(root.path("missingKeywords")))
+                .suggestions(extractStringList(root.path("suggestions")))
+                .build();
         } catch (Exception e) {
             log.error("Error parsing YAML to AtsScore: {}", e.getMessage());
-            return AtsScore.builder().overall(-1).build();
+            return AtsScore.builder()
+                .overall(-1)
+                .suggestions(List.of("Error parsing AI response"))
+                .build();
         }
+    }
+
+    private List<String> extractStringList(com.fasterxml.jackson.databind.JsonNode node) {
+        List<String> list = new ArrayList<>();
+        if (node.isArray()) {
+            for (com.fasterxml.jackson.databind.JsonNode item : node) {
+                if (item.isTextual()) {
+                    list.add(item.asText());
+                } else if (item.isObject()) {
+                    // Flatten complex objects to string string representation or extract a "value" if reasonable
+                    // For suggestions, just toString() is better than crashing
+                    try {
+                         // Attempt to find common text fields if it's an object (e.g. "suggestion": "text")
+                         if (item.has("suggestion")) list.add(item.get("suggestion").asText());
+                         else if (item.has("text")) list.add(item.get("text").asText());
+                         else if (item.has("value")) list.add(item.get("value").asText());
+                         else list.add(item.toString()); 
+                    } catch (Exception e) {
+                        list.add(item.toString());
+                    }
+                } else {
+                    list.add(item.asText());
+                }
+            }
+        } else if (node.isTextual()) {
+             list.add(node.asText());
+        }
+        return list;
     }
 
     private InterviewPrep parseYamlToInterviewPrep(String yaml) {
