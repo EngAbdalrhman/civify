@@ -23,7 +23,9 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import com.app.civify.dto.ai.AiModelResponse;
 
 /**
  * Service for CV enhancement operations including tailoring, ATS scoring,
@@ -227,31 +229,34 @@ public class CvEnhancementService {
         log.info("Starting CV tailoring for job: {}", 
             request.getJobTitle() != null ? request.getJobTitle() : "unspecified");
 
+        // Thread-safe token accumulator for parallel tasks
+        AtomicInteger tokenTracker = new AtomicInteger(0);
+
         try {
             // Phase 1: Start parallel tasks that don't depend on tailored CV
             // - Tailor the CV content
             // - Calculate ORIGINAL ATS score (before tailoring)
             // - Other optional tasks
             CompletableFuture<ResumeData> tailoredCvFuture = CompletableFuture.supplyAsync(
-                () -> tailorCvContent(request.getResumeData(), request.getJobDescription()), executor);
+                () -> tailorCvContent(request.getResumeData(), request.getJobDescription(), tokenTracker), executor);
             
             // Calculate ORIGINAL CV's ATS score for "before" comparison
             CompletableFuture<AtsScore> originalAtsScoreFuture = CompletableFuture.supplyAsync(
-                () -> calculateAtsScore(request.getResumeData(), request.getJobDescription()), executor);
+                () -> calculateAtsScore(request.getResumeData(), request.getJobDescription(), tokenTracker), executor);
 
             CompletableFuture<InterviewPrep> interviewFuture = request.isIncludeInterviewQuestions()
                 ? CompletableFuture.supplyAsync(
-                    () -> generateInterviewQuestions(request), executor)
+                    () -> generateInterviewQuestions(request, tokenTracker), executor)
                 : CompletableFuture.completedFuture(null);
 
             CompletableFuture<Roadmap> roadmapFuture = request.isIncludeRoadmap()
                 ? CompletableFuture.supplyAsync(
-                    () -> generateRoadmap(request), executor)
+                    () -> generateRoadmap(request, tokenTracker), executor)
                 : CompletableFuture.completedFuture(null);
 
             CompletableFuture<String> coverLetterFuture = request.isGenerateCoverLetter()
                 ? CompletableFuture.supplyAsync(
-                    () -> generateCoverLetter(request), executor)
+                    () -> generateCoverLetter(request, tokenTracker), executor)
                 : CompletableFuture.completedFuture(null);
 
             // Wait for tailored CV to be ready first
@@ -264,31 +269,49 @@ public class CvEnhancementService {
             
             // Phase 2: Calculate TAILORED CV's ATS score (this is the "after" score)
             CompletableFuture<AtsScore> tailoredAtsScoreFuture = CompletableFuture.supplyAsync(
-                () -> calculateAtsScore(refinedCv, request.getJobDescription()), executor);
+                () -> calculateAtsScore(refinedCv, request.getJobDescription(), tokenTracker), executor);
 
             // Wait for all remaining futures
             CompletableFuture.allOf(originalAtsScoreFuture, tailoredAtsScoreFuture,
                 interviewFuture, roadmapFuture, coverLetterFuture).join();
 
             AtsScore tailoredAtsScore = tailoredAtsScoreFuture.get();
-        
-            
-            // Start: Truthfulness Validation
+            AtsScore originalAtsScore = originalAtsScoreFuture.get();
+
+            // Score Floor Guarantee: tailored must never score lower than original
+            if (tailoredAtsScore.getOverall() < originalAtsScore.getOverall()) {
+                log.warn("ATS score regression detected: tailored={} < original={}. Applying floor.",
+                    tailoredAtsScore.getOverall(), originalAtsScore.getOverall());
+                tailoredAtsScore = AtsScore.builder()
+                    .overall(originalAtsScore.getOverall())
+                    .keywordMatch(Math.max(tailoredAtsScore.getKeywordMatch(), originalAtsScore.getKeywordMatch()))
+                    .skillsMatch(Math.max(tailoredAtsScore.getSkillsMatch(), originalAtsScore.getSkillsMatch()))
+                    .missingKeywords(tailoredAtsScore.getMissingKeywords())
+                    .suggestions(tailoredAtsScore.getSuggestions())
+                    .tokensUsed(tailoredAtsScore.getTokensUsed())
+                    .build();
+            }
+
+            // Truthfulness Validation
             List<String> validationWarnings = validateAlignment(request.getResumeData(), refinedCv);
             
-            // NEW: Generate Change Diffs using Robust Service
+            // Generate Change Diffs using Robust Service
             List<String> changes = resumeDiffService.calculateDiff(request.getResumeData(), refinedCv);
+
+            int totalTokens = tokenTracker.get();
+            log.info("CV Tailoring complete. Total tokens used: {}", totalTokens);
 
             return CvTailorResponse.builder()
                     .tailoredCv(refinedCv)
-                    .atsScore(tailoredAtsScore)              // Score for TAILORED CV
-                    .originalAtsScore(originalAtsScoreFuture.get())     // Score for ORIGINAL CV
+                    .atsScore(tailoredAtsScore)
+                    .originalAtsScore(originalAtsScore)
                     .interviewPrep(interviewFuture.get())
                     .roadmap(roadmapFuture.get())
                     .coverLetter(coverLetterFuture.get())
                     .changes(changes)
                     .validationWarnings(validationWarnings)
                     .processingTimeMs(System.currentTimeMillis() - startTime)
+                    .totalTokensUsed(totalTokens)
                     .build();
 
         } catch (Exception e) {
@@ -301,13 +324,14 @@ public class CvEnhancementService {
                             .suggestions(List.of("Error processing: " + e.getMessage()))
                             .build())
                     .processingTimeMs(System.currentTimeMillis() - startTime)
+                    .totalTokensUsed(tokenTracker.get()) // Return what we counted so far
                     .build();
         }
     }
 
     // ==================== Individual AI Methods ====================
 
-    private ResumeData tailorCvContent(ResumeData resumeData, String jobDescription) {
+    private ResumeData tailorCvContent(ResumeData resumeData, String jobDescription, AtomicInteger tokenTracker) {
         try {
             // 0. Check Relevance First
             String cvTextForMatching = extractFullText(resumeData);
@@ -325,10 +349,13 @@ public class CvEnhancementService {
                 log.warn("Low keyword match ({}%) detected. Enabling strict no-hallucination mode.", matchResult.score());
             }
 
-            String response = aiService.callModel(promptBody, defaultProvider, defaultModel);
+            AiModelResponse response = aiService.callModel(promptBody, defaultProvider, defaultModel);
+            if (tokenTracker != null) {
+                tokenTracker.addAndGet(response.getTotalTokens());
+            }
             
             // 1. Clean AI response (remove markdown blocks, extract content)
-            String cleanedResponse = jsonSanitizer.cleanAiResponse(response);
+            String cleanedResponse = jsonSanitizer.cleanAiResponse(response.getContent());
             
             // 2. Parse Valid YAML to Object
             ResumeData rawData = parseYamlToResumeData(cleanedResponse);
@@ -347,7 +374,7 @@ public class CvEnhancementService {
         }
     }
 
-    private AtsScore calculateAtsScore(ResumeData resumeData, String jobDescription) {
+    private AtsScore calculateAtsScore(ResumeData resumeData, String jobDescription, AtomicInteger tokenTracker) {
         // 1. Calculate deterministic keyword match score
         String cvText = extractFullText(resumeData);
         KeywordMatcher.MatchResult keywordResult = keywordMatcher.match(cvText, jobDescription);
@@ -355,8 +382,12 @@ public class CvEnhancementService {
         try {
             String prompt = String.format(ATS_SCORE_PROMPT, jobDescription, cvText);
             
-            String response = aiService.callModel(prompt, defaultProvider, defaultModel);
-            String cleanedResponse = jsonSanitizer.cleanAiResponse(response);
+            AiModelResponse response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            if (tokenTracker != null) {
+                tokenTracker.addAndGet(response.getTotalTokens());
+            }
+
+            String cleanedResponse = jsonSanitizer.cleanAiResponse(response.getContent());
             
             AtsScore aiScore = parseYamlToAtsScore(cleanedResponse);
             
@@ -364,12 +395,14 @@ public class CvEnhancementService {
             // Weigh AI score 60% and Keyword score 40%
             int hybridOverall = (int) Math.round((aiScore.getOverall() * 0.6) + (keywordResult.score() * 0.4));
             
+            // Deterministic floor: hybrid score must not fall below keyword score
+            hybridOverall = Math.max(hybridOverall, keywordResult.score());
+            
             // Merge missing keywords (AI + Deterministic)
             List<String> mergedMissingKeywords = new ArrayList<>();
             if (aiScore.getMissingKeywords() != null) {
                 mergedMissingKeywords.addAll(aiScore.getMissingKeywords());
             }
-            // Add top 10 missing keywords from deterministic matcher if not already present
             for (String kw : keywordResult.missingKeywords()) {
                  if (mergedMissingKeywords.size() >= 15) break; 
                  if (!mergedMissingKeywords.contains(kw)) {
@@ -379,10 +412,11 @@ public class CvEnhancementService {
             
             return AtsScore.builder()
                     .overall(hybridOverall)
-                    .keywordMatch(keywordResult.score()) // Use the real keyword score here for accuracy
-                    .skillsMatch(aiScore.getSkillsMatch())
+                    .keywordMatch(keywordResult.score())
+                    .skillsMatch(Math.max(aiScore.getSkillsMatch(), 0))
                     .missingKeywords(mergedMissingKeywords)
                     .suggestions(aiScore.getSuggestions())
+                    .tokensUsed(response.getTotalTokens())
                     .build();
 
         } catch (Exception e) {
@@ -394,6 +428,7 @@ public class CvEnhancementService {
                     .skillsMatch(0)
                     .missingKeywords(keywordResult.missingKeywords())
                     .suggestions(List.of("AI analysis failed. Score based on keyword matching only."))
+                    .tokensUsed(0)
                     .build();
         }
     }
@@ -410,10 +445,12 @@ public class CvEnhancementService {
             String cvSummary = extractFullText(resumeData);
             String prompt = String.format(GENERAL_ATS_SCORE_PROMPT, cvSummary);
             
-            String response = aiService.callModel(prompt, defaultProvider, defaultModel);
-            String cleanedResponse = jsonSanitizer.cleanAiResponse(response);
+            AiModelResponse response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            String cleanedResponse = jsonSanitizer.cleanAiResponse(response.getContent());
             
-            return parseYamlToAtsScore(cleanedResponse);
+            AtsScore score = parseYamlToAtsScore(cleanedResponse);
+            score.setTokensUsed(response.getTotalTokens());
+            return score;
         } catch (Exception e) {
             log.error("Error calculating general ATS score: {}", e.getMessage());
             return AtsScore.builder()
@@ -422,6 +459,7 @@ public class CvEnhancementService {
                     .skillsMatch(-1)
                     .missingKeywords(new ArrayList<>())
                     .suggestions(List.of("Could not fully analyze. Please review manually."))
+                    .tokensUsed(0)
                     .build();
         }
     }
@@ -432,12 +470,15 @@ public class CvEnhancementService {
      * This ensures fairness and prevents score regression.
      */
     private ResumeData refineAfterTailoring(ResumeData original, ResumeData tailored, String jd) {
+        // Step 1: Restore any section items (courses, skills) dropped by the AI
+        restoreLostSectionItems(original, tailored);
+        
         String originalText = extractFullText(original).toLowerCase();
         String tailoredText = extractFullText(tailored).toLowerCase();
         
         Set<String> jdKeywords = keywordMatcher.extractKeywords(jd);
         
-        // Find keywords that are in JD but MISSING from Tailored CV
+        // Step 2: Find JD keywords missing from Tailored CV
         List<String> missingFromTailored = jdKeywords.stream()
             .filter(kw -> !keywordMatcher.containsKeyword(tailoredText, kw))
             .collect(Collectors.toList());
@@ -455,6 +496,60 @@ public class CvEnhancementService {
         }
         
         return tailored;
+    }
+    
+    /**
+     * Restores section items (e.g. skill titles, course titles) that existed in the original CV
+     * but were dropped by the AI during tailoring.
+     */
+    private void restoreLostSectionItems(ResumeData original, ResumeData tailored) {
+        if (original.getSections() == null || tailored.getSections() == null) return;
+        
+        for (ResumeData.ResumeSection origSection : original.getSections()) {
+            if (origSection.getItems() == null || origSection.getItems().isEmpty()) continue;
+            
+            // Find matching section in tailored CV by id or type+title
+            ResumeData.ResumeSection tailoredSection = tailored.getSections().stream()
+                .filter(s -> matchesSection(origSection, s))
+                .findFirst()
+                .orElse(null);
+                
+            if (tailoredSection == null) {
+                // Section entirely missing — restore it
+                tailored.getSections().add(origSection);
+                log.info("Restored entirely lost section: {}", origSection.getTitle());
+                continue;
+            }
+            
+            if (tailoredSection.getItems() == null) {
+                tailoredSection.setItems(new ArrayList<>());
+            }
+            
+            // Restore missing items within the section
+            Set<String> tailoredTitles = tailoredSection.getItems().stream()
+                .map(i -> i.getTitle() != null ? i.getTitle().trim().toLowerCase() : "")
+                .collect(Collectors.toSet());
+                
+            int restored = 0;
+            for (ResumeData.SectionItem origItem : origSection.getItems()) {
+                String origTitle = origItem.getTitle() != null ? origItem.getTitle().trim().toLowerCase() : "";
+                if (!origTitle.isEmpty() && !tailoredTitles.contains(origTitle)) {
+                    tailoredSection.getItems().add(origItem);
+                    restored++;
+                }
+            }
+            
+            if (restored > 0) {
+                log.info("Restored {} lost items in section '{}'", restored, origSection.getTitle());
+            }
+        }
+    }
+    
+    private boolean matchesSection(ResumeData.ResumeSection a, ResumeData.ResumeSection b) {
+        if (a.getId() != null && a.getId().equals(b.getId())) return true;
+        if (a.getType() != null && a.getType().equalsIgnoreCase(b.getType())
+            && a.getTitle() != null && a.getTitle().equalsIgnoreCase(b.getTitle())) return true;
+        return false;
     }
 
     private ResumeData injectMissingKeywords(ResumeData tailored, List<String> keywordsToInject) {
@@ -510,7 +605,7 @@ public class CvEnhancementService {
         return tailored;
     }
 
-    private InterviewPrep generateInterviewQuestions(CvTailorRequest request) {
+    private InterviewPrep generateInterviewQuestions(CvTailorRequest request, AtomicInteger tokenTracker) {
         try {
             String skills = extractSkills(request.getResumeData());
             String prompt = String.format(INTERVIEW_QUESTIONS_PROMPT, 
@@ -519,51 +614,61 @@ public class CvEnhancementService {
                 skills);
             
             log.debug("Interview questions prompt length: {}", prompt.length());
-            String response = aiService.callModel(prompt, defaultProvider, defaultModel);
-            log.debug("Interview questions AI response (first 300 chars): {}", 
-                response != null ? response.substring(0, Math.min(300, response.length())) : "null");
+            AiModelResponse response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            if (tokenTracker != null) {
+                tokenTracker.addAndGet(response.getTotalTokens());
+            }
             
-            String cleanedResponse = jsonSanitizer.cleanAiResponse(response);
+            log.debug("Interview questions AI response (first 300 chars): {}", 
+                response != null && response.getContent() != null ? response.getContent().substring(0, Math.min(300, response.getContent().length())) : "null");
+            
+            String cleanedResponse = jsonSanitizer.cleanAiResponse(response.getContent());
             InterviewPrep result = parseYamlToInterviewPrep(cleanedResponse);
             
             if (result == null || result.getQuestions() == null || result.getQuestions().isEmpty()) {
                 log.warn("Interview questions parsing returned empty result. Raw response: {}", 
                     cleanedResponse.substring(0, Math.min(500, cleanedResponse.length())));
-                return InterviewPrep.builder().questions(new ArrayList<>()).build();
+                return InterviewPrep.builder().questions(new ArrayList<>()).tokensUsed(response.getTotalTokens()).build();
             }
+            result.setTokensUsed(response.getTotalTokens());
             return result;
         } catch (Exception e) {
             log.error("Error generating interview questions: {}", e.getMessage(), e);
-            return InterviewPrep.builder().questions(new ArrayList<>()).build();
+            return InterviewPrep.builder().questions(new ArrayList<>()).tokensUsed(0).build();
         }
     }
 
-    private Roadmap generateRoadmap(CvTailorRequest request) {
+    private Roadmap generateRoadmap(CvTailorRequest request, AtomicInteger tokenTracker) {
         try {
             String skills = extractSkills(request.getResumeData());
             String prompt = String.format(ROADMAP_PROMPT, request.getJobDescription(), skills);
             
             log.debug("Roadmap prompt length: {}", prompt.length());
-            String response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            AiModelResponse response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            if (tokenTracker != null) {
+                tokenTracker.addAndGet(response.getTotalTokens());
+            }
+
             log.debug("Roadmap AI response (first 300 chars): {}", 
-                response != null ? response.substring(0, Math.min(300, response.length())) : "null");
+                response != null && response.getContent() != null ? response.getContent().substring(0, Math.min(300, response.getContent().length())) : "null");
             
-            String cleanedResponse = jsonSanitizer.cleanAiResponse(response);
+            String cleanedResponse = jsonSanitizer.cleanAiResponse(response.getContent());
             Roadmap result = parseYamlToRoadmap(cleanedResponse);
             
             if (result == null || result.getSteps() == null || result.getSteps().isEmpty()) {
                 log.warn("Roadmap parsing returned empty result. Raw response: {}", 
                     cleanedResponse.substring(0, Math.min(500, cleanedResponse.length())));
-                return Roadmap.builder().skillGaps(new ArrayList<>()).steps(new ArrayList<>()).build();
+                return Roadmap.builder().skillGaps(new ArrayList<>()).steps(new ArrayList<>()).tokensUsed(response.getTotalTokens()).build();
             }
+            result.setTokensUsed(response.getTotalTokens());
             return result;
         } catch (Exception e) {
             log.error("Error generating roadmap: {}", e.getMessage(), e);
-            return Roadmap.builder().skillGaps(new ArrayList<>()).steps(new ArrayList<>()).build();
+            return Roadmap.builder().skillGaps(new ArrayList<>()).steps(new ArrayList<>()).tokensUsed(0).build();
         }
     }
 
-    private String generateCoverLetter(CvTailorRequest request) {
+    private String generateCoverLetter(CvTailorRequest request, AtomicInteger tokenTracker) {
         try {
             ResumeData.PersonalInfo info = request.getResumeData().getPersonalInfo();
             String skills = extractSkills(request.getResumeData());
@@ -583,11 +688,15 @@ public class CvEnhancementService {
             );
             
             log.debug("Cover letter prompt length: {}", prompt.length());
-            String response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            AiModelResponse response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            if (tokenTracker != null) {
+                tokenTracker.addAndGet(response.getTotalTokens());
+            }
+
             log.debug("Cover letter AI response (first 300 chars): {}", 
-                response != null ? response.substring(0, Math.min(300, response.length())) : "null");
+                response != null && response.getContent() != null ? response.getContent().substring(0, Math.min(300, response.getContent().length())) : "null");
             
-            String result = jsonSanitizer.cleanAiResponse(response);
+            String result = jsonSanitizer.cleanAiResponse(response.getContent());
             if (result == null || result.isBlank()) {
                 log.warn("Cover letter generation returned empty result");
                 return "";

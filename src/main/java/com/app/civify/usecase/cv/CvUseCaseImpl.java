@@ -32,12 +32,8 @@ public class CvUseCaseImpl implements CvUseCase {
     private final UserRepository userRepository;
     private final SubscriptionService subscriptionService;
 
-    // Estimated tokens for different operations
-    private static final int TOKENS_CV_TAILOR = 500;
-    private static final int TOKENS_COVER_LETTER = 200;
-    private static final int TOKENS_INTERVIEW_PREP = 300;
-    private static final int TOKENS_ROADMAP = 250;
-    private static final int TOKENS_ATS_SCORE = 100;
+    // Hardcoded estimates removed in favor of actual usage
+
 
     @Override
     public CvParseResponse uploadCv(MultipartFile file, CvParseRequest request, Long userId,
@@ -92,35 +88,44 @@ public class CvUseCaseImpl implements CvUseCase {
         );
 
         // Charge tokens for each AI operation used
+        // Charge tokens for each AI operation used based on ACTUAL usage
         if (userId != null) {
             try {
-                // Base tailor operation
-                subscriptionService.chargeTokens(userId, TOKENS_CV_TAILOR, TokenUsageType.CV_TAILOR,
-                        "CV Tailor for: " + jobTitle);
+                int totalUsed = response.getTotalTokensUsed();
+                int interviewTokens = response.getInterviewPrep() != null ? response.getInterviewPrep().getTokensUsed() : 0;
+                int roadmapTokens = response.getRoadmap() != null ? response.getRoadmap().getTokensUsed() : 0;
                 
-                // Optional: Cover letter generation
-                if (request.isGenerateCoverLetter() && response.getCoverLetter() != null) {
-                    subscriptionService.chargeTokens(userId, TOKENS_COVER_LETTER, TokenUsageType.COVER_LETTER,
-                            "Cover Letter for: " + jobTitle);
-                }
-                
-                // Optional: Interview prep
-                if (request.isIncludeInterviewQuestions() && response.getInterviewPrep() != null) {
-                    subscriptionService.chargeTokens(userId, TOKENS_INTERVIEW_PREP, TokenUsageType.INTERVIEW_PREP,
+                // Original + Tailored ATS scores
+                int atsTokens = 0;
+                if (response.getAtsScore() != null) atsTokens += response.getAtsScore().getTokensUsed();
+                if (response.getOriginalAtsScore() != null) atsTokens += response.getOriginalAtsScore().getTokensUsed();
+
+                // 1. Interview Prep
+                if (interviewTokens > 0) {
+                    subscriptionService.chargeTokens(userId, interviewTokens, TokenUsageType.INTERVIEW_PREP,
                             "Interview Prep for: " + jobTitle);
                 }
-                
-                // Optional: Roadmap generation
-                if (request.isIncludeRoadmap() && response.getRoadmap() != null) {
-                    subscriptionService.chargeTokens(userId, TOKENS_ROADMAP, TokenUsageType.ROADMAP,
+
+                // 2. Roadmap
+                if (roadmapTokens > 0) {
+                    subscriptionService.chargeTokens(userId, roadmapTokens, TokenUsageType.ROADMAP,
                             "Career Roadmap for: " + jobTitle);
                 }
+
+                // 3. ATS Score (Combined)
+                if (atsTokens > 0) {
+                    subscriptionService.chargeTokens(userId, atsTokens, TokenUsageType.ATS_SCORE,
+                            "ATS Score Analysis for: " + jobTitle);
+                }
                 
-                // ATS Score is always calculated (2 times - before and after)
-                subscriptionService.chargeTokens(userId, TOKENS_ATS_SCORE * 2, TokenUsageType.ATS_SCORE,
-                        "ATS Score Analysis for: " + jobTitle);
+                // 4. Core Tailoring + Cover Letter (Remainder)
+                int coreTokens = totalUsed - interviewTokens - roadmapTokens - atsTokens;
+                if (coreTokens > 0) {
+                     String desc = "CV Tailor" + (request.isGenerateCoverLetter() ? " + Cover Letter" : "") + " for: " + jobTitle;
+                     subscriptionService.chargeTokens(userId, coreTokens, TokenUsageType.CV_TAILOR, desc);
+                }
                 
-                log.info("Logged token usage for CV tailor operation: userId={}, job={}", userId, jobTitle);
+                log.info("Logged actual token usage for CV tailor: userId={}, total={}, job={}", userId, totalUsed, jobTitle);
             } catch (Exception e) {
                 log.error("Failed to log token usage for tailor operation: {}", e.getMessage());
                 // Don't fail the request if token logging fails
@@ -134,20 +139,22 @@ public class CvUseCaseImpl implements CvUseCase {
     public AtsScore calculateScore(ResumeData resumeData, Long userId) {
         log.info("Calculating general ATS score for CV. User: {}", userId);
         
-        // Use tokens for ATS score calculation if user is authenticated
-        if (userId != null) {
-            try {
-                subscriptionService.chargeTokens(userId, TOKENS_ATS_SCORE, TokenUsageType.ATS_SCORE,
-                        "General ATS Score Analysis");
-                log.info("Logged token usage for ATS score: userId={}", userId);
-            } catch (Exception e) {
-                log.error("Failed to log token usage for ATS score: {}", e.getMessage());
-                // Don't fail the request if token logging fails
-            }
-        }
+        // Charge tokens AFTER calculation to use actuals
+        // (Moved closer to usage site)
+
         
         // Get AI-based content score
         AtsScore contentScore = cvEnhancementService.calculateGeneralAtsScore(resumeData);
+        
+        if (userId != null && contentScore.getTokensUsed() > 0) {
+             try {
+                subscriptionService.chargeTokens(userId, contentScore.getTokensUsed(), TokenUsageType.ATS_SCORE,
+                        "General ATS Score Analysis");
+                log.info("Charged {} actual tokens for ATS score", contentScore.getTokensUsed());
+            } catch (Exception e) {
+                log.error("Failed to charge tokens for ATS score: {}", e.getMessage());
+            }
+        }
         
         // Apply template/design heuristics
         int templatePenalty = 0;

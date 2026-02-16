@@ -39,10 +39,8 @@ public class ExternalCvService {
     private final SubscriptionService subscriptionService;
     private final ObjectMapper objectMapper;
 
-    // TODO fix Token costs for external API operations
-    private static final int TOKENS_EXTERNAL_MASK = 300;
-    private static final int TOKENS_EXTERNAL_PARSE = 200;
-    private static final int TOKENS_EXTERNAL_TAILOR = 700;
+    // Non-AI flat rate for mask operation (document processing, no AI involved)
+    private static final int TOKENS_EXTERNAL_MASK = 200;
 
     public byte[] maskCv(MultipartFile file, String language, User user, HttpServletRequest httpRequest) {
         long startTime = System.currentTimeMillis();
@@ -143,15 +141,11 @@ public class ExternalCvService {
                 file.getOriginalFilename(), language
         );
 
-        // Charge tokens for external API parse operation
+        // Log external API parse usage (charging is handled by CvParsingService)
         if (response.isSuccess()) {
-            try {
-                subscriptionService.chargeTokens(user.getId(), TOKENS_EXTERNAL_PARSE, TokenUsageType.EXTERNAL_API,
-                        "External API: CV Parse - " + file.getOriginalFilename());
-                log.info("Logged token usage for external parse API: userId={}, file={}", user.getId(), file.getOriginalFilename());
-            } catch (Exception e) {
-                log.error("Failed to log token usage for external parse: {}", e.getMessage());
-            }
+            int tokensUsed = response.getTokensUsed();
+            log.info("External API parse completed: userId={}, tokens={}, file={}",
+                    user.getId(), tokensUsed, file.getOriginalFilename());
         }
 
         return response;
@@ -246,9 +240,11 @@ public class ExternalCvService {
 
             // Charge tokens for external API tailor operation
             try {
-                subscriptionService.chargeTokens(user.getId(), TOKENS_EXTERNAL_TAILOR, TokenUsageType.EXTERNAL_API,
-                        "External API: CV Tailor - " + file.getOriginalFilename());
-                log.info("Logged token usage for external tailor API: userId={}, file={}", user.getId(), file.getOriginalFilename());
+                // Use ACTUAL total tokens from the response
+                int totalTokens = response.getTotalTokensUsed();
+                subscriptionService.chargeTokens(user.getId(), totalTokens, TokenUsageType.EXTERNAL_API,
+                        "External API: CV Tailor (Actual Tokens) - " + file.getOriginalFilename());
+                log.info("Logged token usage for external tailor API: userId={}, tokens={}", user.getId(), totalTokens);
             } catch (Exception e) {
                 log.error("Failed to log token usage for external tailor: {}", e.getMessage());
             }

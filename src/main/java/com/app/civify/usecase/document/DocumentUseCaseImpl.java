@@ -32,6 +32,7 @@ public class DocumentUseCaseImpl implements DocumentUseCase {
     private final SubscriptionService subscriptionService;
 
     // Token costs
+    // TODO: Validate these flat rates against actual compute costs. Non-AI operations currently use fixed pricing.
     private static final int TOKENS_EXTRACT = 50;
     private static final int TOKENS_MASK = 150;
     private static final int TOKENS_MASK_TEXT = 50;

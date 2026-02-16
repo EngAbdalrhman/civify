@@ -60,6 +60,11 @@ public class CvParseResponse {
      * Examples: TOKEN_LIMIT_EXCEEDED, INVALID_FILE_TYPE
      */
     private String errorCode;
+
+    /**
+     * Total tokens used for the parsing operation.
+     */
+    private int tokensUsed;
     
     /**
      * Total processing time in milliseconds.
