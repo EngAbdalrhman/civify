@@ -70,6 +70,8 @@ public class NewsletterService {
         String templateFooterEnd = "  </div>" +
                 "</div>";
 
+        java.util.Map<String, String> emailContentMap = new java.util.HashMap<>();
+
         for (NewsletterSubscriber subscriber : subscribers) {
             try {
                 // Construct unsubscribe link
@@ -83,15 +85,23 @@ public class NewsletterService {
                      finalBody = "<p>" + content.replace("\n", "<br>") + "</p>";
                 }
 
-                String fullHtml = finalBody +
+                String uniqueContent = finalBody +
                                   templateFooterStart +
                                   "    <a href=\"" + unsubscribeLink + "\" style=\"color: #007bff; text-decoration: none; clicktracking=\"off\" \">Unsubscribe</a>" +
                                   templateFooterEnd;
 
-                emailService.sendHtmlEmail(subscriber.getEmail(), subject, fullHtml);
+                emailContentMap.put(subscriber.getEmail(), uniqueContent);
+
             } catch (Exception e) {
-                log.error("Failed to send broadcast to " + subscriber.getEmail() + ": " + e.getMessage());
+                log.error("Failed to prepare newsletter for " + subscriber.getEmail() + ": " + e.getMessage());
             }
+        }
+        
+        // Send all in batches using the EmailService
+        if (!emailContentMap.isEmpty()) {
+            log.info("🚀 Starting newsletter broadcast to {} subscribers...", emailContentMap.size());
+            emailService.sendBatchCustomEmails(emailContentMap, subject);
+            log.info("✅ Newsletter broadcast completed.");
         }
     }
 

@@ -179,14 +179,14 @@ public class NotificationServiceImpl implements NotificationService {
     public void sendEmailToAll(String title, String message, NotificationType type) {
         log.info("📧 Sending email broadcast: [{}] {}", type, title);
         List<User> users = userRepository.findAllActiveUsers();
-        for (User user : users) {
-            try {
-                emailService.sendHtmlEmailToUser(user.getId(), user.getEmail(), title, "<p>" + message + "</p>");
-            } catch (Exception e) {
-                log.error("❌ Failed to send email to user {}", user.getId(), e);
-            }
+        
+        try {
+            // Use batch sending to avoid rate limits and reuse connections
+            emailService.sendHtmlEmailsToUsers(users, title, "<p>" + message + "</p>");
+            log.info("✅ Email broadcast sent to {} users", users.size());
+        } catch (Exception e) {
+            log.error("❌ Failed to send email broadcast", e);
         }
-        log.info("✅ Email broadcast sent to {} users", users.size());
     }
 
     @Override
