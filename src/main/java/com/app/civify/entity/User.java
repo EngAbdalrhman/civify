@@ -1,6 +1,8 @@
 package com.app.civify.entity;
 
 
+import com.app.civify.annotation.FilterField;
+import com.app.civify.annotation.FilterFieldMapping;
 import com.app.civify.entity.enums.UserPreferredLanguage;
 import com.app.civify.entity.enums.UserPreferredTheme;
 import com.app.civify.entity.enums.UserStatus;
@@ -31,6 +33,13 @@ import java.util.stream.Collectors;
 @Builder
 @EqualsAndHashCode(callSuper = true)
 @EntityListeners(UserAuditListener.class)
+
+@FilterFieldMapping({
+        @FilterField(alias = "plan",   mapping = "subscriptions.plan.name"),
+        @FilterField(alias = "status", mapping = "status"),
+        @FilterField(alias = "oauthProvider",  mapping = "oauthProvider"),
+        @FilterField(alias = "email",  mapping = "email")
+})
 public class User extends BaseEntity implements Serializable {
 
     @Serial
