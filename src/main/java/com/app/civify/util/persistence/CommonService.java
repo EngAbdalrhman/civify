@@ -1,7 +1,9 @@
 package com.app.civify.util.persistence;
 
+import com.app.civify.util.FilterMappingResolver;
 import jakarta.persistence.criteria.Expression;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -35,6 +37,21 @@ public class CommonService {
      * pagination
      * @return Page of filtered entities
      */
+
+    @Autowired
+    private FilterMappingResolver filterMappingResolver;
+    public <T> Page<T> filterEntities(JpaSpecificationExecutor<T> repository,
+                                      InputDataModel inputData,
+                                      Class<T> entityClass) {
+
+        filterMappingResolver.applyMappings(inputData, entityClass);
+
+        Specification<T> spec = createSpecificationFromInputData(inputData);
+        Sort sort = createSort(inputData.getSorts());
+        Pageable pageable = PageRequest.of(inputData.getPage(), inputData.getSize(), sort);
+
+        return repository.findAll(spec, pageable);
+    }
     public <T> Page<T> filterEntities(JpaSpecificationExecutor<T> repository, InputDataModel inputData) {
 
         Specification<T> spec = createSpecificationFromInputData(inputData);
