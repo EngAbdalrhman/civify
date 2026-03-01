@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
@@ -24,7 +25,6 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -187,6 +187,7 @@ public class SecurityConfig {
                         .requestMatchers("/civify-docs-ui", "/civify-docs-api", "/swagger-ui/**").permitAll()
                         // Public API endpoints
                         .requestMatchers("/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/blogs/**").permitAll()
                         .requestMatchers("/v1/subscriptions/**", "/subscriptions/**").permitAll() // Allow public access to plans
                         .requestMatchers("/v1/payments/config", "/payments/config").permitAll() // Allow public access to payment config
                         .requestMatchers("/v1/payments/webhook/**", "/payments/webhook/**").permitAll() // Allow payment webhooks
