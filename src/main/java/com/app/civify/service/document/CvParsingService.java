@@ -20,8 +20,6 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-
-
 /**
  * Service for parsing CVs/Resumes into structured data. Integrates document
  * processing with AI-powered parsing.
@@ -46,46 +44,46 @@ public class CvParsingService {
     private String defaultModel;
 
     private static final String CV_PARSE_PROMPT = """
-        Extract structured data from this CV in YAML format.
-        
-        Structure:
-        personalInfo:
-          fullName: string
-          email: string
-          phone: string
-          address: string
-          city: string
-          country: string
-          summary: string
-          jobTitle: string
-          linkedin: string
-          website: string
-          github: string
-        sections:
-          - id: uuid
-            title: string
-            type: experience|education|skills|languages|certifications|projects|custom
-            items:
+            Extract structured data from this CV in YAML format.
+
+            Structure:
+            personalInfo:
+              fullName: string
+              email: string
+              phone: string
+              address: string
+              city: string
+              country: string
+              summary: string
+              jobTitle: string
+              linkedin: string
+              website: string
+              github: string
+            sections:
               - id: uuid
                 title: string
-                subtitle: string
-                date: string
-                description: string
-                location: string
-                tags: [string] # Flat list of strings only
-        metadata:
-          language: code
-        
-        Rules:
-        1. Extract ALL content.
-        2. Use original language.
-        3. Valid YAML only. Do NOT return JSON. Do NOT include markdown fences.
-        4. CRITICAL: ALWAYS wrap key string values in double quotes if they contain special characters (like :) or just always quote them to be safe. E.g. title: "Software Engineer".
-        5. Escape special characters inside strings.
-        
-        CV Text:
-        %s
-        """;
+                type: experience|education|skills|languages|certifications|projects|custom
+                items:
+                  - id: uuid
+                    title: string
+                    subtitle: string
+                    date: string
+                    description: string
+                    location: string
+                    tags: [string] # Flat list of strings only
+            metadata:
+              language: code
+
+            Rules:
+            1. Extract ALL content.
+            2. Use original language.
+            3. Valid YAML only. Do NOT return JSON. Do NOT include markdown fences.
+            4. CRITICAL: ALWAYS wrap key string values in double quotes if they contain special characters (like :) or just always quote them to be safe. E.g. title: "Software Engineer".
+            5. Escape special characters inside strings.
+
+            CV Text:
+            {CV_TEXT}
+            """;
 
     /**
      * Parse a CV file and extract structured data with user context.
@@ -110,7 +108,8 @@ public class CvParsingService {
                 return CvParseResponse.builder()
                         .success(false)
                         .message("Failed to extract text from document: "
-                                + (processedDoc.getErrorMessage() != null ? processedDoc.getErrorMessage() : "No text found"))
+                                + (processedDoc.getErrorMessage() != null ? processedDoc.getErrorMessage()
+                                        : "No text found"))
                         .processingTimeMs(System.currentTimeMillis() - startTime)
                         .build();
             }
@@ -125,7 +124,7 @@ public class CvParsingService {
             // Use accurate tokenizer instead of heuristic
             int estimatedTokens = tokenizerService.countTokens(truncatedText);
             log.info("Estimated tokens for CV parsing: {}", estimatedTokens);
-            
+
             if (!subscriptionService.canUserUseTokens(userId, estimatedTokens)) {
                 return CvParseResponse.builder()
                         .success(false)
@@ -149,8 +148,6 @@ public class CvParsingService {
 
             ResumeData resumeData = parseResult.resumeData;
             int actualTokens = parseResult.tokensUsed;
-
-
 
             // Step 4: Charge tokens after successful parse
             if (userId != null) {
@@ -183,53 +180,52 @@ public class CvParsingService {
      * Parse extracted text using AI to produce structured ResumeData.
      */
     private static final String PII_PARSE_PROMPT = """
-        Extract structured data from this CV in YAML format.
-        
-        Structure:
-        personalInfo:
-          fullName: string
-          email: string
-          phone: string
-          address: string
-          city: string
-          country: string
-          summary: string
-          jobTitle: string
-          linkedin: string
-          website: string
-          github: string
-        sections:
-          - id: uuid
-            title: string
-            type: experience|education|skills|languages|certifications|projects|custom
-            items:
+            Extract structured data from this CV in YAML format.
+
+            Structure:
+            personalInfo:
+              fullName: string
+              email: string
+              phone: string
+              address: string
+              city: string
+              country: string
+              summary: string
+              jobTitle: string
+              linkedin: string
+              website: string
+              github: string
+            sections:
               - id: uuid
                 title: string
-                subtitle: string
-                date: string
-                description: string
-                location: string
-                tags: [string] # Flat list of strings only
-        metadata:
-          language: code
-        
-        Rules:
-        1. Extract ALL content.
-        2. Use original language.
-        3. Valid YAML only.
-        4. CRITICAL: ALWAYS wrap string values in double quotes.
-        5. Escape special characters inside strings.
-        
-        CV Text:
-        %s
-        """;
+                type: experience|education|skills|languages|certifications|projects|custom
+                items:
+                  - id: uuid
+                    title: string
+                    subtitle: string
+                    date: string
+                    description: string
+                    location: string
+                    tags: [string] # Flat list of strings only
+            metadata:
+              language: code
+
+            Rules:
+            1. Extract ALL content.
+            2. Use original language.
+            3. Valid YAML only.
+            4. CRITICAL: ALWAYS wrap string values in double quotes.
+            5. Escape special characters inside strings.
+
+            CV Text:
+            {CV_TEXT}
+            """;
 
     /**
      * Result holder for parsed CV data and token usage.
      */
-    private record ParsedCvResult(ResumeData resumeData, int tokensUsed) {}
-
-
+    private record ParsedCvResult(ResumeData resumeData, int tokensUsed) {
+    }
 
     private ParsedCvResult parseTextWithAi(String text, CvParseRequest request) {
         try {
@@ -238,49 +234,51 @@ public class CvParsingService {
 
             if (useCustomTemplate) {
                 promptTemplate = """
-                    Extract data from this CV based on the following user-defined structure/template on %s (JSON or YAML).
-                    
-                    User Template:
-                    %s
-                    
-                    Rules:
-                    1. Extract content from CV and map it to the structure above.
-                    2. Use original language from the CV.
-                    3. Output MUST be valid %s (matching the template format).
-                    4. Do not include markdown fences/blocks if possible, or just standard ```json / ```yaml.
-                    
-                    CV Text:
-                    %%s
-                    """.formatted(
-                        "YAML", // Hinting YAML as priority if ambiguous, but really we follow user template
-                         request.getUserTemplate(),
-                        "YAML"
-                    );
+                        Extract data from this CV based on the following user-defined structure/template on %s (JSON or YAML).
+
+                        User Template:
+                        %s
+
+                        Rules:
+                        1. Extract content from CV and map it to the structure above.
+                        2. Use original language from the CV.
+                        3. Output MUST be valid %s (matching the template format).
+                        4. Do not include markdown fences/blocks if possible, or just standard ```json / ```yaml.
+
+                        CV Text:
+                        %%s
+                        """
+                        .formatted(
+                                "YAML", // Hinting YAML as priority if ambiguous, but really we follow user template
+                                request.getUserTemplate(),
+                                "YAML");
                 // Dynamic prompt construction can be tricky. Let's make it simpler and robust.
-                // If user provides template, we use it as the "Structure" part of our standard prompt or just direct instruction.
-                
+                // If user provides template, we use it as the "Structure" part of our standard
+                // prompt or just direct instruction.
+
                 // Better approach:
-                 promptTemplate = """
-                    Extract structured data from this CV according to the provided User Template.
-                    
-                    User Template:
-                    %s
-                    
-                    Rules:
-                    1. Extract ALL relevant content matching the template keys.
-                    2. Maintain the structure of the User Template.
-                    3. Return valid JSON or YAML depending on what the template looks like (default to YAML if unsure).
-                    4. Strictly NO prose. Only the data.
-                    5. CRITICAL: If returning YAML, double-quote all string values.
-                    
-                    CV Text:
-                    %%s
-                    """.formatted(request.getUserTemplate());
+                promptTemplate = """
+                        Extract structured data from this CV according to the provided User Template.
+
+                        User Template:
+                        {USER_TEMPLATE}
+
+                        Rules:
+                        1. Extract ALL relevant content matching the template keys.
+                        2. Maintain the structure of the User Template.
+                        3. Return valid JSON or YAML depending on what the template looks like (default to YAML if unsure).
+                        4. Strictly NO prose. Only the data.
+                        5. CRITICAL: If returning YAML, double-quote all string values.
+
+                        CV Text:
+                        {CV_TEXT}
+                        """
+                        .replace("{USER_TEMPLATE}", request.getUserTemplate() != null ? request.getUserTemplate() : "");
             } else {
                 promptTemplate = request.isPiiOnly() ? PII_PARSE_PROMPT : CV_PARSE_PROMPT;
             }
 
-            String prompt = String.format(promptTemplate, wrapUserText(text));
+            String prompt = promptTemplate.replace("{CV_TEXT}", wrapUserText(text));
 
             AiModelResponse response = aiService.callModel(prompt, defaultProvider, defaultModel);
 
@@ -304,15 +302,30 @@ public class CvParsingService {
             }
 
             if (parsedContent == null) {
+                log.warn("Second retry: LLM output still invalid, retrying with stricter prompt");
+                String strictPrompt = prompt
+                        + "\n\nPREVIOUS OUTPUTS WERE INVALID YAML. "
+                        + "Return ONLY valid YAML. Rules: "
+                        + "1. No BOM or special characters at start. "
+                        + "2. ALL string values MUST be properly double-quoted and closed. "
+                        + "3. No markdown fences. "
+                        + "4. No prose or explanations.";
+                AiModelResponse strictResponse = aiService.callModel(strictPrompt, defaultProvider, defaultModel);
+                parsedContent = tryParseContent(strictResponse.getContent(), request.isPiiOnly());
+                totalTokens += strictResponse.getTotalTokens(); // Add second corrective tokens
+            }
+
+            if (parsedContent == null) {
                 return null;
             }
 
             // Parse as YAML or JSON
             try {
                 ObjectMapper yamlMapper = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
-                yamlMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                yamlMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
+                        false);
                 ResumeData data = yamlMapper.readValue(parsedContent, ResumeData.class);
-                
+
                 if (jsonSanitizer.isTruncated(data)) {
                     log.warn("Parsed ResumeData appears truncated (missing critical fields)");
                 }
@@ -322,11 +335,11 @@ public class CvParsingService {
                 try {
                     ResumeData data = objectMapper.readValue(parsedContent, ResumeData.class);
                     if (jsonSanitizer.isTruncated(data)) {
-                         log.warn("Parsed ResumeData appears truncated (missing critical fields)");
+                        log.warn("Parsed ResumeData appears truncated (missing critical fields)");
                     }
                     return new ParsedCvResult(data, totalTokens);
                 } catch (Exception jsonEx) {
-                    
+
                     log.error("❌ Parsing failed for both YAML and JSON.");
                     log.error("YAML Error: {}", yamlEx.getMessage());
                     log.error("JSON Error: {}", jsonEx.getMessage());
@@ -342,9 +355,10 @@ public class CvParsingService {
     }
 
     /**
-
-    /**
-     * Attempt to parse the AI output as YAML; return null on failure (caller may retry).
+     * 
+     * /**
+     * Attempt to parse the AI output as YAML; return null on failure (caller may
+     * retry).
      * JSON fallback removed - strict YAML only per implementation plan.
      */
     private String tryParseContent(String response, boolean piiOnly) {
@@ -381,16 +395,17 @@ public class CvParsingService {
         }
         return """
                 <<<USER_INPUT_START>>>
-                %s
+                {INPUT}
                 <<<USER_INPUT_END>>>
-                """.formatted(text);
+                """.replace("{INPUT}", text);
     }
 
     @Value("${cv.parsing.max-chars:16000}")
     private int maxChars;
 
     /**
-     * Cap input size to control token usage (~4k tokens heuristic at 4 chars/token).
+     * Cap input size to control token usage (~4k tokens heuristic at 4
+     * chars/token).
      */
     private String truncateForAi(String rawText) {
         if (rawText == null) {
@@ -412,6 +427,5 @@ public class CvParsingService {
         ParsedCvResult result = parseTextWithAi(text, CvParseRequest.builder().piiOnly(piiOnly).build());
         return result != null ? result.resumeData : null;
     }
-    
-    
+
 }
