@@ -19,15 +19,7 @@ import java.util.List;
 public class AdminBlogController {
     private final BlogService blogService;
 
-    @GetMapping("/")
-    public List<BlogListItemDto> list() {
-        return blogService.list();
-    }
 
-    @GetMapping("/{slug}")
-    public BlogDetailsDto getBySlug(@PathVariable String slug) {
-        return blogService.getBySlug(slug);
-    }
 
 
     @PostMapping("/")
