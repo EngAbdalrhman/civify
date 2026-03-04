@@ -4,17 +4,19 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.time.Duration;
 
 /**
- * Redis-based cache service implementation  
+ * Redis-based cache service implementation
  * Automatically falls back to in-memory cache when Redis is unavailable
  * Marked as @Primary to be the default CacheService implementation
  */
 @Service
 @Primary
 @Slf4j
+@ConditionalOnProperty(value = "cache.redis.enabled", havingValue = "true", matchIfMissing = true)
 public class RedisCacheService implements CacheService {
 
     private final StringRedisTemplate redis;
@@ -108,8 +110,8 @@ public class RedisCacheService implements CacheService {
     private void handleRedisFailure(String operation, String key, Exception e) {
         if (redisAvailable) {
             // First failure - log error
-            log.error("Redis {} operation failed for key: {}. Switching to fallback cache. Error: {}", 
-                operation, key, e.getMessage());
+            log.error("Redis {} operation failed for key: {}. Switching to fallback cache. Error: {}",
+                    operation, key, e.getMessage());
             redisAvailable = false;
         } else {
             // Already in fallback mode - log debug only

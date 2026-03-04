@@ -64,152 +64,154 @@ public class CvEnhancementService {
     // ==================== YAML Prompts for Token Optimization ====================
 
     private static final String TAILOR_CV_PROMPT = """
-        You are an expert CV writer. Your goal is to optimize this CV for the provided Job Description (JD) while maintaining strict truthfulness.
-        
-        STRATEGY:
-        1. ANALYZE relevance: Does the candidate's experience actually align with the JD?
-        2. IF RELEVANT: Incorporate JD specific keywords (skills, methodologies) into existing experience descriptions.
-        3. IF NOT RELEVANT (e.g., mismatched industry): DO NOT force keywords. Focus on professional formatting and clarity. Improve valid verbs and metrics.
-        
-        TRUTHFULNESS RULES (CRITICAL):
-        1. DO NOT INVENT experience, skills, or credentials.
-        2. DO NOT use hyperbole like "superhero", "rockstar", "ninja", "unparalleled".
-        3. KEEP ORIGINAL dates, locations, company names, job titles.
-        4. YOU MAY rephrase descriptions to align with JD terminology ONLY IF the underlying work supports it.
-        5. DO NOT add "implied" skills unless you are 100% certain the candidate has them based on the text.
-        
-        Job Description:
-        %s
-        
-        Current CV (YAML):
-        %s
-        
-        Output YAML only (strict valid YAML):
-        personalInfo:
-          fullName: [keep original]
-          email: [keep original]
-          phone: [keep original]
-          city: [keep original]
-          country: [keep original]
-          linkedin: [keep original]
-          github: [keep original]
-          website: [keep original]
-          summary: [Rewrite to be professional and concise. Incorporate JD keywords ONLY if relevant.]
-          jobTitle: [match JD job title if experience supports it, otherwise keep original]
-        sections:
-          - id: [keep original]
-            title: [keep original]
-            type: [keep original]
-            items:
+            You are an expert CV writer. Your goal is to optimize this CV for the provided Job Description (JD) while maintaining strict truthfulness.
+
+            STRATEGY:
+            1. ANALYZE relevance: Does the candidate's experience actually align with the JD?
+            2. IF RELEVANT: Incorporate JD specific keywords (skills, methodologies) into existing experience descriptions.
+            3. IF NOT RELEVANT (e.g., mismatched industry): DO NOT force keywords. Focus on professional formatting and clarity. Improve valid verbs and metrics.
+
+            TRUTHFULNESS RULES (CRITICAL):
+            1. DO NOT INVENT experience, skills, or credentials.
+            2. DO NOT use hyperbole like "superhero", "rockstar", "ninja", "unparalleled".
+            3. KEEP ORIGINAL dates, locations, company names, job titles.
+            4. YOU MAY rephrase descriptions to align with JD terminology ONLY IF the underlying work supports it.
+            5. DO NOT add "implied" skills unless you are 100%% certain the candidate has them based on the text.
+
+            Job Description:
+            {JOB_DESCRIPTION}
+
+            Current CV (YAML):
+            {CV_YAML}
+
+            Output YAML only (strict valid YAML):
+            personalInfo:
+              fullName: [keep original]
+              email: [keep original]
+              phone: [keep original]
+              city: [keep original]
+              country: [keep original]
+              linkedin: [keep original]
+              github: [keep original]
+              website: [keep original]
+              summary: [Rewrite to be professional and concise. Incorporate JD keywords ONLY if relevant.]
+              jobTitle: [match JD job title if experience supports it, otherwise keep original]
+            sections:
               - id: [keep original]
                 title: [keep original]
-                subtitle: [keep original]
-                date: [keep original]
-                location: [keep original]
-                description: [Rewrite for impact. Use action verbs. Quantify where possible. Do NOT force-fit irrelevant keywords.]
-                tags: [Include valid skills from JD that match experience. Do NOT add skills the candidate clearly lacks.]
-        """;
+                type: [keep original]
+                items:
+                  - id: [keep original]
+                    title: [keep original]
+                    subtitle: [keep original]
+                    date: [keep original]
+                    description: [Expand descriptions meaningfully, integrating relevant JD keywords NATURALLY. Remove weak language.]
+                    location: [keep original]
+                    tags: [Extract key skills into list]
+            metadata:
+              language: [keep original]
+            """;
 
     private static final String ATS_SCORE_PROMPT = """
-        Analyze this CV against the job description. Score ATS compatibility.
-        
-        Job Description:
-        %s
-        
-        CV Summary:
-        %s
-        
-        Output YAML only:
-        overall: 0-100
-        keywordMatch: 0-100
-        skillsMatch: 0-100
-        missingKeywords:
-          - keyword1
-          - keyword2
-        suggestions:
-          - suggestion1
-          - suggestion2
-        """;
+            Analyze this CV against the job description. Score ATS compatibility.
+
+            Job Description:
+            {JOB_DESCRIPTION}
+
+            CV Summary:
+            {CV_YAML}
+
+            Output YAML only:
+            overall: 0-100
+            keywordMatch: 0-100
+            skillsMatch: 0-100
+            missingKeywords:
+              - keyword1
+              - keyword2
+            suggestions:
+              - suggestion1
+              - suggestion2
+            """;
 
     private static final String GENERAL_ATS_SCORE_PROMPT = """
-        You are an expert ATS (Applicant Tracking System) analyzer. Analyze this CV for general ATS compatibility based on industry best practices.
-        
-        CV Content:
-        %s
-        
-        Evaluation Criteria (score each 0-100):
-        1. CONTENT QUALITY:
-           - Strong action verbs (Led, Developed, Managed, etc.)
-           - Quantifiable achievements (numbers, percentages, metrics)
-           - Professional tone and clarity
-        2. STRUCTURE:
-           - Standard section headings (Experience, Education, Skills)
-           - Contact information completeness (name, email, phone)
-           - Logical flow and organization
-        3. SKILLS PRESENTATION:
-           - Relevant technical skills listed
-           - Soft skills mentioned appropriately
-           - Skills match typical industry requirements
-        
-        Output YAML only:
-        overall: 0-100
-        keywordMatch: 0-100 (general industry keywords)
-        skillsMatch: 0-100 (skills presentation quality)
-        missingKeywords:
-          - common missing elements (e.g., "quantifiable metrics", "action verbs")
-        suggestions:
-          - specific improvement suggestions
-        """;
+            You are an expert ATS (Applicant Tracking System) analyzer. Analyze this CV for general ATS compatibility based on industry best practices.
+
+            CV Content:
+            {CV_YAML}
+
+            Evaluation Criteria (score each 0-100):
+            1. CONTENT QUALITY:
+               - Strong action verbs (Led, Developed, Managed, etc.)
+               - Quantifiable achievements (numbers, percentages, metrics)
+               - Professional tone and clarity
+            2. STRUCTURE:
+               - Standard section headings (Experience, Education, Skills)
+               - Contact information completeness (name, email, phone)
+               - Logical flow and organization
+            3. SKILLS PRESENTATION:
+               - Relevant technical skills listed
+               - Soft skills mentioned appropriately
+               - Skills match typical industry requirements
+
+            Output YAML only:
+            overall: 0-100
+            keywordMatch: 0-100 (general industry keywords)
+            skillsMatch: 0-100 (skills presentation quality)
+            missingKeywords:
+              - common missing elements (e.g., "quantifiable metrics", "action verbs")
+            suggestions:
+              - specific improvement suggestions
+            """;
 
     private static final String INTERVIEW_QUESTIONS_PROMPT = """
-        Generate interview questions for this job role based on the CV.
-        
-        Job: %s
-        Company: %s
-        CV Skills: %s
-        
-        Output YAML only (max 5 questions):
-        questions:
-          - question: text
-            hint: brief answer guidance
-            category: behavioral|technical|situational
-        """;
+            Generate interview questions for this job role based on the CV.
+
+            Job: {JOB_TITLE}
+            Company: {COMPANY_NAME}
+            CV Skills: {CV_SKILLS}
+
+            Output YAML only (max 5 questions):
+            questions:
+              - question: text
+                hint: brief answer guidance
+                category: behavioral|technical|situational
+            """;
 
     private static final String ROADMAP_PROMPT = """
-        Create a career roadmap to bridge gaps between CV and job requirements.
-        
-        Job Description:
-        %s
-        
-        Current Skills: %s
-        
-        Output YAML only:
-        skillGaps:
-          - skill1
-          - skill2
-        steps:
-          - step: action description
-            timeframe: 1-2 weeks|1 month|2-3 months
-        """;
+            Create a career roadmap to bridge gaps between CV and job requirements.
+
+            Job Description:
+            {JOB_DESCRIPTION}
+
+            Current Skills: {CV_SKILLS}
+
+            Output YAML only:
+            skillGaps:
+              - skill1
+              - skill2
+            steps:
+              - step: action description
+                timeframe: 1-2 weeks|1 month|2-3 months
+            """;
 
     private static final String COVER_LETTER_PROMPT = """
             You are an expert career coach. Write a compelling, high-converting cover letter for the following candidate.
-            
-            Target Role: %s at %s
-            
+
+            Target Role: {JOB_DESCRIPTION}
+
             Candidate:
-            Name: %s
-            Email: %s
-            Phone: %s
-            
+            Name: {CV_NAME}
+            Email: {CV_EMAIL}
+            Phone: {CV_PHONE}
+
             Candidate Profile:
-            Summary: %s
-            Top Skills: %s
-            Experience Highlights: %s
-            
+            Summary: {CV_SUMMARY}
+            Top Skills: {CV_SKILLS}
+            Experience Highlights: {CV_EXPERIENCE}
+
             Job Description Analysis (Pain Points):
-            %s
-            
+            {JOB_PAIN_POINTS}
+
             Instructions:
             1.  **Structure**: Use the "Hook-Story-Offer" framework.
                 *   **Hook**: Start with a strong opening that captures attention and shows understanding of the company's needs (Pain Points).
@@ -218,7 +220,7 @@ public class CvEnhancementService {
             2.  **Tone**: Professional, confident, yet authentic. Avoid generic fluff.
             3.  **Formatting**: Standard business letter format.
             4.  **No Placeholders**: Do not use [Insert Company Name] placeholders; use the provided data.
-            
+
             Output ONLY the cover letter body texts (or with header if appropriate).
             """;
 
@@ -226,8 +228,8 @@ public class CvEnhancementService {
 
     public CvTailorResponse tailorCv(CvTailorRequest request) {
         long startTime = System.currentTimeMillis();
-        log.info("Starting CV tailoring for job: {}", 
-            request.getJobTitle() != null ? request.getJobTitle() : "unspecified");
+        log.info("Starting CV tailoring for job: {}",
+                request.getJobTitle() != null ? request.getJobTitle() : "unspecified");
 
         // Thread-safe token accumulator for parallel tasks
         AtomicInteger tokenTracker = new AtomicInteger(0);
@@ -238,42 +240,45 @@ public class CvEnhancementService {
             // - Calculate ORIGINAL ATS score (before tailoring)
             // - Other optional tasks
             CompletableFuture<ResumeData> tailoredCvFuture = CompletableFuture.supplyAsync(
-                () -> tailorCvContent(request.getResumeData(), request.getJobDescription(), tokenTracker), executor);
-            
+                    () -> tailorCvContent(request.getResumeData(), request.getJobDescription(), tokenTracker),
+                    executor);
+
             // Calculate ORIGINAL CV's ATS score for "before" comparison
             CompletableFuture<AtsScore> originalAtsScoreFuture = CompletableFuture.supplyAsync(
-                () -> calculateAtsScore(request.getResumeData(), request.getJobDescription(), tokenTracker), executor);
+                    () -> calculateAtsScore(request.getResumeData(), request.getJobDescription(), tokenTracker),
+                    executor);
 
             CompletableFuture<InterviewPrep> interviewFuture = request.isIncludeInterviewQuestions()
-                ? CompletableFuture.supplyAsync(
-                    () -> generateInterviewQuestions(request, tokenTracker), executor)
-                : CompletableFuture.completedFuture(null);
+                    ? CompletableFuture.supplyAsync(
+                            () -> generateInterviewQuestions(request, tokenTracker), executor)
+                    : CompletableFuture.completedFuture(null);
 
             CompletableFuture<Roadmap> roadmapFuture = request.isIncludeRoadmap()
-                ? CompletableFuture.supplyAsync(
-                    () -> generateRoadmap(request, tokenTracker), executor)
-                : CompletableFuture.completedFuture(null);
+                    ? CompletableFuture.supplyAsync(
+                            () -> generateRoadmap(request, tokenTracker), executor)
+                    : CompletableFuture.completedFuture(null);
 
             CompletableFuture<String> coverLetterFuture = request.isGenerateCoverLetter()
-                ? CompletableFuture.supplyAsync(
-                    () -> generateCoverLetter(request, tokenTracker), executor)
-                : CompletableFuture.completedFuture(null);
+                    ? CompletableFuture.supplyAsync(
+                            () -> generateCoverLetter(request, tokenTracker), executor)
+                    : CompletableFuture.completedFuture(null);
 
             // Wait for tailored CV to be ready first
             ResumeData tailoringResult = tailoredCvFuture.get();
-            
+
             // Phase 1.5: Post-Tailoring Refinement (Keyword Gap Injection)
             // Ensure we don't lose keywords that were present in the original CV
             // This guarantees tailored_score >= original_score for keyword component
-            final ResumeData refinedCv = refineAfterTailoring(request.getResumeData(), tailoringResult, request.getJobDescription());
-            
+            final ResumeData refinedCv = refineAfterTailoring(request.getResumeData(), tailoringResult,
+                    request.getJobDescription());
+
             // Phase 2: Calculate TAILORED CV's ATS score (this is the "after" score)
             CompletableFuture<AtsScore> tailoredAtsScoreFuture = CompletableFuture.supplyAsync(
-                () -> calculateAtsScore(refinedCv, request.getJobDescription(), tokenTracker), executor);
+                    () -> calculateAtsScore(refinedCv, request.getJobDescription(), tokenTracker), executor);
 
             // Wait for all remaining futures
             CompletableFuture.allOf(originalAtsScoreFuture, tailoredAtsScoreFuture,
-                interviewFuture, roadmapFuture, coverLetterFuture).join();
+                    interviewFuture, roadmapFuture, coverLetterFuture).join();
 
             AtsScore tailoredAtsScore = tailoredAtsScoreFuture.get();
             AtsScore originalAtsScore = originalAtsScoreFuture.get();
@@ -281,20 +286,20 @@ public class CvEnhancementService {
             // Score Floor Guarantee: tailored must never score lower than original
             if (tailoredAtsScore.getOverall() < originalAtsScore.getOverall()) {
                 log.warn("ATS score regression detected: tailored={} < original={}. Applying floor.",
-                    tailoredAtsScore.getOverall(), originalAtsScore.getOverall());
+                        tailoredAtsScore.getOverall(), originalAtsScore.getOverall());
                 tailoredAtsScore = AtsScore.builder()
-                    .overall(originalAtsScore.getOverall())
-                    .keywordMatch(Math.max(tailoredAtsScore.getKeywordMatch(), originalAtsScore.getKeywordMatch()))
-                    .skillsMatch(Math.max(tailoredAtsScore.getSkillsMatch(), originalAtsScore.getSkillsMatch()))
-                    .missingKeywords(tailoredAtsScore.getMissingKeywords())
-                    .suggestions(tailoredAtsScore.getSuggestions())
-                    .tokensUsed(tailoredAtsScore.getTokensUsed())
-                    .build();
+                        .overall(originalAtsScore.getOverall())
+                        .keywordMatch(Math.max(tailoredAtsScore.getKeywordMatch(), originalAtsScore.getKeywordMatch()))
+                        .skillsMatch(Math.max(tailoredAtsScore.getSkillsMatch(), originalAtsScore.getSkillsMatch()))
+                        .missingKeywords(tailoredAtsScore.getMissingKeywords())
+                        .suggestions(tailoredAtsScore.getSuggestions())
+                        .tokensUsed(tailoredAtsScore.getTokensUsed())
+                        .build();
             }
 
             // Truthfulness Validation
             List<String> validationWarnings = validateAlignment(request.getResumeData(), refinedCv);
-            
+
             // Generate Change Diffs using Robust Service
             List<String> changes = resumeDiffService.calculateDiff(request.getResumeData(), refinedCv);
 
@@ -339,33 +344,38 @@ public class CvEnhancementService {
             boolean isLowRelevance = matchResult.score() < 10;
 
             String cvYaml = convertToYaml(resumeData);
-            String promptBody = String.format(TAILOR_CV_PROMPT, jobDescription, cvYaml);
-            
+            String promptBody = TAILOR_CV_PROMPT
+                    .replace("{JOB_DESCRIPTION}", jobDescription != null ? jobDescription : "")
+                    .replace("{CV_YAML}", cvYaml != null ? cvYaml : "");
+
             // Append strict warning if relevance is low
             if (isLowRelevance) {
-                promptBody += "\n\nCRITICAL WARNING: The Job Description appears unrelated to this CV (Low Keyword Match). " +
-                              "DO NOT force-fit keywords. DO NOT invent skills. Focus ONLY on professional formatting and clarity. " +
-                              "If you cannot truthfully incorporate keywords, KEEP ORIGINAL CONTENT.";
-                log.warn("Low keyword match ({}%) detected. Enabling strict no-hallucination mode.", matchResult.score());
+                promptBody += "\n\nCRITICAL WARNING: The Job Description appears unrelated to this CV (Low Keyword Match). "
+                        +
+                        "DO NOT force-fit keywords. DO NOT invent skills. Focus ONLY on professional formatting and clarity. "
+                        +
+                        "If you cannot truthfully incorporate keywords, KEEP ORIGINAL CONTENT.";
+                log.warn("Low keyword match ({}%) detected. Enabling strict no-hallucination mode.",
+                        matchResult.score());
             }
 
             AiModelResponse response = aiService.callModel(promptBody, defaultProvider, defaultModel);
             if (tokenTracker != null) {
                 tokenTracker.addAndGet(response.getTotalTokens());
             }
-            
+
             // 1. Clean AI response (remove markdown blocks, extract content)
             String cleanedResponse = jsonSanitizer.cleanAiResponse(response.getContent());
-            
+
             // 2. Parse Valid YAML to Object
             ResumeData rawData = parseYamlToResumeData(cleanedResponse);
-            
+
             // 3. Guard: if parsing failed, fall back to original
             if (rawData == null || jsonSanitizer.isTruncated(rawData)) {
                 log.warn("Tailored CV parsing failed or resulted in truncated data, falling back to original CV");
                 return resumeData;
             }
-            
+
             // 4. Clean "AI Clichés" (Polish) from values
             return contentCleaner.clean(rawData);
         } catch (Exception e) {
@@ -378,38 +388,42 @@ public class CvEnhancementService {
         // 1. Calculate deterministic keyword match score
         String cvText = extractFullText(resumeData);
         KeywordMatcher.MatchResult keywordResult = keywordMatcher.match(cvText, jobDescription);
-        
+
         try {
-            String prompt = String.format(ATS_SCORE_PROMPT, jobDescription, cvText);
-            
-            AiModelResponse response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            String cvYaml = convertToYaml(resumeData);
+            String promptBody = ATS_SCORE_PROMPT
+                    .replace("{JOB_DESCRIPTION}", jobDescription != null ? jobDescription : "")
+                    .replace("{CV_YAML}", cvYaml != null ? cvYaml : "");
+
+            AiModelResponse response = aiService.callModel(promptBody, defaultProvider, defaultModel);
             if (tokenTracker != null) {
                 tokenTracker.addAndGet(response.getTotalTokens());
             }
 
             String cleanedResponse = jsonSanitizer.cleanAiResponse(response.getContent());
-            
+
             AtsScore aiScore = parseYamlToAtsScore(cleanedResponse);
-            
+
             // 2. Hybrid Score Calculation
             // Weigh AI score 60% and Keyword score 40%
             int hybridOverall = (int) Math.round((aiScore.getOverall() * 0.6) + (keywordResult.score() * 0.4));
-            
+
             // Deterministic floor: hybrid score must not fall below keyword score
             hybridOverall = Math.max(hybridOverall, keywordResult.score());
-            
+
             // Merge missing keywords (AI + Deterministic)
             List<String> mergedMissingKeywords = new ArrayList<>();
             if (aiScore.getMissingKeywords() != null) {
                 mergedMissingKeywords.addAll(aiScore.getMissingKeywords());
             }
             for (String kw : keywordResult.missingKeywords()) {
-                 if (mergedMissingKeywords.size() >= 15) break; 
-                 if (!mergedMissingKeywords.contains(kw)) {
-                     mergedMissingKeywords.add(kw);
-                 }
+                if (mergedMissingKeywords.size() >= 15)
+                    break;
+                if (!mergedMissingKeywords.contains(kw)) {
+                    mergedMissingKeywords.add(kw);
+                }
             }
-            
+
             return AtsScore.builder()
                     .overall(hybridOverall)
                     .keywordMatch(keywordResult.score())
@@ -435,19 +449,21 @@ public class CvEnhancementService {
 
     /**
      * Calculate general ATS score for a CV without a specific job description.
-     * Evaluates based on industry best practices: action verbs, metrics, structure, etc.
+     * Evaluates based on industry best practices: action verbs, metrics, structure,
+     * etc.
      *
      * @param resumeData the resume data to analyze
      * @return AtsScore with overall score and suggestions
      */
     public AtsScore calculateGeneralAtsScore(ResumeData resumeData) {
         try {
-            String cvSummary = extractFullText(resumeData);
-            String prompt = String.format(GENERAL_ATS_SCORE_PROMPT, cvSummary);
-            
-            AiModelResponse response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            String cvYaml = convertToYaml(resumeData);
+            String promptBody = GENERAL_ATS_SCORE_PROMPT
+                    .replace("{CV_YAML}", cvYaml != null ? cvYaml : "");
+
+            AiModelResponse response = aiService.callModel(promptBody, defaultProvider, defaultModel);
             String cleanedResponse = jsonSanitizer.cleanAiResponse(response.getContent());
-            
+
             AtsScore score = parseYamlToAtsScore(cleanedResponse);
             score.setTokensUsed(response.getTotalTokens());
             return score;
@@ -465,71 +481,77 @@ public class CvEnhancementService {
     }
 
     /**
-     * Refines the tailored CV by injecting keywords that were present in the original CV
+     * Refines the tailored CV by injecting keywords that were present in the
+     * original CV
      * but lost during the AI tailoring process.
      * This ensures fairness and prevents score regression.
      */
     private ResumeData refineAfterTailoring(ResumeData original, ResumeData tailored, String jd) {
         // Step 1: Restore any section items (courses, skills) dropped by the AI
         restoreLostSectionItems(original, tailored);
-        
+
         String originalText = extractFullText(original).toLowerCase();
         String tailoredText = extractFullText(tailored).toLowerCase();
-        
+
         Set<String> jdKeywords = keywordMatcher.extractKeywords(jd);
-        
+
         // Step 2: Find JD keywords missing from Tailored CV
         List<String> missingFromTailored = jdKeywords.stream()
-            .filter(kw -> !keywordMatcher.containsKeyword(tailoredText, kw))
-            .collect(Collectors.toList());
-            
-        if (missingFromTailored.isEmpty()) return tailored;
-        
+                .filter(kw -> !keywordMatcher.containsKeyword(tailoredText, kw))
+                .collect(Collectors.toList());
+
+        if (missingFromTailored.isEmpty())
+            return tailored;
+
         // Of those missing, which ones EXIST in the Original CV? (Truthful injection)
         List<String> injectableKeywords = missingFromTailored.stream()
-            .filter(kw -> keywordMatcher.containsKeyword(originalText, kw))
-            .collect(Collectors.toList());
-            
+                .filter(kw -> keywordMatcher.containsKeyword(originalText, kw))
+                .collect(Collectors.toList());
+
         if (!injectableKeywords.isEmpty()) {
-            log.info("Refining tailored CV: Injecting {} lost keywords: {}", injectableKeywords.size(), injectableKeywords);
+            log.info("Refining tailored CV: Injecting {} lost keywords: {}", injectableKeywords.size(),
+                    injectableKeywords);
             return injectMissingKeywords(tailored, injectableKeywords);
         }
-        
+
         return tailored;
     }
-    
+
     /**
-     * Restores section items (e.g. skill titles, course titles) that existed in the original CV
+     * Restores section items (e.g. skill titles, course titles) that existed in the
+     * original CV
      * but were dropped by the AI during tailoring.
      */
     private void restoreLostSectionItems(ResumeData original, ResumeData tailored) {
-        if (original.getSections() == null || tailored.getSections() == null) return;
-        
+        if (original.getSections() == null || tailored.getSections() == null)
+            return;
+
         for (ResumeData.ResumeSection origSection : original.getSections()) {
-            if (origSection.getItems() == null || origSection.getItems().isEmpty()) continue;
-            
+            if (origSection.getItems() == null || origSection.getItems().isEmpty())
+                continue;
+
             // Find matching section in tailored CV by id or type+title
             ResumeData.ResumeSection tailoredSection = tailored.getSections().stream()
-                .filter(s -> matchesSection(origSection, s))
-                .findFirst()
-                .orElse(null);
-                
+                    .filter(s -> matchesSection(origSection, s))
+                    .findFirst()
+                    .orElse(null);
+
             if (tailoredSection == null) {
                 // Section entirely missing — restore it
                 tailored.getSections().add(origSection);
                 log.info("Restored entirely lost section: {}", origSection.getTitle());
                 continue;
             }
-            
+
             if (tailoredSection.getItems() == null) {
                 tailoredSection.setItems(new ArrayList<>());
             }
-            
+
             // Restore missing items within the section
             Set<String> tailoredTitles = tailoredSection.getItems().stream()
-                .map(i -> i.getTitle() != null ? i.getTitle().trim().toLowerCase() : "")
-                .collect(Collectors.toSet());
-                
+                    .map(i -> i.getTitle() != null ? i.getTitle().trim().toLowerCase() : "")
+                    .collect(Collectors.toSet());
+
             int restored = 0;
             for (ResumeData.SectionItem origItem : origSection.getItems()) {
                 String origTitle = origItem.getTitle() != null ? origItem.getTitle().trim().toLowerCase() : "";
@@ -538,30 +560,33 @@ public class CvEnhancementService {
                     restored++;
                 }
             }
-            
+
             if (restored > 0) {
                 log.info("Restored {} lost items in section '{}'", restored, origSection.getTitle());
             }
         }
     }
-    
+
     private boolean matchesSection(ResumeData.ResumeSection a, ResumeData.ResumeSection b) {
-        if (a.getId() != null && a.getId().equals(b.getId())) return true;
+        if (a.getId() != null && a.getId().equals(b.getId()))
+            return true;
         if (a.getType() != null && a.getType().equalsIgnoreCase(b.getType())
-            && a.getTitle() != null && a.getTitle().equalsIgnoreCase(b.getTitle())) return true;
+                && a.getTitle() != null && a.getTitle().equalsIgnoreCase(b.getTitle()))
+            return true;
         return false;
     }
 
     private ResumeData injectMissingKeywords(ResumeData tailored, List<String> keywordsToInject) {
-        if (keywordsToInject.isEmpty()) return tailored;
-        
+        if (keywordsToInject.isEmpty())
+            return tailored;
+
         // 1. Find "Skills" section
         ResumeData.ResumeSection skillsSection = tailored.getSections().stream()
-            .filter(s -> (s.getType() != null && "skills".equalsIgnoreCase(s.getType())) || 
-                         (s.getTitle() != null && "skills".equalsIgnoreCase(s.getTitle())))
-            .findFirst()
-            .orElse(null);
-            
+                .filter(s -> (s.getType() != null && "skills".equalsIgnoreCase(s.getType())) ||
+                        (s.getTitle() != null && "skills".equalsIgnoreCase(s.getTitle())))
+                .findFirst()
+                .orElse(null);
+
         // 2. If not found, create it
         if (skillsSection == null) {
             skillsSection = new ResumeData.ResumeSection();
@@ -572,13 +597,13 @@ public class CvEnhancementService {
             // Add to sections
             tailored.getSections().add(skillsSection);
         }
-        
+
         // 3. Find or create item to hold tags
         ResumeData.SectionItem skillsItem;
         if (skillsSection.getItems() == null) {
-             skillsSection.setItems(new ArrayList<>());
+            skillsSection.setItems(new ArrayList<>());
         }
-        
+
         if (skillsSection.getItems().isEmpty()) {
             skillsItem = new ResumeData.SectionItem();
             skillsItem.setId("item_skills_" + System.currentTimeMillis());
@@ -591,44 +616,48 @@ public class CvEnhancementService {
                 skillsItem.setTags(new ArrayList<>());
             }
         }
-        
+
         // 4. Inject unique keywords
         for (String kw : keywordsToInject) {
             final String keyword = kw; // lambda constraint
             boolean exists = skillsItem.getTags().stream()
-                .anyMatch(t -> t.equalsIgnoreCase(keyword));
+                    .anyMatch(t -> t.equalsIgnoreCase(keyword));
             if (!exists) {
                 skillsItem.getTags().add(kw);
             }
         }
-        
+
         return tailored;
     }
 
     private InterviewPrep generateInterviewQuestions(CvTailorRequest request, AtomicInteger tokenTracker) {
         try {
             String skills = extractSkills(request.getResumeData());
-            String prompt = String.format(INTERVIEW_QUESTIONS_PROMPT, 
-                request.getJobTitle() != null ? request.getJobTitle() : "the position",
-                request.getCompanyName() != null ? request.getCompanyName() : "the company",
-                skills);
-            
-            log.debug("Interview questions prompt length: {}", prompt.length());
-            AiModelResponse response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            String promptBody = INTERVIEW_QUESTIONS_PROMPT
+                    .replace("{JOB_TITLE}", request.getJobTitle() != null ? request.getJobTitle() : "the position")
+                    .replace("{COMPANY_NAME}",
+                            request.getCompanyName() != null ? request.getCompanyName() : "the company")
+                    .replace("{CV_SKILLS}", skills);
+
+            log.debug("Interview questions prompt length: {}", promptBody.length());
+            AiModelResponse response = aiService.callModel(promptBody, defaultProvider, defaultModel);
             if (tokenTracker != null) {
                 tokenTracker.addAndGet(response.getTotalTokens());
             }
-            
-            log.debug("Interview questions AI response (first 300 chars): {}", 
-                response != null && response.getContent() != null ? response.getContent().substring(0, Math.min(300, response.getContent().length())) : "null");
-            
+
+            log.debug("Interview questions AI response (first 300 chars): {}",
+                    response != null && response.getContent() != null
+                            ? response.getContent().substring(0, Math.min(300, response.getContent().length()))
+                            : "null");
+
             String cleanedResponse = jsonSanitizer.cleanAiResponse(response.getContent());
             InterviewPrep result = parseYamlToInterviewPrep(cleanedResponse);
-            
+
             if (result == null || result.getQuestions() == null || result.getQuestions().isEmpty()) {
-                log.warn("Interview questions parsing returned empty result. Raw response: {}", 
-                    cleanedResponse.substring(0, Math.min(500, cleanedResponse.length())));
-                return InterviewPrep.builder().questions(new ArrayList<>()).tokensUsed(response.getTotalTokens()).build();
+                log.warn("Interview questions parsing returned empty result. Raw response: {}",
+                        cleanedResponse.substring(0, Math.min(500, cleanedResponse.length())));
+                return InterviewPrep.builder().questions(new ArrayList<>()).tokensUsed(response.getTotalTokens())
+                        .build();
             }
             result.setTokensUsed(response.getTotalTokens());
             return result;
@@ -641,24 +670,30 @@ public class CvEnhancementService {
     private Roadmap generateRoadmap(CvTailorRequest request, AtomicInteger tokenTracker) {
         try {
             String skills = extractSkills(request.getResumeData());
-            String prompt = String.format(ROADMAP_PROMPT, request.getJobDescription(), skills);
-            
-            log.debug("Roadmap prompt length: {}", prompt.length());
-            AiModelResponse response = aiService.callModel(prompt, defaultProvider, defaultModel);
+            String promptBody = ROADMAP_PROMPT
+                    .replace("{JOB_DESCRIPTION}",
+                            request.getJobDescription() != null ? request.getJobDescription() : "")
+                    .replace("{CV_SKILLS}", skills);
+
+            log.debug("Roadmap prompt length: {}", promptBody.length());
+            AiModelResponse response = aiService.callModel(promptBody, defaultProvider, defaultModel);
             if (tokenTracker != null) {
                 tokenTracker.addAndGet(response.getTotalTokens());
             }
 
-            log.debug("Roadmap AI response (first 300 chars): {}", 
-                response != null && response.getContent() != null ? response.getContent().substring(0, Math.min(300, response.getContent().length())) : "null");
-            
+            log.debug("Roadmap AI response (first 300 chars): {}",
+                    response != null && response.getContent() != null
+                            ? response.getContent().substring(0, Math.min(300, response.getContent().length()))
+                            : "null");
+
             String cleanedResponse = jsonSanitizer.cleanAiResponse(response.getContent());
             Roadmap result = parseYamlToRoadmap(cleanedResponse);
-            
+
             if (result == null || result.getSteps() == null || result.getSteps().isEmpty()) {
-                log.warn("Roadmap parsing returned empty result. Raw response: {}", 
-                    cleanedResponse.substring(0, Math.min(500, cleanedResponse.length())));
-                return Roadmap.builder().skillGaps(new ArrayList<>()).steps(new ArrayList<>()).tokensUsed(response.getTotalTokens()).build();
+                log.warn("Roadmap parsing returned empty result. Raw response: {}",
+                        cleanedResponse.substring(0, Math.min(500, cleanedResponse.length())));
+                return Roadmap.builder().skillGaps(new ArrayList<>()).steps(new ArrayList<>())
+                        .tokensUsed(response.getTotalTokens()).build();
             }
             result.setTokensUsed(response.getTotalTokens());
             return result;
@@ -673,29 +708,31 @@ public class CvEnhancementService {
             ResumeData.PersonalInfo info = request.getResumeData().getPersonalInfo();
             String skills = extractSkills(request.getResumeData());
             String experience = buildExperienceSummary(request.getResumeData());
-            
-            String prompt = String.format(COVER_LETTER_PROMPT,
-                request.getJobTitle() != null ? request.getJobTitle() : "the position",
-                request.getCompanyName() != null ? request.getCompanyName() : "your company",
-                info.getFullName() != null ? info.getFullName() : "Candidate",
-                info.getEmail() != null ? info.getEmail() : "",
-                info.getPhone() != null ? info.getPhone() : "",
-                info.getSummary() != null ? info.getSummary() : "",
-                skills,
-                experience,
-                // We pass the full JD here for the "Pain Points" analysis in line with the prompt
-                request.getJobDescription() != null ? request.getJobDescription() : "Standard role requirements"
-            );
-            
-            log.debug("Cover letter prompt length: {}", prompt.length());
-            AiModelResponse response = aiService.callModel(prompt, defaultProvider, defaultModel);
+
+            // The Cover Letter prompt needs to format correctly with .replace
+            String promptBody = COVER_LETTER_PROMPT
+                    .replace("{JOB_DESCRIPTION}",
+                            request.getJobDescription() != null ? request.getJobDescription() : "unspecified")
+                    .replace("{CV_NAME}", info.getFullName() != null ? info.getFullName() : "Candidate")
+                    .replace("{CV_EMAIL}", info.getEmail() != null ? info.getEmail() : "")
+                    .replace("{CV_PHONE}", info.getPhone() != null ? info.getPhone() : "")
+                    .replace("{CV_SUMMARY}", info.getSummary() != null ? info.getSummary() : "")
+                    .replace("{CV_SKILLS}", skills)
+                    .replace("{CV_EXPERIENCE}", experience)
+                    .replace("{JOB_PAIN_POINTS}", request.getJobDescription() != null ? request.getJobDescription()
+                            : "Standard role requirements");
+
+            log.debug("Cover letter prompt length: {}", promptBody.length());
+            AiModelResponse response = aiService.callModel(promptBody, defaultProvider, defaultModel);
             if (tokenTracker != null) {
                 tokenTracker.addAndGet(response.getTotalTokens());
             }
 
-            log.debug("Cover letter AI response (first 300 chars): {}", 
-                response != null && response.getContent() != null ? response.getContent().substring(0, Math.min(300, response.getContent().length())) : "null");
-            
+            log.debug("Cover letter AI response (first 300 chars): {}",
+                    response != null && response.getContent() != null
+                            ? response.getContent().substring(0, Math.min(300, response.getContent().length()))
+                            : "null");
+
             String result = jsonSanitizer.cleanAiResponse(response.getContent());
             if (result == null || result.isBlank()) {
                 log.warn("Cover letter generation returned empty result");
@@ -709,8 +746,9 @@ public class CvEnhancementService {
     }
 
     private String buildExperienceSummary(ResumeData resumeData) {
-        if (resumeData.getSections() == null) return "";
-        
+        if (resumeData.getSections() == null)
+            return "";
+
         StringBuilder sb = new StringBuilder();
         resumeData.getSections().stream()
                 .filter(s -> "experience".equalsIgnoreCase(s.getType()))
@@ -718,8 +756,8 @@ public class CvEnhancementService {
                 .limit(3) // Top 3 experiences
                 .forEach(item -> {
                     sb.append("- ").append(item.getSubtitle() != null ? item.getSubtitle() : "")
-                      .append(" at ").append(item.getTitle() != null ? item.getTitle() : "")
-                      .append(" (").append(item.getDate() != null ? item.getDate() : "").append(")\n");
+                            .append(" at ").append(item.getTitle() != null ? item.getTitle() : "")
+                            .append(" (").append(item.getDate() != null ? item.getDate() : "").append(")\n");
                 });
         return sb.toString();
     }
@@ -749,11 +787,56 @@ public class CvEnhancementService {
 
     private AtsScore parseYamlToAtsScore(String yaml) {
         try {
-            return YAML_MAPPER.readValue(yaml, AtsScore.class);
+            com.fasterxml.jackson.databind.JsonNode root = YAML_MAPPER.readTree(yaml);
+
+            return AtsScore.builder()
+                    .overall(root.path("overall").asInt(0))
+                    .keywordMatch(root.path("keywordMatch").asInt(0))
+                    .skillsMatch(root.path("skillsMatch").asInt(0))
+                    .missingKeywords(extractStringList(root.path("missingKeywords")))
+                    .suggestions(extractStringList(root.path("suggestions")))
+                    .build();
         } catch (Exception e) {
             log.error("Error parsing YAML to AtsScore: {}", e.getMessage());
-            return AtsScore.builder().overall(-1).build();
+            return AtsScore.builder()
+                    .overall(-1)
+                    .suggestions(List.of("Error parsing AI response"))
+                    .build();
         }
+    }
+
+    private List<String> extractStringList(com.fasterxml.jackson.databind.JsonNode node) {
+        List<String> list = new ArrayList<>();
+        if (node.isArray()) {
+            for (com.fasterxml.jackson.databind.JsonNode item : node) {
+                if (item.isTextual()) {
+                    list.add(item.asText());
+                } else if (item.isObject()) {
+                    // Flatten complex objects to string string representation or extract a "value"
+                    // if reasonable
+                    // For suggestions, just toString() is better than crashing
+                    try {
+                        // Attempt to find common text fields if it's an object (e.g. "suggestion":
+                        // "text")
+                        if (item.has("suggestion"))
+                            list.add(item.get("suggestion").asText());
+                        else if (item.has("text"))
+                            list.add(item.get("text").asText());
+                        else if (item.has("value"))
+                            list.add(item.get("value").asText());
+                        else
+                            list.add(item.toString());
+                    } catch (Exception e) {
+                        list.add(item.toString());
+                    }
+                } else {
+                    list.add(item.asText());
+                }
+            }
+        } else if (node.isTextual()) {
+            list.add(node.asText());
+        }
+        return list;
     }
 
     private InterviewPrep parseYamlToInterviewPrep(String yaml) {
@@ -781,7 +864,7 @@ public class CvEnhancementService {
             appendIfNotNull(sb, resumeData.getPersonalInfo().getJobTitle());
             appendIfNotNull(sb, resumeData.getPersonalInfo().getSummary());
         }
-        
+
         // 2. All Sections (Experience, Education, Projects, Skills)
         if (resumeData.getSections() != null) {
             for (ResumeData.ResumeSection section : resumeData.getSections()) {
@@ -790,7 +873,7 @@ public class CvEnhancementService {
                         appendIfNotNull(sb, item.getTitle());
                         appendIfNotNull(sb, item.getSubtitle());
                         appendIfNotNull(sb, item.getDescription());
-                        
+
                         // Tags (critical for skills)
                         if (item.getTags() != null) {
                             for (String tag : item.getTags()) {
@@ -803,7 +886,7 @@ public class CvEnhancementService {
         }
         return sb.toString();
     }
-    
+
     private void appendIfNotNull(StringBuilder sb, String text) {
         if (text != null && !text.isBlank()) {
             sb.append(text).append(" ");
@@ -811,13 +894,14 @@ public class CvEnhancementService {
     }
 
     private String extractSkills(ResumeData resumeData) {
-        if (resumeData.getSections() == null) return "";
-        
+        if (resumeData.getSections() == null)
+            return "";
+
         return resumeData.getSections().stream()
                 .filter(s -> "skills".equalsIgnoreCase(s.getType()))
                 .flatMap(s -> s.getItems().stream())
-                .flatMap(item -> item.getTags() != null ? item.getTags().stream() : 
-                    (item.getTitle() != null ? List.of(item.getTitle()).stream() : List.<String>of().stream()))
+                .flatMap(item -> item.getTags() != null ? item.getTags().stream()
+                        : (item.getTitle() != null ? List.of(item.getTitle()).stream() : List.<String>of().stream()))
                 .distinct()
                 .limit(15)
                 .reduce((a, b) -> a + ", " + b)
@@ -826,27 +910,29 @@ public class CvEnhancementService {
 
     private List<String> validateAlignment(ResumeData original, ResumeData tailored) {
         List<String> warnings = new ArrayList<>();
-        
+
         // 1. Validate Experience (Companies)
         Set<String> originalCompanies = extractTitlesFromSection(original, "experience");
         Set<String> tailoredCompanies = extractTitlesFromSection(tailored, "experience");
-        
+
         for (String company : tailoredCompanies) {
             if (!originalCompanies.contains(company)) {
-                warnings.add("Possible Hallucination: Company '" + company + "' found in tailored CV was not in original.");
+                warnings.add(
+                        "Possible Hallucination: Company '" + company + "' found in tailored CV was not in original.");
             }
         }
-        
+
         // 2. Validate Education (Schools/Degrees)
         Set<String> originalSchools = extractTitlesFromSection(original, "education");
         Set<String> tailoredSchools = extractTitlesFromSection(tailored, "education");
-        
+
         for (String school : tailoredSchools) {
             if (!originalSchools.contains(school)) {
-                warnings.add("Possible Hallucination: Education institution '" + school + "' found in tailored CV was not in original.");
+                warnings.add("Possible Hallucination: Education institution '" + school
+                        + "' found in tailored CV was not in original.");
             }
         }
-        
+
         return warnings;
     }
 

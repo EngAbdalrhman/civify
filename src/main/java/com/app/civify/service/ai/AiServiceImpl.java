@@ -2,7 +2,6 @@ package com.app.civify.service.ai;
 
 import com.app.civify.dto.ai.AiModelResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
@@ -16,7 +15,8 @@ import java.util.stream.Collectors;
 
 /**
  * Enhanced AI service with multi-model and multi-provider support Features: -
- * Multiple AI providers (Gemini, OpenAI, Vertex AI, etc.) - Automatic fallback to
+ * Multiple AI providers (Gemini, OpenAI, Vertex AI, etc.) - Automatic fallback
+ * to
  * secondary provider - Retry mechanism with exponential backoff -
  * Provider-specific error handling
  */
@@ -27,15 +27,14 @@ public class AiServiceImpl implements AiService {
     private final Map<String, AiProvider> providers;
 
     public AiServiceImpl(List<AiProvider> aiProviders) {
-        
+
         // Auto-discover and register providers
         this.providers = aiProviders.stream()
                 .collect(Collectors.toMap(
-                    p -> p.getProviderName().toLowerCase(),
-                    Function.identity(),
-                    (existing, replacement) -> existing, 
-                    ConcurrentHashMap::new
-                ));
+                        p -> p.getProviderName().toLowerCase(),
+                        Function.identity(),
+                        (existing, replacement) -> existing,
+                        ConcurrentHashMap::new));
 
         log.info("AI Service initialized with providers: {}", providers.keySet());
     }
@@ -43,8 +42,7 @@ public class AiServiceImpl implements AiService {
     // parseCv and tailorCv methods removed (logic moved to respective services)
 
     @Override
-    @Retryable(value = {Exception.class}, maxAttempts = 2, backoff = @Backoff(delay = 500, multiplier = 2))
-    @Cacheable(value = "ai_responses", key = "{#prompt, #provider, #model}") 
+    @Retryable(value = { Exception.class }, maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public AiModelResponse callModel(String prompt, String provider, String model) {
         log.info("Calling AI model - Provider: {}, Model: {}", provider, model);
 
@@ -53,9 +51,10 @@ public class AiServiceImpl implements AiService {
             throw new IllegalArgumentException("Unsupported AI provider: " + provider
                     + ". Available providers: " + providers.keySet());
         }
-        
+
         if (!aiProvider.isAvailable()) {
-             throw new IllegalStateException("AI provider '" + provider + "' is not configured properly (missing API key/config).");
+            throw new IllegalStateException(
+                    "AI provider '" + provider + "' is not configured properly (missing API key/config).");
         }
 
         try {
@@ -78,7 +77,6 @@ public class AiServiceImpl implements AiService {
                 provider, model, e.getMessage());
         throw new RuntimeException(
                 "AI service is currently unavailable. All retry attempts failed. Please try again later.",
-                e
-        );
+                e);
     }
 }

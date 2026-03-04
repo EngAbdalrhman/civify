@@ -112,6 +112,124 @@ public class EmailService {
         }
     }
 
+    /**
+     * Send HTML emails to a list of users in batches.
+     * Reuses the transport connection and introduces delays to avoid rate limits.
+     *
+     * @param users   list of recipients
+     * @param subject email subject
+     * @param messageContent body content (will be wrapped in theme)
+     */
+    public void sendHtmlEmailsToUsers(java.util.List<User> users, String subject, String messageContent) {
+        if (users == null || users.isEmpty()) {
+            return;
+        }
+
+        int batchSize = 50;
+        int totalUsers = users.size();
+        
+        for (int i = 0; i < totalUsers; i += batchSize) {
+            int end = Math.min(totalUsers, i + batchSize);
+            java.util.List<User> batch = users.subList(i, end);
+            
+            try {
+                // Create a batch of MimeMessages
+                MimeMessage[] messages = new MimeMessage[batch.size()];
+                
+                for (int j = 0; j < batch.size(); j++) {
+                    User user = batch.get(j);
+                    UserPreferredTheme theme = userPreferenceService.getUserTheme(user.getId());
+                    String body = getTemplateHeader(theme) + messageContent + getTemplateFooter();
+                    
+                    MimeMessage message = mailSender.createMimeMessage();
+                    MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+                    helper.setFrom(defaultFromEmail);
+                    helper.setTo(user.getEmail());
+                    helper.setSubject(subject);
+                    helper.setText(body, true);
+                    
+                    messages[j] = message;
+                }
+                
+                // Send the batch
+                mailSender.send(messages);
+                log.info("📧 Sent batch of {} emails ({} to {})", batch.size(), i + 1, end);
+                
+                // Delay to be respectful of rate limits (e.g., 1 second between batches)
+                if (end < totalUsers) {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                
+            } catch (Exception e) {
+                log.error("❌ Failed to send batch emails (users {} to {}): {}", i, end, e.getMessage());
+                // Continue to next batch even if this one fails
+            }
+        }
+    }
+
+    /**
+     * Send custom HTML emails to multiple recipients in batches.
+     * Useful when each recipient needs unique content (e.g., unsubscribe links).
+     *
+     * @param recipientContentMap Map of "Email Address" -> "HTML Body Content"
+     * @param subject email subject
+     */
+    public void sendBatchCustomEmails(java.util.Map<String, String> recipientContentMap, String subject) {
+        if (recipientContentMap == null || recipientContentMap.isEmpty()) {
+            return;
+        }
+
+        int batchSize = 50;
+        java.util.List<String> emails = new java.util.ArrayList<>(recipientContentMap.keySet());
+        int totalEmails = emails.size();
+
+        for (int i = 0; i < totalEmails; i += batchSize) {
+            int end = Math.min(totalEmails, i + batchSize);
+            java.util.List<String> batchEmails = emails.subList(i, end);
+
+            try {
+                MimeMessage[] messages = new MimeMessage[batchEmails.size()];
+
+                for (int j = 0; j < batchEmails.size(); j++) {
+                    String email = batchEmails.get(j);
+                    String content = recipientContentMap.get(email);
+                    
+                    // Apply default LIGHT theme wrapping (consistent with sendHtmlEmail default)
+                    String fullBody = getTemplateHeader(UserPreferredTheme.LIGHT) + content + getTemplateFooter();
+
+                    MimeMessage message = mailSender.createMimeMessage();
+                    MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+                    helper.setFrom(defaultFromEmail);
+                    helper.setTo(email);
+                    helper.setSubject(subject);
+                    helper.setText(fullBody, true);
+
+                    messages[j] = message;
+                }
+
+                // Send batch
+                mailSender.send(messages);
+                log.info("📧 Sent newsletter batch of {} emails ({} to {})", batchEmails.size(), i + 1, end);
+
+                // Delay
+                if (end < totalEmails) {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+
+            } catch (Exception e) {
+                log.error("❌ Failed to send newsletter batch ({} to {}): {}", i, end, e.getMessage());
+            }
+        }
+    }
+
     // ============= Public Template Methods =============
 
     /**
