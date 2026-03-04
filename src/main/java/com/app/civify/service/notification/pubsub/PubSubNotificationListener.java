@@ -11,13 +11,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.messaging.Message;
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 /**
- * Listens to Google Cloud Pub/Sub subscription and delivers notifications via SSE.
+ * Listens to Google Cloud Pub/Sub subscription and delivers notifications via
+ * SSE.
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnProperty(value = "notification.publisher", havingValue = "pubsub", matchIfMissing = true)
 public class PubSubNotificationListener {
 
     private final SseNotificationDeliveryService sseDeliveryService;
@@ -26,14 +29,14 @@ public class PubSubNotificationListener {
 
     @ServiceActivator(inputChannel = "notificationInputChannel")
     public void handleMessage(Message<String> message) {
-        BasicAcknowledgeablePubsubMessage originalMessage = 
-            message.getHeaders().get(GcpPubSubHeaders.ORIGINAL_MESSAGE, BasicAcknowledgeablePubsubMessage.class);
-        
+        BasicAcknowledgeablePubsubMessage originalMessage = message.getHeaders().get(GcpPubSubHeaders.ORIGINAL_MESSAGE,
+                BasicAcknowledgeablePubsubMessage.class);
+
         try {
             String payload = message.getPayload();
             NotificationMessage notifMessage = objectMapper.readValue(payload, NotificationMessage.class);
 
-            log.info("📨 Received notification from Pub/Sub: id={}, userId={}", 
+            log.info("📨 Received notification from Pub/Sub: id={}, userId={}",
                     notifMessage.getId(), notifMessage.getUserId() != null ? notifMessage.getUserId() : "BROADCAST");
 
             // Deliver via SSE to connected clients
