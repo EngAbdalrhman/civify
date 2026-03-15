@@ -36,7 +36,7 @@ public class GeminiAiProvider implements AiProvider {
 
             Map<String, Object> generationConfig = Map.of(
                 "temperature", 0.2,
-                "maxOutputTokens", 8192
+                "maxOutputTokens", 65536
             );
 
             Map<String, Object> requestMap = Map.of(

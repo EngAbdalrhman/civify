@@ -17,14 +17,19 @@ import org.springframework.stereotype.Service;
 import jakarta.annotation.PreDestroy;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import org.slf4j.MDC;
 import com.app.civify.dto.ai.AiModelResponse;
 
 /**
@@ -234,33 +239,37 @@ public class CvEnhancementService {
         // Thread-safe token accumulator for parallel tasks
         AtomicInteger tokenTracker = new AtomicInteger(0);
 
+        // Capture MDC context so async threads inherit the requestId for logging
+        Map<String, String> mdcContext = MDC.getCopyOfContextMap() != null
+                ? MDC.getCopyOfContextMap() : Collections.emptyMap();
+
         try {
             // Phase 1: Start parallel tasks that don't depend on tailored CV
             // - Tailor the CV content
             // - Calculate ORIGINAL ATS score (before tailoring)
             // - Other optional tasks
             CompletableFuture<ResumeData> tailoredCvFuture = CompletableFuture.supplyAsync(
-                    () -> tailorCvContent(request.getResumeData(), request.getJobDescription(), tokenTracker),
+                    withMdc(mdcContext, () -> tailorCvContent(request.getResumeData(), request.getJobDescription(), tokenTracker)),
                     executor);
 
             // Calculate ORIGINAL CV's ATS score for "before" comparison
             CompletableFuture<AtsScore> originalAtsScoreFuture = CompletableFuture.supplyAsync(
-                    () -> calculateAtsScore(request.getResumeData(), request.getJobDescription(), tokenTracker),
+                    withMdc(mdcContext, () -> calculateAtsScore(request.getResumeData(), request.getJobDescription(), tokenTracker)),
                     executor);
 
             CompletableFuture<InterviewPrep> interviewFuture = request.isIncludeInterviewQuestions()
                     ? CompletableFuture.supplyAsync(
-                            () -> generateInterviewQuestions(request, tokenTracker), executor)
+                            withMdc(mdcContext, () -> generateInterviewQuestions(request, tokenTracker)), executor)
                     : CompletableFuture.completedFuture(null);
 
             CompletableFuture<Roadmap> roadmapFuture = request.isIncludeRoadmap()
                     ? CompletableFuture.supplyAsync(
-                            () -> generateRoadmap(request, tokenTracker), executor)
+                            withMdc(mdcContext, () -> generateRoadmap(request, tokenTracker)), executor)
                     : CompletableFuture.completedFuture(null);
 
             CompletableFuture<String> coverLetterFuture = request.isGenerateCoverLetter()
                     ? CompletableFuture.supplyAsync(
-                            () -> generateCoverLetter(request, tokenTracker), executor)
+                            withMdc(mdcContext, () -> generateCoverLetter(request, tokenTracker)), executor)
                     : CompletableFuture.completedFuture(null);
 
             // Wait for tailored CV to be ready first
@@ -274,7 +283,7 @@ public class CvEnhancementService {
 
             // Phase 2: Calculate TAILORED CV's ATS score (this is the "after" score)
             CompletableFuture<AtsScore> tailoredAtsScoreFuture = CompletableFuture.supplyAsync(
-                    () -> calculateAtsScore(refinedCv, request.getJobDescription(), tokenTracker), executor);
+                    withMdc(mdcContext, () -> calculateAtsScore(refinedCv, request.getJobDescription(), tokenTracker)), executor);
 
             // Wait for all remaining futures
             CompletableFuture.allOf(originalAtsScoreFuture, tailoredAtsScoreFuture,
@@ -946,5 +955,27 @@ public class CvEnhancementService {
                 .map(item -> item.getTitle() != null ? item.getTitle().trim().toLowerCase() : "")
                 .filter(title -> !title.isEmpty())
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * Wraps a Supplier to propagate MDC context into async threads.
+     * Ensures requestId appears in log lines from CompletableFuture worker threads.
+     */
+    private <T> Supplier<T> withMdc(Map<String, String> mdcContext, Supplier<T> supplier) {
+        return () -> {
+            Map<String, String> previous = MDC.getCopyOfContextMap();
+            if (mdcContext != null) {
+                MDC.setContextMap(mdcContext);
+            }
+            try {
+                return supplier.get();
+            } finally {
+                if (previous != null) {
+                    MDC.setContextMap(previous);
+                } else {
+                    MDC.clear();
+                }
+            }
+        };
     }
 }
