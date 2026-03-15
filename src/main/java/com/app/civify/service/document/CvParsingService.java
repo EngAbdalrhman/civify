@@ -78,8 +78,10 @@ public class CvParsingService {
             1. Extract ALL content.
             2. Use original language.
             3. Valid YAML only. Do NOT return JSON. Do NOT include markdown fences.
-            4. CRITICAL: ALWAYS wrap key string values in double quotes if they contain special characters (like :) or just always quote them to be safe. E.g. title: "Software Engineer".
-            5. Escape special characters inside strings.
+            4. CRITICAL: ALWAYS wrap ALL string values in double quotes. E.g. title: "Software Engineer", description: "Worked on: backend systems". NEVER leave string values unquoted.
+            5. CRITICAL: If a string value contains a colon (:), it MUST be wrapped in double quotes.
+            6. Escape special characters inside quoted strings (use \" for quotes).
+            7. For multi-line text, use a single quoted line or YAML block scalar (|) syntax.
 
             CV Text:
             {CV_TEXT}
@@ -214,8 +216,10 @@ public class CvParsingService {
             1. Extract ALL content.
             2. Use original language.
             3. Valid YAML only.
-            4. CRITICAL: ALWAYS wrap string values in double quotes.
-            5. Escape special characters inside strings.
+            4. CRITICAL: ALWAYS wrap ALL string values in double quotes. E.g. title: "Software Engineer", description: "Worked on: backend systems". NEVER leave string values unquoted.
+            5. CRITICAL: If a string value contains a colon (:), it MUST be wrapped in double quotes.
+            6. Escape special characters inside quoted strings (use \" for quotes).
+            7. For multi-line text, use a single quoted line or YAML block scalar (|) syntax.
 
             CV Text:
             {CV_TEXT}
