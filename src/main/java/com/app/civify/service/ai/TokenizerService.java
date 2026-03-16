@@ -46,6 +46,7 @@ public class TokenizerService {
             return heuristicTokens(text);
         }
     }
+
     private String buildRequest(String text) throws Exception {
         ObjectNode root = om.createObjectNode();
         ArrayNode contents = om.createArrayNode();
@@ -75,10 +76,12 @@ public class TokenizerService {
     /**
      * Estimate total token cost for a prompt, accounting for expected output
      * and model thinking overhead.
-     * @param promptTokens - counted input tokens
+     *
+     * @param promptTokens     - counted input tokens
      * @param outputMultiplier - expected output size relative to input (e.g., 2.0 for structured parsing)
      * @param thinkingOverhead - additional thinking tokens (e.g., 1.5 for gemini-2.5-flash)
      */
     public int estimateTotalCost(int promptTokens, double outputMultiplier, double thinkingOverhead) {
         return (int) Math.ceil(promptTokens * (1.0 + outputMultiplier + thinkingOverhead));
     }
+}
