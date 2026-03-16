@@ -166,6 +166,8 @@ public class CvEnhancementService {
               - common missing elements (e.g., "quantifiable metrics", "action verbs")
             suggestions:
               - specific improvement suggestions
+
+            CRITICAL: DO NOT use any markdown formatting, bold (**), or asterisks in your YAML output. Return plain text only for all values.
             """;
 
     private static final String INTERVIEW_QUESTIONS_PROMPT = """
@@ -180,6 +182,8 @@ public class CvEnhancementService {
               - question: text
                 hint: brief answer guidance
                 category: behavioral|technical|situational
+
+            CRITICAL: DO NOT use any markdown formatting, bold (**), or asterisks in your YAML output. Return plain text only for all values.
             """;
 
     private static final String ROADMAP_PROMPT = """
@@ -197,6 +201,8 @@ public class CvEnhancementService {
             steps:
               - step: action description
                 timeframe: 1-2 weeks|1 month|2-3 months
+
+            CRITICAL: DO NOT use any markdown formatting, bold (**), or asterisks in your YAML output. Return plain text only for all values.
             """;
 
     private static final String COVER_LETTER_PROMPT = """
@@ -806,11 +812,24 @@ public class CvEnhancementService {
                     .suggestions(extractStringList(root.path("suggestions")))
                     .build();
         } catch (Exception e) {
-            log.error("Error parsing YAML to AtsScore: {}", e.getMessage());
-            return AtsScore.builder()
-                    .overall(-1)
-                    .suggestions(List.of("Error parsing AI response"))
-                    .build();
+            log.warn("First YAML parse failed for AtsScore, attempting sanitization: {}", e.getMessage());
+            try {
+                String sanitized = sanitizeYamlValues(yaml);
+                com.fasterxml.jackson.databind.JsonNode root = YAML_MAPPER.readTree(sanitized);
+                return AtsScore.builder()
+                        .overall(root.path("overall").asInt(0))
+                        .keywordMatch(root.path("keywordMatch").asInt(0))
+                        .skillsMatch(root.path("skillsMatch").asInt(0))
+                        .missingKeywords(extractStringList(root.path("missingKeywords")))
+                        .suggestions(extractStringList(root.path("suggestions")))
+                        .build();
+            } catch (Exception e2) {
+                log.error("Error parsing YAML to AtsScore after sanitization: {}", e2.getMessage());
+                return AtsScore.builder()
+                        .overall(-1)
+                        .suggestions(List.of("Error parsing AI response"))
+                        .build();
+            }
         }
     }
 
@@ -886,12 +905,24 @@ public class CvEnhancementService {
      */
     private String sanitizeYamlValues(String yaml) {
         if (yaml == null || yaml.isBlank()) return yaml;
-        // Regex matches lines like: \s*-\s+key:\s+value with colon
-        // It captures group 1: "  - step: "
-        // and group 2: "Master OAuth 2.0: protocol"
-        // Ensure group 2 doesn't start or end with quotes already.
-        // The (?m) enables multiline mode for ^ to match line starts.
-        return yaml.replaceAll("(?m)^(\\s*-\\s+[a-zA-Z0-9_]+:\\s+)(?![\"'])(.*?:.*)(?<![\"'])$", "$1\"$2\"");
+
+        // Step 1: Strip markdown block ticks if present
+        String sanitized = yaml.replaceAll("(?m)^```(yaml)?\\s*$", "");
+
+        // Step 2: Strip markdown bold markers (** or *) which YAML interprets as alias syntax
+        // The AI frequently outputs: - step: **Phase 1: Core Backend**
+        sanitized = sanitized.replaceAll("\\*+", "");
+
+        // Step 3: Quote plain list items that contain colons
+        // Example: "  - Address Experience Gap: The minimum..." -> "  - \"Address Experience Gap: The minimum...\""
+        // The negative lookahead (?![a-zA-Z0-9_]+:\s+) ensures we don't accidentally match map sub-keys like "- step: "
+        sanitized = sanitized.replaceAll("(?m)^(\\s*-\\s+)(?![a-zA-Z0-9_]+:\\s+)(?![\"'])(.*?:.*)(?<![\"'])$", "$1\"$2\"");
+
+        // Step 4: Quote unquoted map values that contain colons
+        // Example: "- step: Master OAuth 2.0: standard protocol" -> "- step: \"Master OAuth 2.0: standard protocol\""
+        sanitized = sanitized.replaceAll("(?m)^(\\s*-?\\s*[a-zA-Z0-9_]+:\\s+)(?![\"'])(.*?:.*)(?<![\"'])$", "$1\"$2\"");
+
+        return sanitized;
     }
 
     private String extractFullText(ResumeData resumeData) {
