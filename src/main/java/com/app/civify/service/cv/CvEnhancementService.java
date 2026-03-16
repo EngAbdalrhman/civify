@@ -27,6 +27,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.slf4j.MDC;
@@ -913,14 +915,29 @@ public class CvEnhancementService {
         // The AI frequently outputs: - step: **Phase 1: Core Backend**
         sanitized = sanitized.replaceAll("\\*+", "");
 
-        // Step 3: Quote plain list items that contain colons
-        // Example: "  - Address Experience Gap: The minimum..." -> "  - \"Address Experience Gap: The minimum...\""
-        // The negative lookahead (?![a-zA-Z0-9_]+:\s+) ensures we don't accidentally match map sub-keys like "- step: "
-        sanitized = sanitized.replaceAll("(?m)^(\\s*-\\s+)(?![a-zA-Z0-9_]+:\\s+)(?![\"'])(.*?:.*)(?<![\"'])$", "$1\"$2\"");
+        // Step 3: Quote plain list items that contain colons, escaping internal quotes
+        // Example: "  - Address Experience Gap: The \"minimum\"..." -> "  - \"Address Experience Gap: The \\\"minimum\\\"...\""
+        Matcher listMatcher = Pattern.compile("(?m)^(\\s*-\\s+)(?![a-zA-Z0-9_]+:\\s+)(?![\"'])(.*?:.*)(?<![\"'])$").matcher(sanitized);
+        StringBuffer listSb = new StringBuffer();
+        while (listMatcher.find()) {
+            String prefix = listMatcher.group(1);
+            String content = listMatcher.group(2).replace("\"", "\\\"");
+            listMatcher.appendReplacement(listSb, Matcher.quoteReplacement(prefix + "\"" + content + "\""));
+        }
+        listMatcher.appendTail(listSb);
+        sanitized = listSb.toString();
 
-        // Step 4: Quote unquoted map values that contain colons
-        // Example: "- step: Master OAuth 2.0: standard protocol" -> "- step: \"Master OAuth 2.0: standard protocol\""
-        sanitized = sanitized.replaceAll("(?m)^(\\s*-?\\s*[a-zA-Z0-9_]+:\\s+)(?![\"'])(.*?:.*)(?<![\"'])$", "$1\"$2\"");
+        // Step 4: Quote unquoted map values that contain colons, escaping internal quotes
+        // Example: "- step: Master OAuth 2.0: protocol \"A\"" -> "- step: \"Master OAuth 2.0: protocol \\\"A\\\"\""
+        Matcher mapMatcher = Pattern.compile("(?m)^(\\s*-?\\s*[a-zA-Z0-9_]+:\\s+)(?![\"'])(.*?:.*)(?<![\"'])$").matcher(sanitized);
+        StringBuffer mapSb = new StringBuffer();
+        while (mapMatcher.find()) {
+            String prefix = mapMatcher.group(1);
+            String content = mapMatcher.group(2).replace("\"", "\\\"");
+            mapMatcher.appendReplacement(mapSb, Matcher.quoteReplacement(prefix + "\"" + content + "\""));
+        }
+        mapMatcher.appendTail(mapSb);
+        sanitized = mapSb.toString();
 
         return sanitized;
     }
