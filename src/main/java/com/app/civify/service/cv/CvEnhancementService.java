@@ -852,8 +852,14 @@ public class CvEnhancementService {
         try {
             return YAML_MAPPER.readValue(yaml, InterviewPrep.class);
         } catch (Exception e) {
-            log.error("Error parsing YAML to InterviewPrep: {}", e.getMessage());
-            return null;
+            log.warn("First YAML parse failed for InterviewPrep, attempting sanitization: {}", e.getMessage());
+            try {
+                String sanitized = sanitizeYamlValues(yaml);
+                return YAML_MAPPER.readValue(sanitized, InterviewPrep.class);
+            } catch (Exception e2) {
+                log.error("Error parsing YAML to InterviewPrep after sanitization: {}", e2.getMessage());
+                return null;
+            }
         }
     }
 
@@ -861,9 +867,31 @@ public class CvEnhancementService {
         try {
             return YAML_MAPPER.readValue(yaml, Roadmap.class);
         } catch (Exception e) {
-            log.error("Error parsing YAML to Roadmap: {}", e.getMessage());
-            return null;
+            log.warn("First YAML parse failed for Roadmap, attempting sanitization: {}", e.getMessage());
+            try {
+                String sanitized = sanitizeYamlValues(yaml);
+                return YAML_MAPPER.readValue(sanitized, Roadmap.class);
+            } catch (Exception e2) {
+                log.error("Error parsing YAML to Roadmap after sanitization: {}", e2.getMessage());
+                return null;
+            }
         }
+    }
+
+    /**
+     * Sanitizes YAML output from the AI model by quoting unquoted string values that contain colons.
+     * This prevents errors like "expected a single document in the stream but found another document"
+     * or "mapping values are not allowed here" when the AI outputs:
+     * - step: Master OAuth 2.0: standard protocol
+     */
+    private String sanitizeYamlValues(String yaml) {
+        if (yaml == null || yaml.isBlank()) return yaml;
+        // Regex matches lines like: \s*-\s+key:\s+value with colon
+        // It captures group 1: "  - step: "
+        // and group 2: "Master OAuth 2.0: protocol"
+        // Ensure group 2 doesn't start or end with quotes already.
+        // The (?m) enables multiline mode for ^ to match line starts.
+        return yaml.replaceAll("(?m)^(\\s*-\\s+[a-zA-Z0-9_]+:\\s+)(?![\"'])(.*?:.*)(?<![\"'])$", "$1\"$2\"");
     }
 
     private String extractFullText(ResumeData resumeData) {

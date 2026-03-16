@@ -23,6 +23,12 @@ public class GeminiAiProvider implements AiProvider {
     @Value("${gemini.api.key:}")
     private String apiKey;
 
+    @Value("${ai.model.maxOutputTokens:8192}")
+    private int maxOutputTokens;
+
+    @Value("${ai.model.thinkingBudget:1024}")
+    private int thinkingBudget;
+
     public GeminiAiProvider(GeminiAiClient client, ObjectMapper objectMapper) {
         this.client = client;
         this.objectMapper = objectMapper;
@@ -34,10 +40,14 @@ public class GeminiAiProvider implements AiProvider {
             Map<String, Object> textPart = Map.of("text", prompt);
             Map<String, Object> parts = Map.of("parts", List.of(textPart));
 
-            Map<String, Object> generationConfig = Map.of(
+            Map<String, Object> generationConfig = new java.util.HashMap<>(Map.of(
                 "temperature", 0.2,
-                "maxOutputTokens", 65536
-            );
+                "maxOutputTokens", maxOutputTokens
+            ));
+
+            if (thinkingBudget > 0) {
+                generationConfig.put("thinkingConfig", Map.of("thinkingBudget", thinkingBudget));
+            }
 
             Map<String, Object> requestMap = Map.of(
                 "contents", List.of(parts),
