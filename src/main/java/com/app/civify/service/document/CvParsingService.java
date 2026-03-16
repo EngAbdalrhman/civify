@@ -124,8 +124,10 @@ public class CvParsingService {
             String truncatedText = truncateForAi(processedDoc.getRawText());
 
             // Use accurate tokenizer instead of heuristic
-            int estimatedTokens = tokenizerService.countTokens(truncatedText);
-            log.info("Estimated tokens for CV parsing: {}", estimatedTokens);
+            // Using a multiplier of 2.0 (for structured JSON output) and 1.5 (for reasoning budget)
+            int expectedPromptLength = tokenizerService.countTokens(truncatedText) + 300; // rough template size
+            int estimatedTokens = tokenizerService.estimateTotalCost(expectedPromptLength, 2.0, 1.5);
+            log.info("Estimated tokens for CV parsing: {} (prompt base: {})", estimatedTokens, expectedPromptLength);
 
             if (!subscriptionService.canUserUseTokens(userId, estimatedTokens)) {
                 return CvParseResponse.builder()
