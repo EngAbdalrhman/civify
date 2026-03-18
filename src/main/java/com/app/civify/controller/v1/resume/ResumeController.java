@@ -3,15 +3,13 @@ package com.app.civify.controller.v1.resume;
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.resume.CreateResumeRequest;
 import com.app.civify.dto.resume.ResumeDto;
+import com.app.civify.dto.resume.ResumeListDto;
 import com.app.civify.dto.resume.UpdateResumeRequest;
-import com.app.civify.entity.User;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.ResumeService;
-import com.app.civify.service.user.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,15 +21,15 @@ import java.util.List;
 public class ResumeController {
 
     private final ResumeService resumeService;
-    private final UserService userService;
 
     @GetMapping
-    public ResponseEntity<List<ResumeDto>> getUserResumes(@AuthenticationPrincipal UserPrincipal userDetails) {
+    public ResponseEntity<List<ResumeListDto>> getUserResumes(@AuthenticationPrincipal UserPrincipal userDetails) {
         return ResponseEntity.ok(resumeService.getAllResumesForUser(userDetails.getId()));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ResumeDto> getResume(@PathVariable String id, @AuthenticationPrincipal UserPrincipal userDetails) {
+    public ResponseEntity<ResumeDto> getResume(@PathVariable String id,
+            @AuthenticationPrincipal UserPrincipal userDetails) {
         return ResponseEntity.ok(resumeService.getResumeById(id, userDetails.getId()));
     }
 
@@ -39,7 +37,8 @@ public class ResumeController {
     public ResponseEntity<ResumeDto> createResume(
             @AuthenticationPrincipal UserPrincipal userDetails,
             @RequestBody CreateResumeRequest request) {
-        return ResponseEntity.ok(resumeService.createResume(userDetails.getId(), request.getTitle(), request.getData()));
+        return ResponseEntity
+                .ok(resumeService.createResume(userDetails.getId(), request.getTitle(), request.getData()));
     }
 
     @PutMapping("/{id}")
@@ -47,11 +46,13 @@ public class ResumeController {
             @PathVariable String id,
             @AuthenticationPrincipal UserPrincipal userDetails,
             @RequestBody UpdateResumeRequest request) {
-        return ResponseEntity.ok(resumeService.updateResume(id, userDetails.getId(), request.getTitle(), request.getData()));
+        return ResponseEntity
+                .ok(resumeService.updateResume(id, userDetails.getId(), request.getTitle(), request.getData()));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteResume(@PathVariable String id, @AuthenticationPrincipal UserPrincipal userDetails) {
+    public ResponseEntity<Void> deleteResume(@PathVariable String id,
+            @AuthenticationPrincipal UserPrincipal userDetails) {
         resumeService.deleteResume(id, userDetails.getId());
         return ResponseEntity.noContent().build();
     }

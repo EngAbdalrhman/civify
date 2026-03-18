@@ -52,7 +52,7 @@ public class UsageTrackingServiceImpl implements UsageTrackingService {
             return true; // Unlimited
         }
 
-        long storedCount = resumeRepository.countByUserId(userId);
+        long storedCount = resumeRepository.countByUserIdAndIsDeletedFalse(userId);
         return storedCount < cvLimit;
     }
 
@@ -93,7 +93,7 @@ public class UsageTrackingServiceImpl implements UsageTrackingService {
         }
 
         Integer cvLimit = subscription.getPlan().getCvLimit();
-        long storedResumeCount = resumeRepository.countByUserId(userId);
+        long storedResumeCount = resumeRepository.countByUserIdAndIsDeletedFalse(userId);
 
         return UsageStats.builder()
                 .subscriptionId(subscription.getId())
@@ -113,7 +113,7 @@ public class UsageTrackingServiceImpl implements UsageTrackingService {
     public long getStoredCvCount(Long userId, CvGenerationType generationType) {
         // Since we removed Cv entity, we just count resumes
         // The generationType parameter is kept for interface compatibility but ignored
-        return resumeRepository.countByUserId(userId);
+        return resumeRepository.countByUserIdAndIsDeletedFalse(userId);
     }
 
     /**
