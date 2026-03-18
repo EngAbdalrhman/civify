@@ -28,14 +28,14 @@ public class ResumeService {
 
     @Transactional(readOnly = true)
     public List<ResumeListDto> getAllResumesForUser(Long userId) {
-        return resumeRepository.findByUserIdAndIsDeletedFalse(userId).stream()
+        return resumeRepository.findByUserId(userId).stream()
                 .map(this::mapToListDto)
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public ResumeDto getResumeById(String id, Long userId) {
-        Resume resume = resumeRepository.findByIdAndUserIdAndIsDeletedFalse(id, userId)
+        Resume resume = resumeRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Resume not found or access denied"));
         return mapToDto(resume);
     }
@@ -44,7 +44,7 @@ public class ResumeService {
     public ResumeDto createResume(Long userId, String title, ResumeData initialData) {
         // Check if user can store more resumes based on subscription plan
         if (!usageTrackingService.canStoreResume(userId)) {
-            long currentCount = resumeRepository.countByUserIdAndIsDeletedFalse(userId);
+            long currentCount = resumeRepository.countByUserId(userId);
             log.warn("User {} has reached resume storage limit. Current count: {}", userId, currentCount);
             throw new BadRequestException("resume.storage.limit.reached");
         }
@@ -65,7 +65,7 @@ public class ResumeService {
 
     @Transactional
     public ResumeDto updateResume(String id, Long userId, String title, ResumeData data) {
-        Resume resume = resumeRepository.findByIdAndUserIdAndIsDeletedFalse(id, userId)
+        Resume resume = resumeRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Resume not found or access denied"));
 
         if (title != null) {
@@ -81,7 +81,7 @@ public class ResumeService {
 
     @Transactional
     public void deleteResume(String id, Long userId) {
-        Resume resume = resumeRepository.findByIdAndUserIdAndIsDeletedFalse(id, userId)
+        Resume resume = resumeRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Resume not found or access denied"));
         resume.setIsDeleted(true);
         resumeRepository.save(resume);
@@ -90,7 +90,7 @@ public class ResumeService {
 
     @Transactional(readOnly = true)
     public long getResumeCountForUser(Long userId) {
-        return resumeRepository.countByUserIdAndIsDeletedFalse(userId);
+        return resumeRepository.countByUserId(userId);
     }
 
     private ResumeDto mapToDto(Resume resume) {

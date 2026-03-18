@@ -57,7 +57,7 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
 
         for (UserResponseDTO dto : userDTOs) {
             // Resume Count (stored resumes)
-            dto.setCvCount((int) resumeRepository.countByUserIdAndIsDeletedFalse(dto.getId()));
+            dto.setCvCount((int) resumeRepository.countByUserId(dto.getId()));
 
             // API Usage Count (External Keys)
             dto.setApiUsageCount(Math.toIntExact(apiKeyUsageLogRepository.countByUserIdAndMonth(dto.getId(), currentMonth)));
