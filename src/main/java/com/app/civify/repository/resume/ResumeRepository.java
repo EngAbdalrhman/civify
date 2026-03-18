@@ -9,7 +9,11 @@ import java.util.Optional;
 
 @Repository
 public interface ResumeRepository extends JpaRepository<Resume, String> {
+
     List<Resume> findByUserId(Long userId);
+
+    //    @Query("select r from Resume r where r.user.id = :userId and r.isDeleted != true")
     Optional<Resume> findByIdAndUserId(String id, Long userId);
+
     long countByUserId(Long userId);
 }

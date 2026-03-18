@@ -2,6 +2,7 @@ package com.app.civify.service;
 
 import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.dto.resume.ResumeDto;
+import com.app.civify.dto.resume.ResumeListDto;
 import com.app.civify.entity.resume.Resume;
 import com.app.civify.entity.User;
 import com.app.civify.exception.BadRequestException;
@@ -26,9 +27,9 @@ public class ResumeService {
     private final UsageTrackingService usageTrackingService;
 
     @Transactional(readOnly = true)
-    public List<ResumeDto> getAllResumesForUser(Long userId) {
+    public List<ResumeListDto> getAllResumesForUser(Long userId) {
         return resumeRepository.findByUserId(userId).stream()
-                .map(this::mapToDto)
+                .map(this::mapToListDto)
                 .collect(Collectors.toList());
     }
 
@@ -97,6 +98,15 @@ public class ResumeService {
                 .id(resume.getId())
                 .title(resume.getTitle())
                 .data(resume.getData())
+                .createdAt(resume.getCreatedAt())
+                .updatedAt(resume.getUpdatedAt())
+                .build();
+    }
+
+    private ResumeListDto mapToListDto(Resume resume) {
+        return ResumeListDto.builder()
+                .id(resume.getId())
+                .title(resume.getTitle())
                 .createdAt(resume.getCreatedAt())
                 .updatedAt(resume.getUpdatedAt())
                 .build();
