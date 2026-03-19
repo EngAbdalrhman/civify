@@ -30,6 +30,8 @@ public interface UserMapper extends CommonMapper<User, UserDto> {
     @Mapping(target = "status", ignore = true)
     @Mapping(target = "preferredLanguage", ignore = true)
     @Mapping(target = "preferredTheme", ignore = true)
+    @Mapping(target = "welcomeEmailSent", ignore = true)
+    @Mapping(target = "groupName", ignore = true)
     User toEntity(UserDto dto);
 
 }
