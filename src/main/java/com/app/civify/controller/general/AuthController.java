@@ -136,7 +136,7 @@ public class AuthController {
      */
     @GetMapping("/permissions")
     public ResponseEntity<PermissionsResponse> getUserPermissions(
-            @RequestHeader("Authorization") String authHeader) {
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
         
         // Extract token from "Bearer <token>" header
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {

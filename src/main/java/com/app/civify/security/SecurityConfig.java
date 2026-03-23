@@ -7,6 +7,7 @@ import com.app.civify.security.filter.JwtValidationFilter;
 import com.app.civify.filter.RateLimitFilter;
 import com.app.civify.service.auth.TokenService;
 import com.app.civify.util.JwtUtil;
+import com.app.civify.security.repository.HttpCookieOAuth2AuthorizationRequestRepository;
 import jakarta.servlet.http.Cookie;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.LoggerFactory;
@@ -25,6 +26,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -49,7 +51,8 @@ public class SecurityConfig {
     private final JwtUtil jwtUtil;
     private final CustomOAuth2UserService oAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
-    private final org.springframework.security.oauth2.client.registration.ClientRegistrationRepository clientRegistrationRepository;
+    private final ClientRegistrationRepository clientRegistrationRepository;
+    private final HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository;
 
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
     private final RateLimitFilter rateLimitFilter;
@@ -210,6 +213,7 @@ public class SecurityConfig {
                 .oauth2Login(oauth2 -> oauth2
                         .authorizationEndpoint(auth -> auth
                                 .authorizationRequestResolver(linkedInAuthorizationRequestResolver())
+                                .authorizationRequestRepository(cookieAuthorizationRequestRepository)
                         )
                         .userInfoEndpoint(userInfo -> userInfo
                                 .userService(oAuth2UserService)
