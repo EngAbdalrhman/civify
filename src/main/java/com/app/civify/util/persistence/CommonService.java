@@ -37,12 +37,12 @@ public class CommonService {
      * pagination
      * @return Page of filtered entities
      */
-
     @Autowired
     private FilterMappingResolver filterMappingResolver;
+
     public <T> Page<T> filterEntities(JpaSpecificationExecutor<T> repository,
-                                      InputDataModel inputData,
-                                      Class<T> entityClass) {
+            InputDataModel inputData,
+            Class<T> entityClass) {
 
         filterMappingResolver.applyMappings(inputData, entityClass);
 
@@ -52,6 +52,7 @@ public class CommonService {
 
         return repository.findAll(spec, pageable);
     }
+
     public <T> Page<T> filterEntities(JpaSpecificationExecutor<T> repository, InputDataModel inputData) {
 
         Specification<T> spec = createSpecificationFromInputData(inputData);
@@ -350,7 +351,7 @@ public class CommonService {
 
         for (int i = 0; i < parts.length; i++) {
             String part = parts[i];
-            
+
             if (i < parts.length - 1) {
                 // Check if we need to join
                 // We try to reuse existing joins if possible to avoid duplicate joins
@@ -362,7 +363,7 @@ public class CommonService {
                         break;
                     }
                 }
-                
+
                 if (!joinFound) {
                     // Create new join
                     // Default to LEFT join to include parents even if child is missing (though for filtering usually we want matches)
@@ -417,11 +418,12 @@ public class CommonService {
     /**
      * Helper to convert value to target type
      */
+    @SuppressWarnings("unchecked")
     private Object convertValue(Object value, Class<?> targetType) {
         if (value == null) {
             return null;
         }
-        
+
         if (targetType.isAssignableFrom(value.getClass())) {
             return value;
         }
@@ -441,7 +443,7 @@ public class CommonService {
         } else if (targetType.equals(LocalDate.class)) {
             return LocalDate.parse(stringValue);
         } else if (Enum.class.isAssignableFrom(targetType)) {
-             // Handle Enums
+            // Handle Enums
             return Enum.valueOf((Class<Enum>) targetType, stringValue);
         }
 

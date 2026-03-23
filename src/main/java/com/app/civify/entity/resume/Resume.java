@@ -46,6 +46,7 @@ public class Resume {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    @Builder.Default
     @ColumnDefault("false")
     private Boolean isDeleted = false;
 }
