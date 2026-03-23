@@ -67,4 +67,10 @@ public class UserDto {
     @Schema(description = "OAuth Subject (User ID from Provider)")
     private String oauthSubject;
 
+    @Schema(description = "User's referral code", example = "A1B2C3D4")
+    private String referralCode;
+
+    @Schema(description = "Number of users referred by this user", example = "5")
+    private Integer referralCount;
+
 }

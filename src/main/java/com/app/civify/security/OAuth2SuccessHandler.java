@@ -5,6 +5,7 @@ import com.app.civify.repository.security.GroupRepository;
 import com.app.civify.repository.UserRepository;
 
 import com.app.civify.service.auth.TokenService;
+import com.app.civify.service.referral.ReferralService;
 import com.app.civify.service.subscription.SubscriptionService;
 import com.app.civify.util.JwtConstants;
 import jakarta.servlet.ServletException;
@@ -38,6 +39,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     private final GroupRepository groupRepository;
     private final SubscriptionService subscriptionService;
     private final TokenService tokenService;
+    private final ReferralService referralService;
 
     @Value("${app.frontend.base-url}")
     private String frontendUrl;
@@ -75,6 +77,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             newUser.setOauthProvider(finalProvider);
             newUser.setOauthSubject(providerId);
             newUser.setTwoFactorEnabled(false);
+            newUser.setReferralCode(referralService.generateUniqueCode());
 
             // Assign default group
             groupRepository.findByIsDefaultTrue()

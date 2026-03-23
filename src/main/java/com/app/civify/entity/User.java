@@ -141,6 +141,18 @@ public class User extends BaseEntity implements Serializable {
     @Column(name = "welcome_email_sent", nullable = false)
     private Boolean welcomeEmailSent = false;
 
+    // Referral System
+    @Column(name = "referral_code", unique = true, length = 12)
+    private String referralCode;
+
+    @Column(name = "referred_by_code", length = 12)
+    private String referredByCode;
+
+    @Builder.Default
+    @ColumnDefault("0")
+    @Column(name = "referral_count", nullable = false)
+    private Integer referralCount = 0;
+
     // Relationships
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnore
