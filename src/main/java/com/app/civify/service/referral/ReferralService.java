@@ -52,7 +52,7 @@ public class ReferralService {
         // Prevent reapplying
         if (newReferralUser.getReferredByCode() != null) {
             log.warn("User {} already has a referredByCode. Cannot apply again.", newReferralUser.getId());
-            return;
+            throw new BadRequestException("referral.already.applied");
         }
 
         // Cannot refer yourself
