@@ -20,7 +20,7 @@ public class ReferralService {
 
     private final UserRepository userRepository;
 
-    @Value("${referral.token.reward:100}")
+    @Value("${referral.token.reward:5000}")
     private int referralRewardTokens;
 
     /**
@@ -63,25 +63,24 @@ public class ReferralService {
         // Find referring user
         Optional<User> referrerOpt = userRepository.findByReferralCode(referralCode);
         if (referrerOpt.isEmpty()) {
-            // Invalid code, but we might just ignore or throw error. Let's throw an error so the user knows.
+            // Invalid code, but we might just ignore or throw error. Let's throw an error
+            // so the user knows.
             throw new BadRequestException("referral.code.invalid");
         }
 
         User referrer = referrerOpt.get();
 
         // Update Referrer
-        referrer.setReferralCount(referrer.getReferralCount() + 1);
-        int updatedReferrerTokens = referrer.getExtraTokens() + referralRewardTokens;
-        userRepository.updateExtraTokens(referrer.getId(), updatedReferrerTokens);
-        userRepository.save(referrer); // to save referralCount
+        referrer.setReferralCount((referrer.getReferralCount() != null ? referrer.getReferralCount() : 0) + 1);
+        referrer.setExtraTokens((referrer.getExtraTokens() != null ? referrer.getExtraTokens() : 0) + referralRewardTokens);
+        userRepository.save(referrer);
 
         // Update New User
         newReferralUser.setReferredByCode(referralCode);
-        int updatedNewUserTokens = newReferralUser.getExtraTokens() + referralRewardTokens;
-        userRepository.updateExtraTokens(newReferralUser.getId(), updatedNewUserTokens);
+        newReferralUser.setExtraTokens((newReferralUser.getExtraTokens() != null ? newReferralUser.getExtraTokens() : 0) + referralRewardTokens);
         userRepository.save(newReferralUser);
 
-        log.info("Referral code {} applied successfully. Rewards given to User {} and User {}", 
+        log.info("Referral code {} applied successfully. Rewards given to User {} and User {}",
                 referralCode, referrer.getId(), newReferralUser.getId());
     }
 
