@@ -24,6 +24,8 @@ public interface UserRepository extends CommonRepo<User, Long> {
     @Query("SELECT u FROM User u WHERE u.email = :email AND u.isDeleted = false")
     Optional<User> findActiveByEmail(@Param("email") String email);
 
+    Optional<User> findByReferralCode(String referralCode);
+
     /**
      * Get only extraTokens (wallet balance) for a user.
      * Optimized query - avoids loading the entire User entity.

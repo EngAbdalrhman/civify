@@ -10,6 +10,8 @@ import com.app.civify.exception.BadRequestException;
 import com.app.civify.repository.security.GroupRepository;
 import com.app.civify.repository.UserRepository;
 import com.app.civify.service.bloomfilter.BloomFilterService;
+import com.app.civify.service.i18n.MessageService;
+import com.app.civify.service.referral.ReferralService;
 import com.app.civify.service.subscription.SubscriptionService;
 
 import lombok.RequiredArgsConstructor;
@@ -38,8 +40,9 @@ public class AuthServiceImpl implements AuthService {
     private final EmailVerificationService emailVerificationService;
     private final SubscriptionService subscriptionService;
     private final BloomFilterService bloomFilterService;
-    private final com.app.civify.service.i18n.MessageService messageService;
+    private final MessageService messageService;
     private final DisposableEmailValidator disposableEmailValidator;
+    private final ReferralService referralService;
 
     @Value("${email.verification.enabled:true}")
     private boolean emailVerificationEnabled;
@@ -87,7 +90,16 @@ public class AuthServiceImpl implements AuthService {
         user.setIsEmailVerified(!emailVerificationEnabled);
         
         user.setTwoFactorEnabled(false);
+        user.setReferralCode(referralService.generateUniqueCode());
         userRepository.save(user);
+
+        if (req.getReferralCode() != null && !req.getReferralCode().trim().isEmpty()) {
+            try {
+                referralService.applyReferralCode(user, req.getReferralCode());
+            } catch (Exception e) {
+                log.error("Failed to apply referral code during registration: {}", e.getMessage());
+            }
+        }
 
         bloomFilterService.addUsername(req.getUsername());
         bloomFilterService.addEmail(req.getEmail());

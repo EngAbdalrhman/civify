@@ -15,4 +15,7 @@ public class AuthRequest {
 
     @Schema(description = "Password for authentication", example = "SecurePassword123!", required = true)
     private String password;
+
+    @Schema(description = "Optional referral code provided during registration", example = "A1B2C3D4")
+    private String referralCode;
 }

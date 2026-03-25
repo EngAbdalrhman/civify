@@ -32,6 +32,9 @@ public interface UserMapper extends CommonMapper<User, UserDto> {
     @Mapping(target = "preferredTheme", ignore = true)
     @Mapping(target = "welcomeEmailSent", ignore = true)
     @Mapping(target = "groupName", ignore = true)
+    @Mapping(target = "referralCode", ignore = true)
+    @Mapping(target = "referralCount", ignore = true)
+    @Mapping(target = "referredByCode", ignore = true)
     User toEntity(UserDto dto);
 
 }
