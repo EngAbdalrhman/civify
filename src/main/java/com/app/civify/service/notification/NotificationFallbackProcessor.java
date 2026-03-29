@@ -55,16 +55,22 @@ public class NotificationFallbackProcessor {
                         .build();
 
                     // Attempt SSE delivery
-                    sseDeliveryService.deliver(message);
-                    
-                    notif.incrementDeliveryAttempts();
-                    
-                    // Mark as delivered if too many attempts (prevent infinite retries)
-                    if (notif.getDeliveryAttempts() >= 5) {
-                        log.warn("⚠️ Notification {} exceeded max delivery attempts, marking as delivered", notif.getId());
+                    boolean delivered = sseDeliveryService.deliver(message);
+
+                    if (delivered) {
+                        // Mark as delivered immediately so it won't be retried
                         notif.markAsDelivered();
+                        log.debug("✅ Fallback delivered notification {} via SSE", notif.getId());
+                    } else {
+                        notif.incrementDeliveryAttempts();
+
+                        // Mark as delivered if too many attempts (prevent infinite retries)
+                        if (notif.getDeliveryAttempts() >= 5) {
+                            log.warn("⚠️ Notification {} exceeded max delivery attempts, marking as delivered", notif.getId());
+                            notif.markAsDelivered();
+                        }
                     }
-                    
+
                     notificationRepository.save(notif);
                 }
             }

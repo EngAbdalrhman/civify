@@ -21,9 +21,10 @@ public class SseNotificationDeliveryService {
     private final CopyOnWriteArrayList<SseEmitter> broadcastConnections = new CopyOnWriteArrayList<>();
 
     /**
-     * Deliver notification to appropriate SSE clients
+     * Deliver notification to appropriate SSE clients.
+     * Returns true if at least one client received the notification.
      */
-    public void deliver(NotificationMessage message) {
+    public boolean deliver(NotificationMessage message) {
         Map<String, Object> notifData = Map.of(
             "id", message.getId(),
             "title", message.getTitle(),
@@ -33,49 +34,65 @@ public class SseNotificationDeliveryService {
         );
 
         if (message.getUserId() == null) {
-            sendToBroadcast(notifData);
+            // Broadcast: send to all connected authenticated users via their user emitters
+            return sendBroadcastToAllUsers(notifData);
         } else {
-            sendToUser(message.getUserId(), notifData);
+            return sendToUser(message.getUserId(), notifData);
         }
     }
 
     /**
-     * Send notification to all broadcast SSE connections
+     * Send broadcast notification to ALL authenticated users via their user-specific emitters.
+     * This avoids the double-delivery that occurred when users were also in broadcastConnections.
      */
-    private void sendToBroadcast(Map<String, Object> notifData) {
-        log.info("📢 Broadcasting to {} connections", broadcastConnections.size());
-
-        broadcastConnections.removeIf(emitter -> {
-            try {
-                emitter.send(SseEmitter.event()
-                        .name("notification")
-                        .data(notifData));
-                return false;
-            } catch (Exception e) {
-                log.warn("Failed to send to broadcast connection, removing");
-                return true;
+    private boolean sendBroadcastToAllUsers(Map<String, Object> notifData) {
+        if (userConnections.isEmpty()) {
+            log.debug("📢 No connected users for broadcast");
+            return false;
+        }
+        log.info("📢 Broadcasting to {} users", userConnections.size());
+        boolean[] anySuccess = {false};
+        userConnections.forEach((userId, emitters) -> {
+            emitters.removeIf(emitter -> {
+                try {
+                    emitter.send(SseEmitter.event()
+                            .name("notification")
+                            .data(notifData));
+                    anySuccess[0] = true;
+                    return false;
+                } catch (Exception e) {
+                    log.warn("Failed to send broadcast to user {} connection, removing", userId);
+                    return true;
+                }
+            });
+            if (emitters.isEmpty()) {
+                userConnections.remove(userId);
             }
         });
+        return anySuccess[0];
     }
 
     /**
-     * Send notification to specific user's SSE connections
+     * Send notification to specific user's SSE connections.
+     * Returns true if at least one emitter succeeded.
      */
-    private void sendToUser(Long userId, Map<String, Object> notifData) {
+    private boolean sendToUser(Long userId, Map<String, Object> notifData) {
         CopyOnWriteArrayList<SseEmitter> emitters = userConnections.get(userId);
 
         if (emitters == null || emitters.isEmpty()) {
             log.debug("No SSE connections for user {}, notification stored for later fetch", userId);
-            return;
+            return false;
         }
 
         log.info("📬 Sending to user {} ({} connections)", userId, emitters.size());
+        boolean[] anySuccess = {false};
 
         emitters.removeIf(emitter -> {
             try {
                 emitter.send(SseEmitter.event()
                         .name("notification")
                         .data(notifData));
+                anySuccess[0] = true;
                 return false;
             } catch (Exception e) {
                 log.warn("Failed to send to user {} connection, removing", userId);
@@ -86,7 +103,10 @@ public class SseNotificationDeliveryService {
         if (emitters.isEmpty()) {
             userConnections.remove(userId);
         }
+
+        return anySuccess[0];
     }
+
 
     /**
      * Register SSE connection for a user
