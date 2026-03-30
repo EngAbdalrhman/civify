@@ -109,11 +109,27 @@ public class SseNotificationDeliveryService {
 
 
     /**
-     * Register SSE connection for a user
+     * Register SSE connection for a user.
+     * Enforces SINGLE connection per user — closes any existing emitters first
+     * to prevent stale connection accumulation.
      */
     public void registerUserConnection(Long userId, SseEmitter emitter) {
+        // Close any existing connections for this user (prevent stale accumulation)
+        CopyOnWriteArrayList<SseEmitter> existing = userConnections.get(userId);
+        if (existing != null && !existing.isEmpty()) {
+            log.info("🔄 Closing {} existing SSE connection(s) for user {}", existing.size(), userId);
+            for (SseEmitter old : existing) {
+                try {
+                    old.complete(); // gracefully close
+                } catch (Exception e) {
+                    // ignore — already dead
+                }
+            }
+            existing.clear();
+        }
+
         userConnections.computeIfAbsent(userId, k -> new CopyOnWriteArrayList<>()).add(emitter);
-        log.info("✅ Registered SSE connection for user {}", userId);
+        log.info("✅ Registered SSE connection for user {} (1 connection)", userId);
 
         emitter.onCompletion(() -> removeUserConnection(userId, emitter));
         emitter.onTimeout(() -> removeUserConnection(userId, emitter));
