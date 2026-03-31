@@ -40,10 +40,15 @@ public class PubSubNotificationListener {
                     notifMessage.getId(), notifMessage.getUserId() != null ? notifMessage.getUserId() : "BROADCAST");
 
             // Deliver via SSE to connected clients
-            sseDeliveryService.deliver(notifMessage);
+            boolean delivered = sseDeliveryService.deliver(notifMessage);
 
-            // Mark as delivered in database
-            markAsDelivered(notifMessage.getId());
+            // Only mark as delivered if SSE actually reached a client.
+            // If user is offline, leave undelivered so FallbackProcessor can retry.
+            if (delivered) {
+                markAsDelivered(notifMessage.getId());
+            } else {
+                log.info("📭 No active SSE client for notification {}, will retry via fallback", notifMessage.getId());
+            }
 
             // Acknowledge the message
             if (originalMessage != null) {

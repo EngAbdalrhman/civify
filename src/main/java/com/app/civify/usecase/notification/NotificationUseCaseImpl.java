@@ -50,9 +50,10 @@ public class NotificationUseCaseImpl implements NotificationUseCase {
         }
 
         try {
-            // Register connection with SSE delivery service
+            // Register connection with SSE delivery service (user-specific only).
+            // Authenticated users do NOT go into broadcastConnections — broadcasts reach them
+            // via sendBroadcastToAllUsers() which iterates the userConnections map.
             sseDeliveryService.registerUserConnection(user.getId(), emitter);
-            sseDeliveryService.registerBroadcastConnection(emitter); // Also receive broadcasts
 
             // Send any undelivered notifications immediately
             sendMissedNotifications(user.getId(), emitter);
