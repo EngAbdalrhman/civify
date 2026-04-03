@@ -18,6 +18,8 @@ public interface UserService {
 
     UserDto updateMyUser(ProfileUpdateRequest request, UserPrincipal userPrincipal);
 
+    UserDto updateOnboardingStatus(com.app.civify.dto.user.OnboardingStatusRequest request, UserPrincipal userPrincipal);
+
     User getCurrentUser();
 
     Long getCurrentUserId();

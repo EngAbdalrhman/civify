@@ -141,6 +141,14 @@ public class User extends BaseEntity implements Serializable {
     @Column(name = "welcome_email_sent", nullable = false)
     private Boolean welcomeEmailSent = false;
 
+    // Onboarding Trackers
+    @Builder.Default
+    @Column(name = "onboarding_completed", nullable = false)
+    private Boolean onboardingCompleted = false;
+
+    @Column(name = "completed_tours", columnDefinition = "TEXT")
+    private String completedTours;
+
     // Referral System
     @Column(name = "referral_code", unique = true, length = 12)
     private String referralCode;

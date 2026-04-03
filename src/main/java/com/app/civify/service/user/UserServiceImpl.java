@@ -69,6 +69,26 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
+    public UserDto updateOnboardingStatus(com.app.civify.dto.user.OnboardingStatusRequest request, UserPrincipal userPrincipal) {
+        User user = userPrincipal.getUser();
+        if (user == null) {
+            throw new IllegalStateException("User not authenticated");
+        }
+
+        if (request.getOnboardingCompleted() != null) {
+            user.setOnboardingCompleted(request.getOnboardingCompleted());
+        }
+        if (request.getCompletedTours() != null) {
+            user.setCompletedTours(request.getCompletedTours());
+        }
+
+        User savedUser = userRepository.save(user);
+        log.info("User onboarding status updated for: {}", user.getUsername());
+        return userMapper.toDto(savedUser);
+    }
+
+    @Override
     public User getCurrentUser() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null) {

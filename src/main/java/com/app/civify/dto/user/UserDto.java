@@ -73,4 +73,10 @@ public class UserDto {
     @Schema(description = "Number of users referred by this user", example = "5")
     private Integer referralCount;
 
+    @Schema(description = "Whether the general onboarding is completed")
+    private Boolean onboardingCompleted;
+
+    @Schema(description = "JSON representing completed tours status")
+    private String completedTours;
+
 }
