@@ -137,4 +137,25 @@ public class ApiKeyService {
         if (key.length() <= 12) return key;
         return key.substring(0, 8) + "..." + key.substring(key.length() - 4);
     }
+
+    private static final String EXTENSION_KEY_NAME = "Chrome Extension";
+
+    /**
+     * Get or create an API key for Chrome Extension login.
+     * If an active key named "Chrome Extension" exists, revokes it and creates a new one
+     * (since we can't retrieve the raw key from the hash).
+     * Returns the raw key for the extension to store.
+     */
+    @Transactional
+    public String getOrCreateExtensionKey(User user) {
+        // Revoke any existing extension key
+        apiKeyRepository.findByUserIdAndNameAndIsActiveTrue(user.getId(), EXTENSION_KEY_NAME)
+                .ifPresent(existingKey -> {
+                    existingKey.setIsActive(false);
+                    apiKeyRepository.save(existingKey);
+                });
+
+        // Create a fresh key
+        return createApiKey(user, EXTENSION_KEY_NAME);
+    }
 }

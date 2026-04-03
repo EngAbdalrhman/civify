@@ -25,6 +25,16 @@ public class ApiKeyController {
         return ResponseEntity.ok(Map.of("key", rawKey));
     }
 
+    /**
+     * Auto-generate an API key for Chrome Extension login.
+     * Reuses existing active key named "Chrome Extension" if one exists.
+     */
+    @PostMapping("/auto-generate")
+    public ResponseEntity<?> autoGenerateApiKey(@AuthenticationPrincipal UserPrincipal userDetails) {
+        String rawKey = apiKeyService.getOrCreateExtensionKey(userDetails.getUser());
+        return ResponseEntity.ok(Map.of("key", rawKey));
+    }
+
     @GetMapping
     public ResponseEntity<List<ApiKey>> getUserApiKeys(@AuthenticationPrincipal UserPrincipal userDetails) {
         return ResponseEntity.ok(apiKeyService.getUserApiKeys(userDetails.getUser()));
