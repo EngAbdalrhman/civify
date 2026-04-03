@@ -1,12 +1,12 @@
 package com.app.civify.service.user;
 
-import com.app.civify.entity.User;
-
-import java.util.List;
-
+import com.app.civify.dto.user.OnboardingStatusRequest;
 import com.app.civify.dto.user.ProfileUpdateRequest;
 import com.app.civify.dto.user.UserDto;
+import com.app.civify.entity.User;
 import com.app.civify.security.UserPrincipal;
+
+import java.util.List;
 
 public interface UserService {
 
@@ -18,7 +18,7 @@ public interface UserService {
 
     UserDto updateMyUser(ProfileUpdateRequest request, UserPrincipal userPrincipal);
 
-    UserDto updateOnboardingStatus(com.app.civify.dto.user.OnboardingStatusRequest request, UserPrincipal userPrincipal);
+    UserDto updateOnboardingStatus(OnboardingStatusRequest request, UserPrincipal userPrincipal);
 
     User getCurrentUser();
 
