@@ -143,6 +143,7 @@ public class User extends BaseEntity implements Serializable {
 
     // Onboarding Trackers
     @Builder.Default
+    @ColumnDefault("false")
     @Column(name = "onboarding_completed", nullable = false)
     private Boolean onboardingCompleted = false;
 
