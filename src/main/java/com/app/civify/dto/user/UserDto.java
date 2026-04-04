@@ -79,4 +79,7 @@ public class UserDto {
     @Schema(description = "JSON representing completed tours status")
     private String completedTours;
 
+    @Schema(description = "User's primary intent from onboarding (build, tailor, api)")
+    private String primaryIntent;
+
 }

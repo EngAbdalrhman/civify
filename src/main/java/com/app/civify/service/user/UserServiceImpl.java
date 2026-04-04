@@ -83,6 +83,9 @@ public class UserServiceImpl implements UserService {
         if (request.getCompletedTours() != null) {
             user.setCompletedTours(request.getCompletedTours());
         }
+        if (request.getPrimaryIntent() != null) {
+            user.setPrimaryIntent(request.getPrimaryIntent());
+        }
 
         User savedUser = userRepository.save(user);
         log.info("User onboarding status updated for: {}", user.getUsername());

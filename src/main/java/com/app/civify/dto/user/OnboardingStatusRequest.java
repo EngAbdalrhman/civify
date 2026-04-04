@@ -19,4 +19,7 @@ public class OnboardingStatusRequest {
     @Schema(description = "JSON string representing completed tours")
     private String completedTours;
 
+    @Schema(description = "User's primary intent from onboarding (build, tailor, api)")
+    private String primaryIntent;
+
 }
