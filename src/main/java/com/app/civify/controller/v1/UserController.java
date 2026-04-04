@@ -4,6 +4,7 @@ import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.user.DeleteAccountRequest;
 import com.app.civify.dto.user.ProfilePictureRequest;
 import com.app.civify.dto.user.ProfileUpdateRequest;
+import com.app.civify.dto.user.OnboardingStatusRequest;
 import com.app.civify.dto.user.UserPreferenceDTO;
 import com.app.civify.entity.User;
 import com.app.civify.security.UserPrincipal;
@@ -67,6 +68,22 @@ public class UserController {
     @PutMapping("/me")
     public ResponseEntity<UserDto> updateMe(@RequestBody ProfileUpdateRequest request, @AuthenticationPrincipal UserPrincipal userPrincipal) {
         return ResponseEntity.ok(userService.updateMyUser(request, userPrincipal));
+    }
+
+    @Operation(
+            summary = "Update current user onboarding status",
+            description = "Updates the onboarding and tour flags of the currently authenticated user.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Onboarding status updated successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserDto.class))),
+        @ApiResponse(responseCode = "401", description = "Unauthorized",
+                content = @Content(mediaType = "application/json"))
+    })
+    @PutMapping("/me/onboarding-status")
+    public ResponseEntity<UserDto> updateOnboardingStatus(@RequestBody OnboardingStatusRequest request, @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        return ResponseEntity.ok(userService.updateOnboardingStatus(request, userPrincipal));
     }
 
     @Operation(

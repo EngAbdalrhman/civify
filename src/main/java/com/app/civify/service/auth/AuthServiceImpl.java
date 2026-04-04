@@ -47,6 +47,9 @@ public class AuthServiceImpl implements AuthService {
     @Value("${email.verification.enabled:true}")
     private boolean emailVerificationEnabled;
 
+    @Value("${auth.2fa.enabled:false}")
+    private boolean is2faGlobalEnabled;
+
     /**
      * Register new user - Sends verification email, does NOT return tokens
      */
@@ -178,8 +181,8 @@ public class AuthServiceImpl implements AuthService {
         user.setLastLoginAt(java.time.LocalDateTime.now());
         userRepository.save(user);
 
-        // Check if 2FA is enabled
-        if (user.getTwoFactorEnabled()) {
+        // Check if 2FA is enabled globally and for the user
+        if (is2faGlobalEnabled && Boolean.TRUE.equals(user.getTwoFactorEnabled())) {
             // Generate and send OTP
             otpService.generateAndSend(user.getUsername());
             log.info("2FA OTP sent to user: {}", user.getUsername());

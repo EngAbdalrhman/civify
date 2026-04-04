@@ -49,6 +49,17 @@ public class AuthController {
     }
 
     /**
+     * REST login endpoint - returns tokens in response body (no cookies).
+     * Designed for clients that can't use cookies (e.g. Chrome extensions).
+     */
+    @PostMapping("/login")
+    public ResponseEntity<AuthResponse> login(@RequestBody AuthRequest request) {
+        log.info("Processing REST login request");
+        AuthResponse response = authService.login(request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * Verify email with token from email link
      * Redirects to frontend callback page after verification
      */

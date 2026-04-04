@@ -1,5 +1,6 @@
 package com.app.civify.service.user;
 
+import com.app.civify.dto.user.OnboardingStatusRequest;
 import com.app.civify.dto.user.ProfileUpdateRequest;
 import com.app.civify.dto.user.UserDto;
 import com.app.civify.entity.User;
@@ -69,6 +70,29 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
+    public UserDto updateOnboardingStatus(OnboardingStatusRequest request, UserPrincipal userPrincipal) {
+        User user = userPrincipal.getUser();
+        if (user == null) {
+            throw new IllegalStateException("User not authenticated");
+        }
+
+        if (request.getOnboardingCompleted() != null) {
+            user.setOnboardingCompleted(request.getOnboardingCompleted());
+        }
+        if (request.getCompletedTours() != null) {
+            user.setCompletedTours(request.getCompletedTours());
+        }
+        if (request.getPrimaryIntent() != null) {
+            user.setPrimaryIntent(request.getPrimaryIntent());
+        }
+
+        User savedUser = userRepository.save(user);
+        log.info("User onboarding status updated for: {}", user.getUsername());
+        return userMapper.toDto(savedUser);
+    }
+
+    @Override
     public User getCurrentUser() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null) {
@@ -94,7 +118,7 @@ public class UserServiceImpl implements UserService {
     public UserDto updateProfilePicture(Long userId, String base64Image) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalStateException("User not found"));
-        
+
         user.setProfilePictureUrl(base64Image);
         User savedUser = userRepository.save(user);
         log.info("Profile picture updated for user: {}", user.getUsername());
@@ -120,4 +144,3 @@ public class UserServiceImpl implements UserService {
         log.info("Account soft deleted for user: {}", user.getUsername());
     }
 }
-
