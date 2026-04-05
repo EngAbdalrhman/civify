@@ -609,7 +609,7 @@ public class CvEnhancementService {
             skillsSection = new ResumeData.ResumeSection();
             skillsSection.setType("skills");
             skillsSection.setTitle("Skills");
-            skillsSection.setId("skills_" + java.util.UUID.randomUUID().toString());
+            skillsSection.setId("skills_" + System.currentTimeMillis());
             skillsSection.setItems(new ArrayList<>());
             // Add to sections
             tailored.getSections().add(skillsSection);
@@ -623,7 +623,7 @@ public class CvEnhancementService {
 
         if (skillsSection.getItems().isEmpty()) {
             skillsItem = new ResumeData.SectionItem();
-            skillsItem.setId("item_skills_" + java.util.UUID.randomUUID().toString());
+            skillsItem.setId("item_skills_" + System.currentTimeMillis());
             skillsItem.setTitle("Core Competencies");
             skillsItem.setTags(new ArrayList<>());
             skillsSection.getItems().add(skillsItem);
@@ -795,27 +795,10 @@ public class CvEnhancementService {
 
     private ResumeData parseYamlToResumeData(String yaml) {
         try {
-            ResumeData data = YAML_MAPPER.readValue(yaml, ResumeData.class);
-            ensureUniqueSectionItemIds(data);
-            return data;
+            return YAML_MAPPER.readValue(yaml, ResumeData.class);
         } catch (Exception e) {
             log.error("Error parsing YAML to ResumeData: {}", e.getMessage());
             return null;
-        }
-    }
-
-    private void ensureUniqueSectionItemIds(ResumeData data) {
-        if (data == null || data.getSections() == null) return;
-        for (ResumeData.ResumeSection section : data.getSections()) {
-            if (section.getItems() == null) continue;
-            Set<String> seenIds = new java.util.HashSet<>();
-            for (ResumeData.SectionItem item : section.getItems()) {
-                if (item.getId() == null || seenIds.contains(item.getId())) {
-                    item.setId("item_" + java.util.UUID.randomUUID().toString());
-                } else {
-                    seenIds.add(item.getId());
-                }
-            }
         }
     }
 
