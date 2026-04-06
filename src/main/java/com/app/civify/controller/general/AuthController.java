@@ -3,15 +3,19 @@ package com.app.civify.controller.general;
 import com.app.civify.dto.auth.AuthRequest;
 import com.app.civify.dto.auth.AuthResponse;
 import com.app.civify.dto.auth.PermissionsResponse;
+import com.app.civify.exception.BadRequestException;
 import com.app.civify.service.auth.AuthService;
 import com.app.civify.service.auth.EmailVerificationService;
+import com.app.civify.service.auth.ExtensionOAuthCodeService;
 import com.app.civify.service.auth.PasswordRecoveryService;
 import com.app.civify.util.CommonResponse;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -33,9 +37,13 @@ public class AuthController {
     private final AuthService authService;
     private final EmailVerificationService emailVerificationService;
     private final PasswordRecoveryService passwordRecoveryService;
+    private final ExtensionOAuthCodeService extensionOAuthCodeService;
 
     @Value("${app.frontend.base-url}")
     private String frontendUrl;
+
+    @Value("${app.chrome-extension.id:}")
+    private String chromeExtensionId;
 
     /**
      * Register new user - sends verification email
@@ -57,6 +65,32 @@ public class AuthController {
         log.info("Processing REST login request");
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/oauth2/authorization/{provider}")
+    public void startExtensionOAuth(
+            @PathVariable String provider,
+            @RequestParam("redirectUri") String redirectUri,
+            HttpServletRequest request,
+            HttpServletResponse response) throws IOException {
+        validateProvider(provider);
+        validateExtensionRedirectUri(redirectUri);
+        String target = request.getContextPath() + "/oauth2/authorization/" + provider + "?redirect_uri=" +
+                java.net.URLEncoder.encode(redirectUri, java.nio.charset.StandardCharsets.UTF_8);
+        response.sendRedirect(target);
+    }
+
+    @PostMapping("/oauth/exchange-code")
+    public ResponseEntity<Map<String, String>> exchangeExtensionCode(@RequestBody Map<String, String> request) {
+        String code = request.get("code");
+        if (code == null || code.isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "missing_code"));
+        }
+        String accessToken = extensionOAuthCodeService.consumeCode(code);
+        if (accessToken == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "invalid_or_expired_code"));
+        }
+        return ResponseEntity.ok(Map.of("accessToken", accessToken));
     }
 
     /**
@@ -231,5 +265,21 @@ public class AuthController {
                 "Password changed successfully!",
                 null
         ));
+    }
+
+    private void validateExtensionRedirectUri(String redirectUri) {
+        if (chromeExtensionId == null || chromeExtensionId.isBlank()) {
+            throw new BadRequestException("extension.oauth.not.enabled");
+        }
+        String expectedPrefix = "chrome-extension://" + chromeExtensionId + "/";
+        if (redirectUri == null || !redirectUri.startsWith(expectedPrefix)) {
+            throw new BadRequestException("extension.oauth.invalid.redirect");
+        }
+    }
+
+    private void validateProvider(String provider) {
+        if (!"google".equals(provider) && !"linkedin".equals(provider)) {
+            throw new BadRequestException("extension.oauth.invalid.provider");
+        }
     }
 }
