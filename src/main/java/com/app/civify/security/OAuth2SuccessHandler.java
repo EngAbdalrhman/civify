@@ -164,16 +164,28 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             }
 
             String decoded = java.net.URLDecoder.decode(value, StandardCharsets.UTF_8);
-            if (!decoded.startsWith("chrome-extension://")) {
-                return null;
-            }
 
             if (chromeExtensionId == null || chromeExtensionId.isBlank()) {
                 return null;
             }
 
-            String expectedPrefix = "chrome-extension://" + chromeExtensionId + "/";
-            return decoded.startsWith(expectedPrefix) ? decoded : null;
+            try {
+                java.net.URI uri = java.net.URI.create(decoded);
+                // Chrome Identity redirect URI format:
+                // - chrome-extension://<EXTENSION_ID>/<path>
+                // - https://<EXTENSION_ID>.chromiumapp.org/<path>
+                if ("chrome-extension".equals(uri.getScheme())) {
+                    return chromeExtensionId.equals(uri.getHost()) ? decoded : null;
+                }
+                if ("https".equalsIgnoreCase(uri.getScheme()) && uri.getHost() != null) {
+                    String expectedHost = chromeExtensionId + ".chromiumapp.org";
+                    return expectedHost.equalsIgnoreCase(uri.getHost()) ? decoded : null;
+                }
+            } catch (Exception ignored) {
+                return null;
+            }
+
+            return null;
         }
 
         return null;

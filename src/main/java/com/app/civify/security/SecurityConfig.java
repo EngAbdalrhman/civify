@@ -303,12 +303,28 @@ public class SecurityConfig {
         if (redirectCookie.isEmpty() || chromeExtensionId == null || chromeExtensionId.isBlank()) {
             return null;
         }
-        String decoded = java.net.URLDecoder.decode(redirectCookie.get().getValue(), StandardCharsets.UTF_8);
-        String expectedPrefix = "chrome-extension://" + chromeExtensionId + "/";
-        if (!decoded.startsWith(expectedPrefix)) {
+        String decoded;
+        try {
+            decoded = java.net.URLDecoder.decode(redirectCookie.get().getValue(), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            decoded = redirectCookie.get().getValue();
+        }
+
+        try {
+            java.net.URI uri = java.net.URI.create(decoded);
+            if ("chrome-extension".equals(uri.getScheme())) {
+                String host = uri.getHost();
+                return (host != null && chromeExtensionId.equals(host)) ? decoded : null;
+            }
+            if ("https".equalsIgnoreCase(uri.getScheme()) && uri.getHost() != null) {
+                String expectedHost = chromeExtensionId + ".chromiumapp.org";
+                return expectedHost.equalsIgnoreCase(uri.getHost()) ? decoded : null;
+            }
+        } catch (Exception ignored) {
             return null;
         }
-        return decoded;
+
+        return null;
     }
 
     @Bean

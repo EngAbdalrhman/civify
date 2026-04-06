@@ -3,10 +3,10 @@ package com.app.civify.controller.general;
 import com.app.civify.dto.auth.AuthRequest;
 import com.app.civify.dto.auth.AuthResponse;
 import com.app.civify.dto.auth.PermissionsResponse;
-import com.app.civify.exception.BadRequestException;
 import com.app.civify.service.auth.AuthService;
 import com.app.civify.service.auth.EmailVerificationService;
 import com.app.civify.service.auth.ExtensionOAuthCodeService;
+import com.app.civify.service.auth.ExtensionOAuthService;
 import com.app.civify.service.auth.PasswordRecoveryService;
 import com.app.civify.util.CommonResponse;
 
@@ -38,13 +38,10 @@ public class AuthController {
     private final EmailVerificationService emailVerificationService;
     private final PasswordRecoveryService passwordRecoveryService;
     private final ExtensionOAuthCodeService extensionOAuthCodeService;
+    private final ExtensionOAuthService extensionOAuthService;
 
     @Value("${app.frontend.base-url}")
     private String frontendUrl;
-
-    @Value("${app.chrome-extension.id:}")
-    private String chromeExtensionId;
-
     /**
      * Register new user - sends verification email
      */
@@ -73,10 +70,11 @@ public class AuthController {
             @RequestParam("redirectUri") String redirectUri,
             HttpServletRequest request,
             HttpServletResponse response) throws IOException {
-        validateProvider(provider);
-        validateExtensionRedirectUri(redirectUri);
-        String target = request.getContextPath() + "/oauth2/authorization/" + provider + "?redirect_uri=" +
-                java.net.URLEncoder.encode(redirectUri, java.nio.charset.StandardCharsets.UTF_8);
+        String target = extensionOAuthService.buildSpringAuthorizationRedirectUrl(
+                provider,
+                redirectUri,
+                request.getContextPath()
+        );
         response.sendRedirect(target);
     }
 
@@ -267,19 +265,4 @@ public class AuthController {
         ));
     }
 
-    private void validateExtensionRedirectUri(String redirectUri) {
-        if (chromeExtensionId == null || chromeExtensionId.isBlank()) {
-            throw new BadRequestException("extension.oauth.not.enabled");
-        }
-        String expectedPrefix = "chrome-extension://" + chromeExtensionId + "/";
-        if (redirectUri == null || !redirectUri.startsWith(expectedPrefix)) {
-            throw new BadRequestException("extension.oauth.invalid.redirect");
-        }
-    }
-
-    private void validateProvider(String provider) {
-        if (!"google".equals(provider) && !"linkedin".equals(provider)) {
-            throw new BadRequestException("extension.oauth.invalid.provider");
-        }
-    }
 }
