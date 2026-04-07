@@ -174,7 +174,7 @@ public class UserController {
     @DeleteMapping("/me")
     public ResponseEntity<Void> deleteMyAccount(@RequestBody(required = false) DeleteAccountRequest request,
                                                  @AuthenticationPrincipal UserPrincipal userPrincipal) {
-        userService.deleteMyAccount(userPrincipal, request.getPassword());
+        userService.deleteMyAccount(userPrincipal, request != null ? request.getPassword() : null);
         return ResponseEntity.noContent().build();
     }
 }
