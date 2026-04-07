@@ -8,6 +8,7 @@ import com.app.civify.filter.RateLimitFilter;
 import com.app.civify.service.auth.TokenService;
 import com.app.civify.util.JwtUtil;
 import com.app.civify.security.repository.HttpCookieOAuth2AuthorizationRequestRepository;
+import com.app.civify.util.CookieUtils;
 import jakarta.servlet.http.Cookie;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.LoggerFactory;
@@ -38,6 +39,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import static com.app.civify.util.JwtConstants.*;
 
@@ -69,6 +71,9 @@ public class SecurityConfig {
 
     @Value("${email.verification.enabled:true}")
     private Boolean emailVerificationEnabled;
+
+    @Value("${app.chrome-extension.id:}")
+    private String chromeExtensionId;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -231,9 +236,13 @@ public class SecurityConfig {
                             String errorMessage = exception.getMessage() != null
                                     ? exception.getMessage()
                                     : "OAuth login failed";
-                            String targetUrl = frontendUrl + "/auth/callback?error=" +
-                                    URLEncoder.encode(errorMessage, StandardCharsets.UTF_8);
+                            String encodedError = URLEncoder.encode(errorMessage, StandardCharsets.UTF_8);
+                            String extensionRedirect = extractExtensionRedirectUri(request);
+                            String targetUrl = extensionRedirect != null
+                                    ? extensionRedirect + "?error=" + encodedError
+                                    : frontendUrl + "/auth/callback?error=" + encodedError;
                             response.sendRedirect(targetUrl);
+                            cookieAuthorizationRequestRepository.removeAuthorizationRequestCookies(request, response);
                         })
                 )
                 .logout(logout -> logout
@@ -284,6 +293,38 @@ public class SecurityConfig {
                 );
 
         return http.build();
+    }
+
+    private String extractExtensionRedirectUri(jakarta.servlet.http.HttpServletRequest request) {
+        Optional<Cookie> redirectCookie = CookieUtils.getCookie(
+                request,
+                HttpCookieOAuth2AuthorizationRequestRepository.REDIRECT_URI_PARAM_COOKIE_NAME
+        );
+        if (redirectCookie.isEmpty() || chromeExtensionId == null || chromeExtensionId.isBlank()) {
+            return null;
+        }
+        String decoded;
+        try {
+            decoded = java.net.URLDecoder.decode(redirectCookie.get().getValue(), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            decoded = redirectCookie.get().getValue();
+        }
+
+        try {
+            java.net.URI uri = java.net.URI.create(decoded);
+            if ("chrome-extension".equals(uri.getScheme())) {
+                String host = uri.getHost();
+                return (host != null && chromeExtensionId.equals(host)) ? decoded : null;
+            }
+            if ("https".equalsIgnoreCase(uri.getScheme()) && uri.getHost() != null) {
+                String expectedHost = chromeExtensionId + ".chromiumapp.org";
+                return expectedHost.equalsIgnoreCase(uri.getHost()) ? decoded : null;
+            }
+        } catch (Exception ignored) {
+            return null;
+        }
+
+        return null;
     }
 
     @Bean

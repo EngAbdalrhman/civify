@@ -4,6 +4,8 @@ import com.app.civify.entity.User;
 import com.app.civify.repository.security.GroupRepository;
 import com.app.civify.repository.UserRepository;
 
+import com.app.civify.security.repository.HttpCookieOAuth2AuthorizationRequestRepository;
+import com.app.civify.service.auth.ExtensionOAuthCodeService;
 import com.app.civify.service.auth.TokenService;
 import com.app.civify.service.referral.ReferralService;
 import com.app.civify.service.subscription.SubscriptionService;
@@ -21,6 +23,7 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 /**
@@ -40,9 +43,17 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     private final SubscriptionService subscriptionService;
     private final TokenService tokenService;
     private final ReferralService referralService;
+    private final ExtensionOAuthCodeService extensionOAuthCodeService;
+    private final HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository;
 
     @Value("${app.frontend.base-url}")
     private String frontendUrl;
+
+    @Value("${refresh.token.secure}")
+    private Boolean secureToken;
+
+    @Value("${app.chrome-extension.id:}")
+    private String chromeExtensionId;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
@@ -114,17 +125,69 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         // Set Refresh Token in HttpOnly Cookie
         Cookie refreshCookie = new Cookie(JwtConstants.REFRESH_TOKEN_COOKIE_NAME, tokens.getRefreshToken());
         refreshCookie.setHttpOnly(true);
-        refreshCookie.setSecure(false); // Set to true in production with HTTPS
+        refreshCookie.setSecure(secureToken);
         refreshCookie.setPath(JwtConstants.TOKEN_COOKIE_PATH);
         refreshCookie.setMaxAge(JwtConstants.REFRESH_TOKEN_COOKIE_MAX_AGE);
         response.addCookie(refreshCookie);
 
-        // Redirect to frontend with access token only (refresh token is in cookie)
-        String targetUrl = frontendUrl + "/auth/callback" +
-                "?accessToken=" + tokens.getAccessToken();
+        String extensionRedirectUri = extractExtensionRedirectUri(request);
+        String targetUrl;
+        if (extensionRedirectUri != null) {
+            String oneTimeCode = extensionOAuthCodeService.issueCode(tokens.getAccessToken());
+            targetUrl = extensionRedirectUri + "?code=" + oneTimeCode;
+            log.info("OAuth2 extension login completed with one-time code redirect");
+        } else {
+            // Redirect to frontend with access token only (refresh token is in cookie)
+            targetUrl = frontendUrl + "/auth/callback" +
+                    "?accessToken=" + tokens.getAccessToken();
+        }
 
         response.sendRedirect(targetUrl);
+        cookieAuthorizationRequestRepository.removeAuthorizationRequestCookies(request, response);
 
-        log.info("OAuth2 tokens generated and redirecting to frontend");
+        log.info("OAuth2 tokens generated and redirect completed");
+    }
+
+    private String extractExtensionRedirectUri(HttpServletRequest request) {
+        if (request.getCookies() == null) {
+            return null;
+        }
+
+        for (Cookie cookie : request.getCookies()) {
+            if (!HttpCookieOAuth2AuthorizationRequestRepository.REDIRECT_URI_PARAM_COOKIE_NAME.equals(cookie.getName())) {
+                continue;
+            }
+
+            String value = cookie.getValue();
+            if (value == null || value.isBlank()) {
+                return null;
+            }
+
+            String decoded = java.net.URLDecoder.decode(value, StandardCharsets.UTF_8);
+
+            if (chromeExtensionId == null || chromeExtensionId.isBlank()) {
+                return null;
+            }
+
+            try {
+                java.net.URI uri = java.net.URI.create(decoded);
+                // Chrome Identity redirect URI format:
+                // - chrome-extension://<EXTENSION_ID>/<path>
+                // - https://<EXTENSION_ID>.chromiumapp.org/<path>
+                if ("chrome-extension".equals(uri.getScheme())) {
+                    return chromeExtensionId.equals(uri.getHost()) ? decoded : null;
+                }
+                if ("https".equalsIgnoreCase(uri.getScheme()) && uri.getHost() != null) {
+                    String expectedHost = chromeExtensionId + ".chromiumapp.org";
+                    return expectedHost.equalsIgnoreCase(uri.getHost()) ? decoded : null;
+                }
+            } catch (Exception ignored) {
+                return null;
+            }
+
+            return null;
+        }
+
+        return null;
     }
 }
