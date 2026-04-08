@@ -44,7 +44,7 @@ public class UserServiceImpl implements UserService {
             return null;
         }
         String username = auth.getName();
-        return userMapper.toDto(userRepository.findByUsername(username).orElse(new User()));
+        return userMapper.toDto(userRepository.findActiveByUsername(username).orElse(new User()));
     }
 
     @Override
@@ -100,7 +100,7 @@ public class UserServiceImpl implements UserService {
             return null;
         }
         String username = auth.getName();
-        return userRepository.findByUsername(username).orElse(null);
+        return userRepository.findActiveByUsername(username).orElse(null);
     }
 
     @Override
