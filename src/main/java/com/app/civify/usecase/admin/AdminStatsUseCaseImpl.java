@@ -10,7 +10,6 @@ import com.app.civify.service.user.UserService;
 import com.app.civify.util.persistence.CommonService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -32,6 +31,7 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
         // Calculate date range based on period
         LocalDateTime startDate = calculateStartDate(period);
         LocalDateTime endDate = LocalDateTime.now();
+        LocalDateTime startOfMonth = endDate.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
 
         // Gather stats from various services
         long totalUsers = userService.countTotalUsers();
@@ -45,13 +45,7 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
         if (period == StatsPeriod.OVERALL) {
             // All time stats
             totalCVs = cvOperationLogRepository.countByAction(CvOperationAction.UPLOAD);
-            totalApiCalls = cvOperationLogRepository.count();
-
-            // This month for the "apiCallsThisMonth" field
-            LocalDateTime startOfMonth = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
-            apiCallsThisMonth = cvOperationLogRepository.findByDateRange(
-                    startOfMonth, endDate, Pageable.unpaged()
-            ).getTotalElements();
+            totalApiCalls = apiKeyUsageLogRepository.count();
         } else {
             // Period-based stats
             long periodCVs = countOperationsInPeriod(CvOperationAction.UPLOAD, startDate, endDate);
@@ -59,8 +53,10 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
 
             totalCVs = periodCVs;
             totalApiCalls = periodApiCalls;
-            apiCallsThisMonth = periodApiCalls; // Same as period stats
         }
+
+        // Always represent the current month to match UI label semantics.
+        apiCallsThisMonth = apiKeyUsageLogRepository.countByDateRange(startOfMonth, endDate);
 
         return AdminStatsDTO.builder()
                 .totalUsers(totalUsers)
