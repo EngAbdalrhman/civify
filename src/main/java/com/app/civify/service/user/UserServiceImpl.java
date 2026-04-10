@@ -14,6 +14,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 
@@ -43,7 +44,7 @@ public class UserServiceImpl implements UserService {
             return null;
         }
         String username = auth.getName();
-        return userMapper.toDto(userRepository.findByUsername(username).orElse(new User()));
+        return userMapper.toDto(userRepository.findActiveByUsername(username).orElse(new User()));
     }
 
     @Override
@@ -99,7 +100,7 @@ public class UserServiceImpl implements UserService {
             return null;
         }
         String username = auth.getName();
-        return userRepository.findByUsername(username).orElse(null);
+        return userRepository.findActiveByUsername(username).orElse(null);
     }
 
     @Override
@@ -133,8 +134,10 @@ public class UserServiceImpl implements UserService {
             throw new IllegalStateException("User not authenticated");
         }
 
-        // Verify password before deletion
-        if (!passwordEncoder.matches(password, user.getPassword())) {
+        boolean isOAuthAccount = StringUtils.hasText(user.getOauthProvider());
+
+        // Password confirmation is required only for local (non-OAuth) accounts.
+        if (!isOAuthAccount && (!StringUtils.hasText(password) || !passwordEncoder.matches(password, user.getPassword()))) {
             throw new BadRequestException("user.account.delete.password.incorrect");
         }
 

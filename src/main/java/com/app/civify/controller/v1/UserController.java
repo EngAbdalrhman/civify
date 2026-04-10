@@ -161,7 +161,7 @@ public class UserController {
 
     @Operation(
             summary = "Delete current user account",
-            description = "Soft deletes the currently authenticated user's account. User must provide their password for confirmation. After deletion, the user will be logged out and cannot login again.",
+            description = "Soft deletes the currently authenticated user's account. Local accounts must provide password confirmation; OAuth accounts can delete without password. After deletion, the user will be logged out and cannot login again.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
     @ApiResponses(value = {
@@ -172,9 +172,9 @@ public class UserController {
                 content = @Content(mediaType = "application/json"))
     })
     @DeleteMapping("/me")
-    public ResponseEntity<Void> deleteMyAccount(@RequestBody DeleteAccountRequest request,
+    public ResponseEntity<Void> deleteMyAccount(@RequestBody(required = false) DeleteAccountRequest request,
                                                  @AuthenticationPrincipal UserPrincipal userPrincipal) {
-        userService.deleteMyAccount(userPrincipal, request.getPassword());
+        userService.deleteMyAccount(userPrincipal, request != null ? request.getPassword() : null);
         return ResponseEntity.noContent().build();
     }
 }

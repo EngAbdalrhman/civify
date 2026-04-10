@@ -29,16 +29,16 @@ public class CustomUserDetailsService implements UserDetailsService {
 
         // 1. Detect the input type using regex
         if (isEmail(usernameOrEmail)) {
-            // 2. If it looks like an email, fetch only by email
-            userOptional = userRepository.findByEmail(usernameOrEmail);
+            // 2. If it looks like an email, fetch only active (non-deleted) accounts
+            userOptional = userRepository.findActiveByEmail(usernameOrEmail);
 
             if (userOptional.isEmpty()) {
                 throw new UsernameNotFoundException(
                         "User not found with email: " + usernameOrEmail);
             }
         } else {
-            // 3. If it does NOT look like an email, fetch only by username
-            userOptional = userRepository.findByUsername(usernameOrEmail);
+            // 3. If it does NOT look like an email, fetch only active (non-deleted) accounts
+            userOptional = userRepository.findActiveByUsername(usernameOrEmail);
 
             if (userOptional.isEmpty()) {
                 throw new UsernameNotFoundException(
