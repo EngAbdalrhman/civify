@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.math.BigDecimal;
 
 @Data
 @Builder
@@ -16,6 +17,9 @@ public class AdminStatsDTO {
     private long totalApiCalls;
     private long apiCallsThisMonth;
     private long activeSubscriptions;
+    private BigDecimal periodRevenue;
+    private BigDecimal revenueThisMonth;
+    private BigDecimal totalRevenue;
     
     // Period information
     private String period;      // MONTHLY, QUARTERLY, YEARLY, OVERALL
