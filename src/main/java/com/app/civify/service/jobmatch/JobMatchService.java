@@ -6,6 +6,11 @@ import com.app.civify.dto.jobmatch.ParsedJobDescription;
 import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.service.cv.CvEnhancementService;
 import com.app.civify.service.cv.KeywordMatcher;
+import com.app.civify.dto.jobmatch.JobMatchRequest;
+import com.app.civify.entity.enums.TokenUsageType;
+import com.app.civify.exception.BadRequestException;
+import com.app.civify.service.external.JdScraperService;
+import com.app.civify.service.subscription.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,13 +26,31 @@ public class JobMatchService {
     private final JdParserService jdParserService;
     private final CvEnhancementService cvEnhancementService;
     private final KeywordMatcher keywordMatcher;
+    private final JdScraperService jdScraperService;
+    private final SubscriptionService subscriptionService;
 
     /**
-     * Performs a full job match analysis between a resume and a raw job description.
+     * Performs a full job match analysis between a resume and a job description.
      */
-    public JobMatchResult analyzeMatch(ResumeData resumeData, String rawJobDescription) {
+    public JobMatchResult analyzeMatch(Long userId, JobMatchRequest request) {
         long startTime = System.currentTimeMillis();
-        log.info("Starting job match analysis");
+        log.info("Starting job match analysis for user: {}", userId);
+
+        ResumeData resumeData = request.getResumeData();
+        if (resumeData == null) {
+            throw new BadRequestException("Resume data is required");
+        }
+
+        String rawJobDescription;
+        if (request.getJobUrl() != null && !request.getJobUrl().trim().isEmpty()) {
+            rawJobDescription = jdScraperService.scrape(request.getJobUrl());
+        } else if (request.getJobDescription() != null && !request.getJobDescription().trim().isEmpty()) {
+            rawJobDescription = request.getJobDescription();
+        } else {
+            throw new BadRequestException("Either jobDescription or jobUrl must be provided.");
+        }
+
+        subscriptionService.incrementUsage(userId, "JOB_MATCH");
 
         // 1. Parse JD into structured format
         ParsedJobDescription parsedJd = jdParserService.parseJobDescription(rawJobDescription);
@@ -104,7 +127,7 @@ public class JobMatchService {
         int keywordScore = atsScore != null ? atsScore.getKeywordMatch() : 0;
         int overallScore = (int) Math.round((skillsScore * 0.6) + (keywordScore * 0.4));
         
-        return JobMatchResult.builder()
+        JobMatchResult result = JobMatchResult.builder()
                 .overallScore(overallScore)
                 .skillsScore(skillsScore)
                 .experienceScore(80) // Placeholder
@@ -117,6 +140,17 @@ public class JobMatchService {
                 .atsScore(atsScore)
                 .processingTimeMs(System.currentTimeMillis() - startTime)
                 .build();
+
+        // Charge AI tokens if any were used
+        if (result.getTotalTokensUsed() > 0) {
+            try {
+                subscriptionService.chargeTokens(userId, result.getTotalTokensUsed(), TokenUsageType.CV_TAILOR, "Job Match Analysis");
+            } catch (Exception e) {
+                log.error("Failed to charge tokens for user {}", userId, e);
+            }
+        }
+
+        return result;
     }
 
     private String extractFullText(ResumeData resumeData) {

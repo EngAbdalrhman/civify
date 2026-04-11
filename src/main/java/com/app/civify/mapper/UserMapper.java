@@ -35,7 +35,6 @@ public interface UserMapper extends CommonMapper<User, UserDto> {
     @Mapping(target = "referralCode", ignore = true)
     @Mapping(target = "referralCount", ignore = true)
     @Mapping(target = "referredByCode", ignore = true)
-    @Mapping(target = "jobMatchLimit", ignore = true)
     User toEntity(UserDto dto);
 
 }
