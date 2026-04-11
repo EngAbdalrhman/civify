@@ -61,4 +61,20 @@ public class JobMatchController {
         Page<JobMatchHistoryDto> history = jobMatchHistoryService.getUserHistory(principal.getId(), pageable);
         return ResponseEntity.ok(CommonResponse.success("Job match history fetched successfully", history));
     }
+
+    @Operation(
+            summary = "Get matching analytics", 
+            description = "Retrieves score trends and pattern analysis for the current user.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @CivifyAuthorization(permission = "CV.JOB_MATCH")
+    @GetMapping("/analytics")
+    public ResponseEntity<CommonResponse<com.app.civify.dto.jobmatch.JobMatchAnalytics>> getAnalytics(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) {
+            return ResponseEntity.status(401).body(CommonResponse.error("Authentication required"));
+        }
+        com.app.civify.dto.jobmatch.JobMatchAnalytics analytics = jobMatchHistoryService.getAnalytics(principal.getId());
+        return ResponseEntity.ok(CommonResponse.success("Analytics retrieved", analytics));
+    }
 }

@@ -11,5 +11,7 @@ public interface JobMatchHistoryRepository extends JpaRepository<JobMatchHistory
     
     Page<JobMatchHistory> findByUserIdOrderByAnalyzedAtDesc(Long userId, Pageable pageable);
     
+    java.util.List<JobMatchHistory> findTop50ByUserIdOrderByAnalyzedAtDesc(Long userId);
+    
     long countByUserId(Long userId);
 }
