@@ -29,7 +29,7 @@ public class LinkedInController {
             description = "Parses pasted text from a LinkedIn profile into structured resume data.",
             security = @SecurityRequirement(name = "bearer-jwt")
     )
-    @CivifyAuthorization(permission = "CV.UPLOAD")
+    @CivifyAuthorization(permission = "CV.PARSE")
     @PostMapping("/parse-profile")
     public ResponseEntity<CommonResponse<LinkedInParseResponse>> parseProfile(
             @Valid @RequestBody LinkedInParseRequest request) {
