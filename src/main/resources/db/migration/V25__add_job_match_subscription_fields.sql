@@ -6,4 +6,4 @@ ALTER TABLE user_subscriptions ADD COLUMN IF NOT EXISTS current_job_match_count 
 UPDATE user_subscriptions SET current_job_match_count = 0 WHERE current_job_match_count IS NULL;
 
 -- Default Free plans to limited, null (unlimited) for others
-UPDATE subscription_plans SET job_match_limit = 3 WHERE price = 0 OR name ILIKE '%free%';
+UPDATE subscription_plans SET job_match_limit = 3 WHERE monthly_price = 0 OR name ILIKE '%free%';
