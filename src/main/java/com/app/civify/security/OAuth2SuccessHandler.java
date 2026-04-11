@@ -9,6 +9,7 @@ import com.app.civify.service.auth.ExtensionOAuthCodeService;
 import com.app.civify.service.auth.TokenService;
 import com.app.civify.service.referral.ReferralService;
 import com.app.civify.service.subscription.SubscriptionService;
+import com.app.civify.service.NewsletterService;
 import com.app.civify.util.JwtConstants;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -44,6 +45,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     private final TokenService tokenService;
     private final ReferralService referralService;
     private final ExtensionOAuthCodeService extensionOAuthCodeService;
+    private final NewsletterService newsletterService;
     private final HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository;
 
     @Value("${app.frontend.base-url}")
@@ -108,6 +110,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
             // Create default FREE subscription
             subscriptionService.createDefaultFreeSubscription(savedUser.getId());
+            newsletterService.subscribe(savedUser.getEmail());
 
             log.info("New OAuth2 user created and FREE subscription assigned: {}", email);
 
