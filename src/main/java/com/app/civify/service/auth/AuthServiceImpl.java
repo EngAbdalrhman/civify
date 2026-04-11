@@ -13,6 +13,7 @@ import com.app.civify.service.bloomfilter.BloomFilterService;
 import com.app.civify.service.i18n.MessageService;
 import com.app.civify.service.referral.ReferralService;
 import com.app.civify.service.subscription.SubscriptionService;
+import com.app.civify.service.NewsletterService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +44,7 @@ public class AuthServiceImpl implements AuthService {
     private final MessageService messageService;
     private final DisposableEmailValidator disposableEmailValidator;
     private final ReferralService referralService;
+    private final NewsletterService newsletterService;
 
     @Value("${email.verification.enabled:true}")
     private boolean emailVerificationEnabled;
@@ -95,6 +97,7 @@ public class AuthServiceImpl implements AuthService {
         user.setTwoFactorEnabled(false);
         user.setReferralCode(referralService.generateUniqueCode());
         userRepository.save(user);
+        newsletterService.subscribe(user.getEmail());
 
         if (req.getReferralCode() != null && !req.getReferralCode().trim().isEmpty()) {
             try {
