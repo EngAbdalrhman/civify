@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS job_match_history (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
-    resume_id BIGINT,
+    resume_id VARCHAR(255),
     job_title VARCHAR(255),
     company_name VARCHAR(255),
     job_description TEXT,
