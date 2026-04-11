@@ -28,6 +28,7 @@ public class JobMatchService {
     private final KeywordMatcher keywordMatcher;
     private final JdScraperService jdScraperService;
     private final SubscriptionService subscriptionService;
+    private final SuggestionService suggestionService;
 
     /**
      * Performs a full job match analysis between a resume and a job description.
@@ -112,16 +113,8 @@ public class JobMatchService {
         
         int skillsScore = totalRequired > 0 ? (int) Math.round(((double) matchedRequired / totalRequired) * 100) : 100;
         
-        // Generate placeholder suggestions until SuggestionService AI is implemented
-        List<JobMatchResult.Suggestion> suggestions = new ArrayList<>();
-        missingSkills.stream().limit(3).forEach(gap -> {
-            suggestions.add(JobMatchResult.Suggestion.builder()
-                    .section("Skills")
-                    .action("Add missing skill: " + gap.getSkill())
-                    .reason("This is a " + (gap.isRequired() ? "required" : "preferred") + " skill for the role.")
-                    .priority(gap.isRequired() ? "HIGH" : "MEDIUM")
-                    .build());
-        });
+        // Use AI to generate actionable suggestions based on identified gaps
+        List<JobMatchResult.Suggestion> suggestions = suggestionService.generateSuggestions(resumeData, parsedJd, missingSkills, 3);
 
         // Calculate Overall Hybrid Score
         int keywordScore = atsScore != null ? atsScore.getKeywordMatch() : 0;
