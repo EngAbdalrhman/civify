@@ -65,14 +65,15 @@ public class LinkedInProfileParserService {
             String fullPrompt = SYSTEM_PROMPT + profileText;
             String jsonResult = aiService.callModel(fullPrompt, defaultProvider, defaultModel).getContent();
             
-            // Clean markdown logic if the AI ignores instructions
-            if (jsonResult.startsWith("```json")) {
-                jsonResult = jsonResult.substring(7);
+            // Extract JSON from potential markdown or conversational wrap
+            int startIndex = jsonResult.indexOf('{');
+            int endIndex = jsonResult.lastIndexOf('}');
+            
+            if (startIndex != -1 && endIndex != -1 && endIndex >= startIndex) {
+                jsonResult = jsonResult.substring(startIndex, endIndex + 1);
+            } else {
+                throw new IllegalStateException("Could not find valid JSON object in response");
             }
-            if (jsonResult.endsWith("```")) {
-                jsonResult = jsonResult.substring(0, jsonResult.length() - 3);
-            }
-            jsonResult = jsonResult.trim();
             
             ResumeData resumeData = objectMapper.readValue(jsonResult, ResumeData.class);
             
