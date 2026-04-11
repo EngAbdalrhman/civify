@@ -15,6 +15,8 @@ public class JobMatchRequest {
     @NotNull(message = "Resume data is required")
     private ResumeData resumeData;
 
+    private String resumeId;
+
     // Provide one of the below:
     private String jobDescription;
     private String jobUrl;

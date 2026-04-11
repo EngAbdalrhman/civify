@@ -29,6 +29,7 @@ public class JobMatchService {
     private final JdScraperService jdScraperService;
     private final SubscriptionService subscriptionService;
     private final SuggestionService suggestionService;
+    private final JobMatchHistoryService jobMatchHistoryService;
 
     /**
      * Performs a full job match analysis between a resume and a job description.
@@ -116,23 +117,28 @@ public class JobMatchService {
         // Use AI to generate actionable suggestions based on identified gaps
         List<JobMatchResult.Suggestion> suggestions = suggestionService.generateSuggestions(resumeData, parsedJd, missingSkills, 3);
 
-        // Calculate Overall Hybrid Score
+        // Calculate Overall Hybrid Score: 60% skills match, 40% keyword match
         int keywordScore = atsScore != null ? atsScore.getKeywordMatch() : 0;
         int overallScore = (int) Math.round((skillsScore * 0.6) + (keywordScore * 0.4));
         
         JobMatchResult result = JobMatchResult.builder()
                 .overallScore(overallScore)
                 .skillsScore(skillsScore)
-                .experienceScore(80) // Placeholder
+                .experienceScore(0) // Not yet calculated
                 .keywordScore(keywordScore)
                 .parsedJd(parsedJd)
                 .matchedSkills(matchedSkills)
                 .missingSkills(missingSkills)
-                .matchedExperience(List.of("Matches requirements")) // Placeholder
+                .matchedExperience(List.of()) // Not yet implemented
                 .suggestions(suggestions)
                 .atsScore(atsScore)
                 .processingTimeMs(System.currentTimeMillis() - startTime)
                 .build();
+
+        // Save history asynchronously via a separate service (Spring @Async requires cross-bean calls)
+        if (userId != null) {
+            jobMatchHistoryService.saveAsync(userId, request.getResumeId(), rawJobDescription, result);
+        }
 
         // Charge AI tokens if any were used
         if (result.getTotalTokensUsed() > 0) {
