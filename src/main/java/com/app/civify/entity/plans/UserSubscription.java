@@ -48,6 +48,9 @@ public class UserSubscription extends BaseEntity {
     @Column(nullable = false)
     private Integer currentCvCount = 0;
 
+    @Column(nullable = false)
+    private Integer currentJobMatchCount = 0;
+
     /**
      * Monthly token usage (for AI/LLM metering). Reset monthly alongside other
      * counters.
@@ -131,6 +134,23 @@ public class UserSubscription extends BaseEntity {
             return false;
         }
         return plan.getCvLimit() == null || currentCvCount < plan.getCvLimit();
+    }
+
+    public void incrementJobMatchCount() {
+        if (currentJobMatchCount == null) {
+            currentJobMatchCount = 0;
+        }
+        this.currentJobMatchCount++;
+    }
+
+    /**
+     * Check if user can perform more job match analyses within their limit
+     */
+    public boolean canUseJobMatch() {
+        if (!isActive()) {
+            return false;
+        }
+        return plan.getJobMatchLimit() == null || currentJobMatchCount < plan.getJobMatchLimit();
     }
 
     /**
@@ -217,6 +237,7 @@ public class UserSubscription extends BaseEntity {
     public void resetUsageCounters() {
         LocalDateTime now = LocalDateTime.now();
         currentCvCount = 0;
+        currentJobMatchCount = 0;
         currentTokenUsage = 0;
         usageResetDate = now.plusMonths(1).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
     }

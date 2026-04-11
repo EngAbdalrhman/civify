@@ -102,10 +102,6 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
         if (start == null) {
             return cvOperationLogRepository.countByAction(action);
         }
-        // Use the date range query and filter by action
-        return cvOperationLogRepository.findByDateRange(start, end, Pageable.unpaged())
-                .stream()
-                .filter(log -> log.getAction() == action)
-                .count();
+        return cvOperationLogRepository.countByActionAndCreatedAtBetween(action, start, end);
     }
 }

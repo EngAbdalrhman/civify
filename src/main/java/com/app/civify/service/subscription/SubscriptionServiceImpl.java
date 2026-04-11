@@ -429,6 +429,12 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                 }
                 yield sub.canUseCv();
             }
+            case "JOB_MATCH" -> {
+                if (user.getJobMatchLimit() != null) {
+                    yield sub.getCurrentJobMatchCount() < user.getJobMatchLimit();
+                }
+                yield sub.canUseJobMatch();
+            }
             case "WATERMARK" ->
                 !Boolean.TRUE.equals(plan.getWatermark()); // false = no watermark
             default ->
@@ -479,6 +485,12 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                     throw new BadRequestException("subscription.cv.limit.reached");
                 }
                 sub.incrementCvCount();
+            }
+            case "JOB_MATCH" -> {
+                if (!canUserUseFeature(userId, "JOB_MATCH")) {
+                    throw new BadRequestException("subscription.jobmatch.limit.reached");
+                }
+                sub.incrementJobMatchCount();
             }
             default ->
                 throw new BadRequestException(messageService.getMessage("error.feature.unknown") + ": " + feature);

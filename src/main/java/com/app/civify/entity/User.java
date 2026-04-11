@@ -82,8 +82,11 @@ public class User extends BaseEntity implements Serializable {
     private String oauthSubject;
 
     // Custom User Limits (overrides plan limits if set)
-    @Column(name = "cv_limit")
+    @Column(name = "cv_limit", columnDefinition = "integer default null")
     private Integer cvLimit;
+
+    @Column(name = "job_match_limit", columnDefinition = "integer default null")
+    private Integer jobMatchLimit;
 
     // Additional fields
     @Column(name = "first_name")
