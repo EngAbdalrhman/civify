@@ -117,14 +117,15 @@ public class JobMatchService {
         // Use AI to generate actionable suggestions based on identified gaps
         List<JobMatchResult.Suggestion> suggestions = suggestionService.generateSuggestions(resumeData, parsedJd, missingSkills, 3);
 
-        // Calculate Overall Hybrid Score: 60% skills match, 40% keyword match
+        // Calculate Overall Hybrid Score: 40% skills, 40% keywords, 20% experience
+        int expScore = calculateExperienceScore(resumeData, parsedJd);
         int keywordScore = atsScore != null ? atsScore.getKeywordMatch() : 0;
-        int overallScore = (int) Math.round((skillsScore * 0.6) + (keywordScore * 0.4));
+        int overallScore = (int) Math.round((skillsScore * 0.4) + (keywordScore * 0.4) + (expScore * 0.2));
         
         JobMatchResult result = JobMatchResult.builder()
                 .overallScore(overallScore)
                 .skillsScore(skillsScore)
-                .experienceScore(0) // Not yet calculated
+                .experienceScore(expScore)
                 .keywordScore(keywordScore)
                 .parsedJd(parsedJd)
                 .matchedSkills(matchedSkills)
@@ -174,5 +175,31 @@ public class JobMatchService {
             }
         }
         return sb.toString();
+    }
+
+    private int calculateExperienceScore(ResumeData resumeData, ParsedJobDescription parsedJd) {
+        if (parsedJd.getMinExperienceYears() <= 0) {
+            return 100; // JD doesn't specify — full marks
+        }
+        
+        // Count experience items in the resume
+        int experienceItemCount = 0;
+        if (resumeData.getSections() != null) {
+            for (ResumeData.ResumeSection section : resumeData.getSections()) {
+                if ("experience".equalsIgnoreCase(section.getType()) && section.getItems() != null) {
+                    experienceItemCount += section.getItems().size();
+                }
+            }
+        }
+        
+        // Heuristic: each experience entry ≈ 2 years average tenure
+        int estimatedYears = experienceItemCount * 2;
+        
+        if (estimatedYears >= parsedJd.getMinExperienceYears()) {
+            return 100;
+        }
+        
+        // Proportional score
+        return (int) Math.round(((double) estimatedYears / parsedJd.getMinExperienceYears()) * 100);
     }
 }
