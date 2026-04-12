@@ -72,4 +72,13 @@ public interface CvOperationLogRepository extends JpaRepository<CvOperationLog, 
      * Find all logs with pagination, ordered by created at desc
      */
     Page<CvOperationLog> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
+    /**
+     * Count operations by action type within a date range (efficient DB-level count)
+     */
+    @Query("SELECT COUNT(c) FROM CvOperationLog c WHERE c.action = :action AND c.createdAt BETWEEN :start AND :end")
+    long countByActionAndCreatedAtBetween(
+            @Param("action") CvOperationAction action,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
 }

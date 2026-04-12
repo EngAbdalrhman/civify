@@ -30,7 +30,11 @@ public class SubscriptionPlan extends BaseEntity {
     private String details;
 
     // Feature Limits
+    @Column(columnDefinition = "integer default null")
     private Integer cvLimit; // null = unlimited
+
+    @Column(columnDefinition = "integer default null")
+    private Integer jobMatchLimit; // null = unlimited
 
     private Integer tokenLimit;
 
