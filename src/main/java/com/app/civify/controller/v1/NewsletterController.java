@@ -45,7 +45,13 @@ public class NewsletterController {
 
     @GetMapping("/unsubscribe-link")
     @Operation(summary = "Unsubscribe via link (public)")
-    public ResponseEntity<String> unsubscribeLink(@RequestParam("id") UUID id) {
+    public ResponseEntity<String> unsubscribeLink(@RequestParam(value = "id", required = false) UUID id) {
+        if (id == null) {
+            return ResponseEntity.badRequest()
+                    .contentType(MediaType.TEXT_HTML)
+                    .body("<html><body><h1>Error</h1><p>Invalid or missing unsubscribe link. Please check the link from your email.</p></body></html>");
+        }
+        
         boolean success = newsletterService.unsubscribeById(id);
         if (success) {
             return ResponseEntity.ok()
@@ -54,6 +60,6 @@ public class NewsletterController {
         }
         return ResponseEntity.badRequest()
                 .contentType(MediaType.TEXT_HTML)
-                .body("<html><body><h1>Error</h1><p>Invalid unsubscribe link.</p></body></html>");
+                .body("<html><body><h1>Error</h1><p>Invalid unsubscribe link or you are already unsubscribed.</p></body></html>");
     }
 }

@@ -144,6 +144,16 @@ public class JsonSanitizer {
 
         cleaned = cleaned.trim();
 
+        // Strip control characters that break YAML parsers
+        // 1. Replace tabs with spaces (AI sometimes uses tabs for indentation)
+        cleaned = cleaned.replace("\t", "  ");
+
+        // 2. Remove zero-width spaces, BOM, and other invisible control chars
+        cleaned = cleaned.replaceAll("[\\u200B\\u200C\\u200D\\uFEFF\\u00A0]", "");
+
+        // 3. Strip Markdown bold markers (**text** → text) which YAML sees as alias tokens
+        cleaned = cleaned.replaceAll("\\*\\*([^*]+)\\*\\*", "$1");
+
         // Repair YAML: auto-quote unquoted values containing colons
         if (looksLikeYaml(cleaned)) {
             cleaned = repairYaml(cleaned);
