@@ -8,10 +8,7 @@ import com.app.civify.entity.User;
 import com.app.civify.entity.enums.PromoApplicabilityType;
 import com.app.civify.entity.enums.SubscriptionStatus;
 import com.app.civify.entity.enums.TokenUsageType;
-import com.app.civify.entity.plans.PromoCode;
-import com.app.civify.entity.plans.SubscriptionPlan;
-import com.app.civify.entity.plans.UserPromoUsage;
-import com.app.civify.entity.plans.UserSubscription;
+import com.app.civify.entity.plans.*;
 import com.app.civify.exception.BadRequestException;
 import com.app.civify.exception.ResourceNotFoundException;
 import com.app.civify.repository.UserRepository;
@@ -591,8 +588,16 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         log.info("Subscription activated successfully for user {} with plan {}", user.getId(), plan.getName());
 
+        BigDecimal amountPaid = BigDecimal.ZERO;
+        if (paymentTransactionId != null && !paymentTransactionId.startsWith("FREE-")) {
+            java.util.Optional<PaymentTransaction> txOpt = paymentRepository.findByOrderId(paymentTransactionId);
+            if (txOpt.isPresent() && txOpt.get().getAmount() != null) {
+                amountPaid = txOpt.get().getAmount();
+            }
+        }
+
         // Send subscription activation thank-you email
-        emailService.sendSubscriptionActivationEmail(user, plan);
+        emailService.sendSubscriptionActivationEmail(user, plan, subscription, amountPaid);
         
         // Log audit event for compliance
         auditService.logEvent(

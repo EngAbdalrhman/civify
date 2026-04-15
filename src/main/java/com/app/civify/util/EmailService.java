@@ -4,6 +4,7 @@ import com.app.civify.entity.User;
 import com.app.civify.entity.billing.Invoice;
 import com.app.civify.entity.enums.UserPreferredTheme;
 import com.app.civify.entity.plans.SubscriptionPlan;
+import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.service.user.UserPreferenceService;
 import lombok.extern.slf4j.Slf4j;
 import jakarta.mail.MessagingException;
@@ -16,6 +17,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -166,7 +168,8 @@ public class EmailService {
                 
             } catch (Exception e) {
                 log.error("❌ Failed to send batch emails (users {} to {}): {}", i, end, e.getMessage());
-                // Continue to next batch even if this one fails
+                // Rethrow so the caller (e.g. scheduler) knows the chunk failed and can handle retries
+                throw new RuntimeException("Failed to send batch emails", e);
             }
         }
     }
@@ -226,6 +229,8 @@ public class EmailService {
 
             } catch (Exception e) {
                 log.error("❌ Failed to send newsletter batch ({} to {}): {}", i, end, e.getMessage());
+                // Rethrow so the EmailBatchSchedulerService knows it failed and marks it for retry
+                throw new RuntimeException("Failed to send custom email batch", e);
             }
         }
     }
@@ -358,8 +363,12 @@ public class EmailService {
      * @param user the user
      * @param plan the activated subscription plan
      */
-    public void sendSubscriptionActivationEmail(User user, SubscriptionPlan plan) {
+    public void sendSubscriptionActivationEmail(User user, SubscriptionPlan plan, UserSubscription subscription, BigDecimal amountPaid) {
         try {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM dd, yyyy");
+            String startDateStr = subscription.getStartDate() != null ? subscription.getStartDate().format(formatter) : "N/A";
+            String endDateStr = subscription.getEndDate() != null ? subscription.getEndDate().format(formatter) : "N/A";
+
             String subject = "Welcome to " + plan.getName() + " - Subscription Activated! 🎉";
             String bodyContent = String.format("""
                     <p>Dear <strong>%s</strong>,</p>
@@ -369,6 +378,24 @@ public class EmailService {
                     <div style="background-color: #e8f5e9; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
                         <h2 style="color: #2e7d32; margin: 0 0 10px 0;">🚀 You're All Set!</h2>
                         <p style="margin: 0; color: #388e3c;">Enjoy all the premium features of your new plan.</p>
+                    </div>
+                    
+                    <h3 style="color: #333;">Transaction Details:</h3>
+                    <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                        <table style="width: 100%%; border-collapse: collapse; text-align: left;">
+                            <tr>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #e9ecef;"><strong>Amount Paid:</strong></td>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #e9ecef;">%s EGP</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #e9ecef;"><strong>Billing Cycle:</strong></td>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #e9ecef;">%s to %s</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0;"><strong>Renewal Date:</strong></td>
+                                <td style="padding: 8px 0;">%s</td>
+                            </tr>
+                        </table>
                     </div>
                     
                     <h3 style="color: #333;">What's Included:</h3>
@@ -391,6 +418,10 @@ public class EmailService {
                     """,
                     user.getName(),
                     plan.getName(),
+                    amountPaid.toString(),
+                    startDateStr,
+                    endDateStr,
+                    endDateStr,
                     plan.getCvLimit() != null ? plan.getCvLimit() : 0,
                     plan.getTokenLimit() != null ? plan.getTokenLimit() : 0
             );

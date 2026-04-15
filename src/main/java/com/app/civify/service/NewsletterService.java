@@ -120,7 +120,7 @@ public class NewsletterService {
 
                 for (NewsletterSubscriber subscriber : chunk) {
                     String unsubscribeLink = String.format("%s/apis/v1/newsletter/unsubscribe-link?id=%s",
-                            backendBaseUrl, subscriber.getId());
+                            backendBaseUrl, subscriber.getId()).replace("/apis/apis/", "/apis/");
 
                     String uniqueContent = finalBody +
                             templateFooterStart +
