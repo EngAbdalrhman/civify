@@ -83,7 +83,7 @@ public class EmailBatchSchedulerService {
                     Optional<NewsletterSubscriber> subscriber = newsletterRepository.findByEmail(email);
                     if (subscriber.isPresent()) {
                         String unsubscribeLink = String.format("%s/apis/v1/newsletter/unsubscribe-link?id=%s",
-                                backendBaseUrl, subscriber.get().getId());
+                                backendBaseUrl, subscriber.get().getId()).replace("/apis/apis/", "/apis/");
                         content = content.replace("{{UNSUBSCRIBE_LINK}}", unsubscribeLink);
                     } else {
                         // Subscriber not found (maybe unsubscribed), skip
