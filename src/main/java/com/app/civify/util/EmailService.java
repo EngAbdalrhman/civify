@@ -166,7 +166,8 @@ public class EmailService {
                 
             } catch (Exception e) {
                 log.error("❌ Failed to send batch emails (users {} to {}): {}", i, end, e.getMessage());
-                // Continue to next batch even if this one fails
+                // Rethrow so the caller (e.g. scheduler) knows the chunk failed and can handle retries
+                throw new RuntimeException("Failed to send batch emails", e);
             }
         }
     }
@@ -226,6 +227,8 @@ public class EmailService {
 
             } catch (Exception e) {
                 log.error("❌ Failed to send newsletter batch ({} to {}): {}", i, end, e.getMessage());
+                // Rethrow so the EmailBatchSchedulerService knows it failed and marks it for retry
+                throw new RuntimeException("Failed to send custom email batch", e);
             }
         }
     }
