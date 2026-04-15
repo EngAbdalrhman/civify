@@ -3,6 +3,7 @@ package com.app.civify.exception;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.catalina.connector.ClientAbortException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -19,6 +20,7 @@ import com.app.civify.util.CommonResponse;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 
 /**
  * Global exception handler to ensure consistent error responses across the API
@@ -83,6 +85,22 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .header("X-Request-ID", requestId)
                 .body(CommonResponse.error(localizedMessage));
+    }
+
+    /**
+     * Handle client disconnect exceptions (Broken pipe, async timeout).
+     * These occur when the client closes the connection before the server finishes writing.
+     * No response can be sent since the client is already gone.
+     */
+    @ExceptionHandler({
+            AsyncRequestNotUsableException.class,
+            ClientAbortException.class
+    })
+    public void handleClientDisconnect(Exception ex, WebRequest request) {
+        String requestId = getRequestId(request);
+        log.warn("CLIENT_DISCONNECTED | requestId={} | type={} | message={}",
+                requestId, ex.getClass().getSimpleName(), ex.getMessage());
+        // No response — the client is already gone
     }
 
     /**
