@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
@@ -179,20 +180,28 @@ public class PaymentController {
                 content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/verify/{paymentId}")
-    @CivifyAuthorization(permission = "CV.CREATE")
+//    @CivifyAuthorization(permission = "CV.CREATE")
     public ResponseEntity<PaymentVerificationResponse> verifyPayment(
             @PathVariable String paymentId,
             @RequestParam(required = false) String gateway) {
         try {
             PaymentVerificationResponse response = paymentUseCase.verifyAndActivatePayment(paymentId, gateway);
             return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Error verifying payment: {}", e.getMessage());
+        } catch (ResourceAccessException e) {
+            log.warn("Infrastructure error verifying payment {}: {}", paymentId, e.getMessage());
             // Infrastructure error (API timeout, Paymob unavailable) — return 503 with retryable flag
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(PaymentVerificationResponse.builder()
                     .verified(false)
                     .retryable(true)
                     .message("Payment verification temporarily unavailable. Please try again.")
+                    .build());
+        } catch (Exception e) {
+            log.error("Error verifying payment {}: {}", paymentId, e.getMessage());
+            // Business logic failure (e.g., subscription not found) — return 200 with verified=false
+            return ResponseEntity.ok(PaymentVerificationResponse.builder()
+                    .verified(false)
+                    .retryable(false)
+                    .message("Payment verification failed: " + e.getMessage())
                     .build());
         }
     }

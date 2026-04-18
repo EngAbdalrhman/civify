@@ -42,5 +42,15 @@ public enum BillingAuditType {
     /**
      * Refund was initiated
      */
-    REFUND_INITIATED
+    REFUND_INITIATED,
+
+    /**
+     * Token purchase was fulfilled (tokens added to wallet)
+     */
+    TOKEN_FULFILLED,
+    
+    /**
+     * Token purchase fulfillment failed
+     */
+    TOKEN_FULFILLMENT_FAILED
 }

@@ -21,6 +21,10 @@ public class AdminStatsDTO {
     private BigDecimal revenueThisMonth;
     private BigDecimal totalRevenue;
     
+    private BigDecimal subscriptionRevenue;
+    private BigDecimal tokenPurchaseRevenue;
+    private long completedTokenPurchases;
+    
     // Period information
     private String period;      // MONTHLY, QUARTERLY, YEARLY, OVERALL
     private String periodStart; // ISO date string

@@ -2,8 +2,10 @@ package com.app.civify.usecase.admin;
 
 import com.app.civify.dto.admin.AdminStatsDTO;
 import com.app.civify.entity.enums.CvOperationAction;
+import com.app.civify.entity.plans.TokenPurchase;
 import com.app.civify.enums.StatsPeriod;
 import com.app.civify.repository.billing.InvoiceRepository;
+import com.app.civify.repository.plans.TokenPurchaseRepository;
 import com.app.civify.repository.logs.ApiKeyUsageLogRepository;
 import com.app.civify.repository.logs.CvOperationLogRepository;
 import com.app.civify.service.subscription.SubscriptionService;
@@ -27,6 +29,7 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
     private final CvOperationLogRepository cvOperationLogRepository;
     private final ApiKeyUsageLogRepository apiKeyUsageLogRepository;
     private final InvoiceRepository invoiceRepository;
+    private final TokenPurchaseRepository tokenPurchaseRepository;
 
     @Override
     public AdminStatsDTO getStats(StatsPeriod period) {
@@ -47,11 +50,18 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
         long apiCallsThisMonth;
         BigDecimal periodRevenue;
 
+        // Compute all-time totals once (reused for OVERALL period and totalRevenue fields)
+        BigDecimal totalInvoiceRevenue = invoiceRepository.sumPaidRevenue();
+        BigDecimal totalTokenRevenue = tokenPurchaseRepository.sumCompletedRevenue();
+        BigDecimal totalRevenue = totalInvoiceRevenue.add(totalTokenRevenue);
+        long completedTokenPurchases = tokenPurchaseRepository.countByStatus(
+                TokenPurchase.TokenPurchaseStatus.COMPLETED);
+
         if (period == StatsPeriod.OVERALL) {
-            // All time stats
+            // All time stats — reuse the totals already computed above
             totalCVs = cvOperationLogRepository.countByAction(CvOperationAction.UPLOAD);
             totalApiCalls = apiKeyUsageLogRepository.count();
-            periodRevenue = invoiceRepository.sumPaidRevenue();
+            periodRevenue = totalRevenue;
         } else {
             // Period-based stats
             long periodCVs = countOperationsInPeriod(CvOperationAction.UPLOAD, startDate, endDate);
@@ -59,13 +69,17 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
 
             totalCVs = periodCVs;
             totalApiCalls = periodApiCalls;
-            periodRevenue = invoiceRepository.sumPaidRevenueByDateRange(startDate, endDate);
+            BigDecimal invoiceRevenue = invoiceRepository.sumPaidRevenueByDateRange(startDate, endDate);
+            BigDecimal tokenRevenue = tokenPurchaseRepository.sumCompletedRevenueByDateRange(startDate, endDate);
+            periodRevenue = invoiceRevenue.add(tokenRevenue);
         }
 
         // Always represent the current month to match UI label semantics.
         apiCallsThisMonth = apiKeyUsageLogRepository.countByDateRange(startOfMonth, endDate);
-        BigDecimal revenueThisMonth = invoiceRepository.sumPaidRevenueByDateRange(startOfMonth, endDate);
-        BigDecimal totalRevenue = invoiceRepository.sumPaidRevenue();
+        
+        BigDecimal invoiceRevenueThisMonth = invoiceRepository.sumPaidRevenueByDateRange(startOfMonth, endDate);
+        BigDecimal tokenRevenueThisMonth = tokenPurchaseRepository.sumCompletedRevenueByDateRange(startOfMonth, endDate);
+        BigDecimal revenueThisMonth = invoiceRevenueThisMonth.add(tokenRevenueThisMonth);
 
         return AdminStatsDTO.builder()
                 .totalUsers(totalUsers)
@@ -77,6 +91,9 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
                 .periodRevenue(periodRevenue)
                 .revenueThisMonth(revenueThisMonth)
                 .totalRevenue(totalRevenue)
+                .subscriptionRevenue(totalInvoiceRevenue)
+                .tokenPurchaseRevenue(totalTokenRevenue)
+                .completedTokenPurchases(completedTokenPurchases)
                 .period(period.name())
                 .periodStart(startDate != null ? startDate.toString() : null)
                 .periodEnd(endDate.toString())
