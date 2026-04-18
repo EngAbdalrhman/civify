@@ -2,8 +2,10 @@ package com.app.civify.usecase.admin;
 
 import com.app.civify.dto.admin.AdminStatsDTO;
 import com.app.civify.entity.enums.CvOperationAction;
+import com.app.civify.entity.plans.TokenPurchase;
 import com.app.civify.enums.StatsPeriod;
-import com.app.civify.repository.billing.BillingTransactionRepository;
+import com.app.civify.repository.billing.InvoiceRepository;
+import com.app.civify.repository.plans.TokenPurchaseRepository;
 import com.app.civify.repository.logs.ApiKeyUsageLogRepository;
 import com.app.civify.repository.logs.CvOperationLogRepository;
 import com.app.civify.service.subscription.SubscriptionService;
@@ -11,6 +13,7 @@ import com.app.civify.service.user.UserService;
 import com.app.civify.util.persistence.CommonService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -25,7 +28,8 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
     private final SubscriptionService subscriptionService;
     private final CvOperationLogRepository cvOperationLogRepository;
     private final ApiKeyUsageLogRepository apiKeyUsageLogRepository;
-    private final BillingTransactionRepository billingTransactionRepository;
+    private final InvoiceRepository invoiceRepository;
+    private final TokenPurchaseRepository tokenPurchaseRepository;
 
     @Override
     public AdminStatsDTO getStats(StatsPeriod period) {
@@ -46,18 +50,12 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
         long apiCallsThisMonth;
         BigDecimal periodRevenue;
 
-        // Compute all-time totals once (reused for OVERALL period and totalRevenue
-        // fields)
-        BigDecimal totalRevenue = billingTransactionRepository.sumCompletedRevenue();
-        // Since we don't have separate token/invoice revenue tracking in StatsDTO
-        // without more complex queries,
-        // we'll approximate token revenue if needed, or just set both to zero and use
-        // totalRevenue.
-        // Actually, we can just use totalRevenue. Let's just set the legacy fields to 0
-        // or derive them if required by UI.
-        BigDecimal totalInvoiceRevenue = totalRevenue; // Approximated
-        BigDecimal totalTokenRevenue = BigDecimal.ZERO;
-        long completedTokenPurchases = 0; // Legacy field
+        // Compute all-time totals once (reused for OVERALL period and totalRevenue fields)
+        BigDecimal totalInvoiceRevenue = invoiceRepository.sumPaidRevenue();
+        BigDecimal totalTokenRevenue = tokenPurchaseRepository.sumCompletedRevenue();
+        BigDecimal totalRevenue = totalInvoiceRevenue.add(totalTokenRevenue);
+        long completedTokenPurchases = tokenPurchaseRepository.countByStatus(
+                TokenPurchase.TokenPurchaseStatus.COMPLETED);
 
         if (period == StatsPeriod.OVERALL) {
             // All time stats — reuse the totals already computed above
@@ -71,14 +69,17 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
 
             totalCVs = periodCVs;
             totalApiCalls = periodApiCalls;
-            periodRevenue = billingTransactionRepository.sumCompletedRevenueByDateRange(startDate, endDate);
+            BigDecimal invoiceRevenue = invoiceRepository.sumPaidRevenueByDateRange(startDate, endDate);
+            BigDecimal tokenRevenue = tokenPurchaseRepository.sumCompletedRevenueByDateRange(startDate, endDate);
+            periodRevenue = invoiceRevenue.add(tokenRevenue);
         }
 
         // Always represent the current month to match UI label semantics.
         apiCallsThisMonth = apiKeyUsageLogRepository.countByDateRange(startOfMonth, endDate);
-
-        BigDecimal revenueThisMonth = billingTransactionRepository.sumCompletedRevenueByDateRange(startOfMonth,
-                endDate);
+        
+        BigDecimal invoiceRevenueThisMonth = invoiceRepository.sumPaidRevenueByDateRange(startOfMonth, endDate);
+        BigDecimal tokenRevenueThisMonth = tokenPurchaseRepository.sumCompletedRevenueByDateRange(startOfMonth, endDate);
+        BigDecimal revenueThisMonth = invoiceRevenueThisMonth.add(tokenRevenueThisMonth);
 
         return AdminStatsDTO.builder()
                 .totalUsers(totalUsers)
@@ -107,8 +108,7 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
             case QUARTERLY -> {
                 int currentMonth = now.getMonthValue();
                 int quarterStartMonth = ((currentMonth - 1) / 3) * 3 + 1;
-                yield now.withMonth(quarterStartMonth).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0)
-                        .withNano(0);
+                yield now.withMonth(quarterStartMonth).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
             }
             case YEARLY -> now.withMonth(1).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
             case OVERALL -> null; // No start date for overall

@@ -57,12 +57,11 @@ public class PaymentGatewayManager {
             Long userId,
             double amount,
             PaymentMethods method,
-            com.app.civify.entity.enums.TransactionType type,
             Map<String, Object> metadata
     ) {
         return gatewayFactory
                 .getDefault()
-                .createPayment(userId, amount, method, type, metadata);
+                .createPayment(userId, amount, method, metadata);
     }
 
     /**
@@ -73,12 +72,11 @@ public class PaymentGatewayManager {
             Long userId,
             double amount,
             PaymentMethods method,
-            com.app.civify.entity.enums.TransactionType type,
             Map<String, Object> metadata
     ) {
         return gatewayFactory
                 .get(gatewayName)
-                .createPayment(userId, amount, method, type, metadata);
+                .createPayment(userId, amount, method, metadata);
     }
 
     /**

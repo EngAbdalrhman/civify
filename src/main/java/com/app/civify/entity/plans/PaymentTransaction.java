@@ -1,9 +1,7 @@
-package com.app.civify.entity.billing;
+package com.app.civify.entity.plans;
 
 import com.app.civify.entity.utils.BaseEntity;
 import com.app.civify.entity.enums.PaymentStatus;
-import com.app.civify.entity.enums.TransactionType;
-import com.app.civify.entity.plans.TokenPackage;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -14,8 +12,8 @@ import java.time.LocalDateTime;
 @Entity
 @Data
 @EqualsAndHashCode(callSuper = true)
-@Table(name = "billing_transactions")
-public class BillingTransaction extends BaseEntity {
+@Table(name = "payment_transactions")
+public class PaymentTransaction extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -27,10 +25,6 @@ public class BillingTransaction extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String paymentKey;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, name = "transaction_type")
-    private TransactionType type;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -50,14 +44,6 @@ public class BillingTransaction extends BaseEntity {
 
     // Link to subscription
     private Long subscriptionId;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "invoice_id")
-    private Invoice invoice;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "token_package_id")
-    private TokenPackage tokenPackage;
 
     /** Card token used for this transaction (for auto-renewals) */
     @Column(name = "saved_card_token", length = 512)

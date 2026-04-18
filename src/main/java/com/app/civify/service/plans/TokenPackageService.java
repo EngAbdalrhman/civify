@@ -235,7 +235,7 @@ public class TokenPackageService {
 
         log.info("Initiating token purchase for user {} - Package: {} - Amount: {}", userId, tokenPackage.getName(), finalPrice);
 
-        PaymentCreationResult paymentResult = paymentService.createPayment(userId, finalPrice.doubleValue(), gateway, methods, com.app.civify.entity.enums.TransactionType.TOKEN_TOPUP, metadata);
+        PaymentCreationResult paymentResult = paymentService.createPayment(userId, finalPrice.doubleValue(), gateway, methods, metadata);
         
         // Link purchase to payment transaction using orderId instead of paymentKey
         purchase.setPaymentTransactionId(paymentResult.getOrderId());
