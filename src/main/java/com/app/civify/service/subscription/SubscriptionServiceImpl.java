@@ -365,7 +365,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                     .subscriptionId(subscription.getId())
                     .amount(BigDecimal.ZERO)
                     .currency("EGP")
-                    .message(messageService.getMessage("subscription.created")) // TODO Fix FE Translation
+                    .message(messageService.getMessage("subscription.created"))
                     .build();
         }
 
@@ -655,7 +655,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         log.info("Creating default free subscription for user {}", userId);
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("user.notfound"));
 
         // Check if user already has a free subscription
         Optional<UserSubscription> existingFree = subscriptionRepository
@@ -695,7 +695,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         log.info("Reactivating free plan for user {}", userId);
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("user.notfound"));
 
         // Find user's free plan subscription
         Optional<UserSubscription> freeSub = subscriptionRepository
