@@ -4,7 +4,7 @@ import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.dto.payment.PaymentVerificationResponse;
 import com.app.civify.repository.billing.InvoiceRepository;
-import com.app.civify.repository.plans.PaymentRepository;
+import com.app.civify.repository.billing.BillingTransactionRepository;
 import com.app.civify.service.billing.InvoiceService;
 import com.app.civify.service.payment.PaymentFulfillmentService;
 import com.app.civify.service.payment.PaymentService;
@@ -26,7 +26,7 @@ public class PaymentUseCaseImpl implements PaymentUseCase {
     private final SubscriptionService subscriptionService;
     private final InvoiceRepository invoiceRepository;
     private final InvoiceService invoiceService;
-    private final PaymentRepository paymentRepository;
+    private final BillingTransactionRepository paymentRepository;
 
     @Lazy
     @Autowired
@@ -47,7 +47,7 @@ public class PaymentUseCaseImpl implements PaymentUseCase {
                 gateway = invoiceOpt.get().getGateway();
                 log.info("Found invoice {} for paymentId {}, using gateway: {}", invoiceOpt.get().getUuid(), paymentId, gateway);
             } else {
-                // Fallback: check PaymentTransaction table (covers token purchases and other non-invoice payments)
+                // Fallback: check BillingTransaction table (covers token purchases and other non-invoice payments)
                 var txnOpt = paymentRepository.findByOrderId(paymentId);
                 if (txnOpt.isEmpty()) {
                     txnOpt = paymentRepository.findByPaymentKey(paymentId);

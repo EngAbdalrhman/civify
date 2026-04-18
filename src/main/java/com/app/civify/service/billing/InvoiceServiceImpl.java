@@ -121,6 +121,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 invoice.getFinalAmount().doubleValue(),
                 gateway,
                 method,
+                com.app.civify.entity.enums.TransactionType.RENEWAL,
                 metadata
         );
 

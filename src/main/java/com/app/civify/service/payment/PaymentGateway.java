@@ -19,7 +19,7 @@ public interface PaymentGateway {
      * @param metadata Additional metadata for the payment
      * @return PaymentCreationResult containing key and URL
      */
-    PaymentCreationResult createPayment(Long userId, double amount, PaymentMethods method, Map<String, Object> metadata);
+    PaymentCreationResult createPayment(Long userId, double amount, PaymentMethods method, com.app.civify.entity.enums.TransactionType type, Map<String, Object> metadata);
 
     /**
      * Verify a payment transaction
