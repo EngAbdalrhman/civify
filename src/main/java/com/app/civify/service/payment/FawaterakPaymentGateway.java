@@ -1,5 +1,7 @@
 package com.app.civify.service.payment;
 
+import com.app.civify.entity.enums.TransactionType;
+
 import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.PaymentMethods;
@@ -77,7 +79,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
 
     @Override
     @Transactional
-    public PaymentCreationResult createPayment(Long userId, double amount, PaymentMethods method, com.app.civify.entity.enums.TransactionType type, Map<String, Object> metadata) {
+    public PaymentCreationResult createPayment(Long userId, double amount, PaymentMethods method, TransactionType type, Map<String, Object> metadata) {
         if (!isEnabled()) {
             throw new RuntimeException("Fawaterak gateway is not configured properly.");
         }

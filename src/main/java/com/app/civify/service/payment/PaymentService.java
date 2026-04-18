@@ -1,5 +1,7 @@
 package com.app.civify.service.payment;
 
+import com.app.civify.entity.enums.TransactionType;
+
 import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.PaymentMethods;
 
@@ -18,7 +20,7 @@ public interface PaymentService {
      * @param method payment Method
      * @return PaymentCreationResult
      */
-    PaymentCreationResult createPayment(Long userId, double amount, String gateway, PaymentMethods method, com.app.civify.entity.enums.TransactionType type, Map<String, Object> metadata);
+    PaymentCreationResult createPayment(Long userId, double amount, String gateway, PaymentMethods method, TransactionType type, Map<String, Object> metadata);
 
     /**
      * Verify a payment transaction
@@ -68,5 +70,5 @@ public interface PaymentService {
      * Charge a saved card token (MOTO / recurring).
      * @return true if charge succeeded
      */
-    boolean chargeWithToken(Long userId, double amount, String cardToken, Long subscriptionId);
+    boolean chargeWithToken(Long userId, double amount, String cardToken, Long subscriptionId, Long invoiceId);
 }

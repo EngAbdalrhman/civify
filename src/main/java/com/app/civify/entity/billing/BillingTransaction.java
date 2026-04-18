@@ -1,8 +1,9 @@
 package com.app.civify.entity.billing;
 
+import com.app.civify.entity.enums.TransactionType;
+
 import com.app.civify.entity.utils.BaseEntity;
 import com.app.civify.entity.enums.PaymentStatus;
-import com.app.civify.entity.enums.TransactionType;
 import com.app.civify.entity.plans.TokenPackage;
 import jakarta.persistence.*;
 import lombok.Data;

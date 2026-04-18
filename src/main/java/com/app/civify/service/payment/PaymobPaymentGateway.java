@@ -1,5 +1,8 @@
 package com.app.civify.service.payment;
 
+import com.app.civify.entity.billing.Invoice;
+import com.app.civify.entity.enums.TransactionType;
+
 import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.PaymentMethods;
@@ -111,7 +114,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
     @Override
     @Transactional
-    public PaymentCreationResult createPayment(Long userId, double amount, PaymentMethods method, com.app.civify.entity.enums.TransactionType type, Map<String, Object> metadata) {
+    public PaymentCreationResult createPayment(Long userId, double amount, PaymentMethods method, TransactionType type, Map<String, Object> metadata) {
         if (!isEnabled()) {
             throw new RuntimeException("Paymob gateway is not configured properly. Please check api-key and integration-id in application.properties");
         }
@@ -123,7 +126,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
         }
     }
 
-    private PaymentCreationResult createPaymentV2(Long userId, double amount, PaymentMethods method, com.app.civify.entity.enums.TransactionType type, Map<String, Object> metadata) {
+    private PaymentCreationResult createPaymentV2(Long userId, double amount, PaymentMethods method, TransactionType type, Map<String, Object> metadata) {
         try {
             log.info("Creating Paymob V2 payment (Intention) for user {} with amount {} EGP", userId, amount);
 
@@ -234,7 +237,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
         }
     }
 
-    private PaymentCreationResult createPaymentLegacy(Long userId, double amount, PaymentMethods method, com.app.civify.entity.enums.TransactionType type, Map<String, Object> metadata) {
+    private PaymentCreationResult createPaymentLegacy(Long userId, double amount, PaymentMethods method, TransactionType type, Map<String, Object> metadata) {
         try {
             log.info("Creating Paymob payment (Legacy) for user {} with amount {} EGP", userId, amount);
 
@@ -1025,7 +1028,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
     @Override
     @Transactional
-    public boolean chargeWithToken(Long userId, double amount, String cardToken, Long subscriptionId) {
+    public boolean chargeWithToken(Long userId, double amount, String cardToken, Long subscriptionId, Long invoiceId) {
         try {
             log.info("Charging saved token for user {} amount {} EGP", userId, amount);
 
@@ -1133,8 +1136,13 @@ public class PaymobPaymentGateway implements PaymentGateway {
             transaction.setStatus(success ? PaymentStatus.COMPLETED : PaymentStatus.FAILED);
             transaction.setGateway(getGatewayName());
             transaction.setCurrency("EGP");
-            transaction.setType(com.app.civify.entity.enums.TransactionType.RENEWAL);
+            transaction.setType(TransactionType.RENEWAL);
             transaction.setSubscriptionId(subscriptionId);
+            if (invoiceId != null) {
+                Invoice invoice = new Invoice();
+                invoice.setId(invoiceId);
+                transaction.setInvoice(invoice);
+            }
             transaction.setSavedCardToken(cardToken);
             if (success) transaction.setCompletedAt(LocalDateTime.now());
             paymentRepository.save(transaction);

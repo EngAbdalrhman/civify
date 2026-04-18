@@ -49,15 +49,9 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
         // Compute all-time totals once (reused for OVERALL period and totalRevenue
         // fields)
         BigDecimal totalRevenue = billingTransactionRepository.sumCompletedRevenue();
-        // Since we don't have separate token/invoice revenue tracking in StatsDTO
-        // without more complex queries,
-        // we'll approximate token revenue if needed, or just set both to zero and use
-        // totalRevenue.
-        // Actually, we can just use totalRevenue. Let's just set the legacy fields to 0
-        // or derive them if required by UI.
-        BigDecimal totalInvoiceRevenue = totalRevenue; // Approximated
-        BigDecimal totalTokenRevenue = BigDecimal.ZERO;
-        long completedTokenPurchases = 0; // Legacy field
+        BigDecimal totalInvoiceRevenue = billingTransactionRepository.sumCompletedSubscriptionRevenue();
+        BigDecimal totalTokenRevenue = billingTransactionRepository.sumCompletedTokenRevenue();
+        long completedTokenPurchases = billingTransactionRepository.countCompletedTokenPurchases();
 
         if (period == StatsPeriod.OVERALL) {
             // All time stats — reuse the totals already computed above

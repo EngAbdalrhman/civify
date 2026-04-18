@@ -6,7 +6,6 @@ import com.app.civify.repository.billing.BillingTransactionRepository;
 import com.app.civify.service.billing.InvoiceService;
 import com.app.civify.service.plans.TokenPackageService;
 import com.app.civify.service.subscription.SubscriptionService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,8 +13,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Map;
 
 /**
  * Service responsible for fulfilling successful payments.
@@ -28,7 +25,6 @@ import java.util.Map;
 public class PaymentFulfillmentService {
 
     private final BillingTransactionRepository paymentRepository;
-    private final ObjectMapper objectMapper;
 
     @Lazy
     @Autowired

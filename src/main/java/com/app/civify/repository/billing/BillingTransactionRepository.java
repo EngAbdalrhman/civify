@@ -35,9 +35,18 @@ public interface BillingTransactionRepository extends JpaRepository<BillingTrans
     List<BillingTransaction> findByGateway(String gateway);
 
     // Unified revenue queries
-    @Query("SELECT COALESCE(SUM(bt.amount), 0) FROM BillingTransaction bt WHERE bt.status = 'COMPLETED'")
+    @Query("SELECT COALESCE(SUM(bt.amount), 0) FROM BillingTransaction bt WHERE bt.status = 'COMPLETED' AND bt.type != 'REFUND'")
     BigDecimal sumCompletedRevenue();
 
-    @Query("SELECT COALESCE(SUM(bt.amount), 0) FROM BillingTransaction bt WHERE bt.status = 'COMPLETED' AND bt.completedAt BETWEEN :start AND :end")
+    @Query("SELECT COALESCE(SUM(bt.amount), 0) FROM BillingTransaction bt WHERE bt.status = 'COMPLETED' AND bt.type != 'REFUND' AND bt.completedAt BETWEEN :start AND :end")
     BigDecimal sumCompletedRevenueByDateRange(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    @Query("SELECT COALESCE(SUM(bt.amount), 0) FROM BillingTransaction bt WHERE bt.status = 'COMPLETED' AND bt.type IN ('SUBSCRIPTION', 'RENEWAL')")
+    BigDecimal sumCompletedSubscriptionRevenue();
+
+    @Query("SELECT COALESCE(SUM(bt.amount), 0) FROM BillingTransaction bt WHERE bt.status = 'COMPLETED' AND bt.type = 'TOKEN_TOPUP'")
+    BigDecimal sumCompletedTokenRevenue();
+
+    @Query("SELECT COUNT(bt) FROM BillingTransaction bt WHERE bt.status = 'COMPLETED' AND bt.type = 'TOKEN_TOPUP'")
+    long countCompletedTokenPurchases();
 }

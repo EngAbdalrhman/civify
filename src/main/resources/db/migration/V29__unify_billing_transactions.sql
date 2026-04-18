@@ -32,3 +32,7 @@ WHERE transaction_type IS NULL;
 
 -- 5. Make transaction_type non-nullable
 ALTER TABLE billing_transactions ALTER COLUMN transaction_type SET NOT NULL;
+
+-- 6. Add performance indexes for revenue queries and admin filtering
+CREATE INDEX idx_billing_tx_type ON billing_transactions(transaction_type);
+CREATE INDEX idx_billing_tx_status_completed_at ON billing_transactions(status, completed_at);

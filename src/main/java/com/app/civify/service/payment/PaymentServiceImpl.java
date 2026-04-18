@@ -1,5 +1,7 @@
 package com.app.civify.service.payment;
 
+import com.app.civify.entity.enums.TransactionType;
+
 import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.PaymentMethods;
@@ -24,7 +26,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentGatewayManager gatewayManager;
 
     @Override
-    public PaymentCreationResult createPayment(Long userId, double amount, String gateway, PaymentMethods method, com.app.civify.entity.enums.TransactionType type, Map<String, Object> metadata) {
+    public PaymentCreationResult createPayment(Long userId, double amount, String gateway, PaymentMethods method, TransactionType type, Map<String, Object> metadata) {
         log.info("Creating payment for user {} with amount {} using gateway {} and metadata {}", userId, amount, gateway, metadata);
         return gatewayManager.createPayment(gateway, userId, amount, method, type, metadata);
     }
@@ -80,8 +82,8 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    public boolean chargeWithToken(Long userId, double amount, String cardToken, Long subscriptionId) {
+    public boolean chargeWithToken(Long userId, double amount, String cardToken, Long subscriptionId, Long invoiceId) {
         log.info("Charging token for user {} amount {}", userId, amount);
-        return gatewayManager.getDefaultGateway().chargeWithToken(userId, amount, cardToken, subscriptionId);
+        return gatewayManager.getDefaultGateway().chargeWithToken(userId, amount, cardToken, subscriptionId, invoiceId);
     }
 }

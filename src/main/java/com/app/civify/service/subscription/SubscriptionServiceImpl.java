@@ -1,5 +1,7 @@
 package com.app.civify.service.subscription;
 
+import com.app.civify.entity.enums.TransactionType;
+
 import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.PaymentInitiationResponse;
 import com.app.civify.dto.payment.PaymentMethods;
@@ -381,7 +383,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             metadata.put("subscriptionId", subscription.getId());
         }
 
-        PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), gateway, method, com.app.civify.entity.enums.TransactionType.SUBSCRIPTION, metadata);
+        PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), gateway, method, TransactionType.SUBSCRIPTION, metadata);
 
         // Link payment to subscription using orderId (same ID used for lookup in activateSubscription)
         subscription.setPaymentTransactionId(paymentResult.getOrderId());

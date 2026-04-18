@@ -1,5 +1,7 @@
 package com.app.civify.service.payment;
 
+import com.app.civify.entity.enums.TransactionType;
+
 import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.PaymentMethods;
@@ -19,7 +21,7 @@ public interface PaymentGateway {
      * @param metadata Additional metadata for the payment
      * @return PaymentCreationResult containing key and URL
      */
-    PaymentCreationResult createPayment(Long userId, double amount, PaymentMethods method, com.app.civify.entity.enums.TransactionType type, Map<String, Object> metadata);
+    PaymentCreationResult createPayment(Long userId, double amount, PaymentMethods method, TransactionType type, Map<String, Object> metadata);
 
     /**
      * Verify a payment transaction
@@ -84,7 +86,7 @@ public interface PaymentGateway {
      * Charge a saved card token (MOTO / recurring).
      * @return true if charge succeeded
      */
-    default boolean chargeWithToken(Long userId, double amount, String cardToken, Long subscriptionId) {
+    default boolean chargeWithToken(Long userId, double amount, String cardToken, Long subscriptionId, Long invoiceId) {
         throw new UnsupportedOperationException("Token charging not supported");
     }
 }

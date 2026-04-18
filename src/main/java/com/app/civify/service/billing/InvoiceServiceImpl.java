@@ -1,5 +1,7 @@
 package com.app.civify.service.billing;
 
+import com.app.civify.entity.enums.TransactionType;
+
 import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.entity.User;
@@ -20,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -121,7 +124,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 invoice.getFinalAmount().doubleValue(),
                 gateway,
                 method,
-                com.app.civify.entity.enums.TransactionType.RENEWAL,
+                TransactionType.RENEWAL,
                 metadata
         );
 
@@ -288,7 +291,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         if (sub.getStartDate() == null || sub.getEndDate() == null) {
             return false;
         }
-        long days = java.time.temporal.ChronoUnit.DAYS.between(sub.getStartDate(), sub.getEndDate());
+        long days = ChronoUnit.DAYS.between(sub.getStartDate(), sub.getEndDate());
         return days > 180;
     }
 }
