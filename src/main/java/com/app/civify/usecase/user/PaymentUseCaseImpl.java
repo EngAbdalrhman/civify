@@ -90,15 +90,19 @@ public class PaymentUseCaseImpl implements PaymentUseCase {
 
             if (fulfilled) {
                 log.info("Payment {} verified and fulfilled successfully", paymentId);
+                return PaymentVerificationResponse.builder()
+                        .verified(true)
+                        .message("Payment verified successfully")
+                        .build();
             } else {
-                log.warn("Payment {} verified but fulfillment did not complete via verify endpoint. " +
+                log.warn("Payment {} verified but fulfillment failed. " +
                          "Webhook may handle fulfillment separately.", paymentId);
+                return PaymentVerificationResponse.builder()
+                        .verified(true)
+                        .retryable(true)
+                        .message("Payment verified but activation is still processing. Please wait a moment.")
+                        .build();
             }
-            
-            return PaymentVerificationResponse.builder()
-                    .verified(true)
-                    .message("Payment verified successfully")
-                    .build();
         }
 
         log.warn("Payment {} verification failed", paymentId);
