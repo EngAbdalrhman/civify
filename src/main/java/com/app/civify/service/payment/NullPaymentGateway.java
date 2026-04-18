@@ -1,5 +1,7 @@
 package com.app.civify.service.payment;
 
+import com.app.civify.entity.enums.TransactionType;
+
 import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.PaymentMethods;
@@ -11,7 +13,7 @@ import java.util.Map;
 public class NullPaymentGateway implements PaymentGateway {
 
     @Override
-    public PaymentCreationResult createPayment(Long userId, double amount, PaymentMethods method, Map<String, Object> metadata) {
+    public PaymentCreationResult createPayment(Long userId, double amount, PaymentMethods method, TransactionType type, Map<String, Object> metadata) {
         log.warn("Attempted to create payment with NULL gateway");
         throw new IllegalStateException("Payment gateway is not available");
     }

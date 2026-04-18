@@ -38,6 +38,8 @@ public class PdfDocumentProcessor implements DocumentProcessor {
 
     private static final int MIN_TEXT_LENGTH_THRESHOLD = 100;
     private static final float OCR_DPI = 300f;
+    private static final int MAX_PAGES = 8;
+
 
     @Override
     public ProcessedDocument process(MultipartFile file) {
@@ -51,8 +53,8 @@ public class PdfDocumentProcessor implements DocumentProcessor {
         try (PDDocument document = Loader.loadPDF(file.getBytes())) {
             int pageCount = document.getNumberOfPages();
             log.info("Processing PDF: {}, pages: {}", file.getOriginalFilename(), pageCount);
-            if (pageCount > 5){
-                throw new BadRequestException("Can't proceed a cv larger than 5 pages");
+            if (pageCount > MAX_PAGES){
+                throw new BadRequestException("Can't proceed a cv larger than " + MAX_PAGES + " pages");
             }
 
             // First, try direct text extraction

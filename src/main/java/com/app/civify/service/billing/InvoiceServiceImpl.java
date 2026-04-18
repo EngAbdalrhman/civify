@@ -1,5 +1,7 @@
 package com.app.civify.service.billing;
 
+import com.app.civify.entity.enums.TransactionType;
+
 import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.entity.User;
@@ -20,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -121,6 +124,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 invoice.getFinalAmount().doubleValue(),
                 gateway,
                 method,
+                TransactionType.RENEWAL,
                 metadata
         );
 
@@ -153,6 +157,26 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.markPaid(paymentTransactionId);
         invoiceRepository.save(invoice);
         log.info("Marked invoice {} as PAID", invoice.getUuid());
+    }
+
+    @Override
+    @Transactional
+    public void markPaidById(Long invoiceId) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElse(null);
+        if (invoice == null) {
+            log.warn("No invoice found for ID: {}", invoiceId);
+            return;
+        }
+        if (invoice.getStatus() == InvoiceStatus.PAID) {
+            log.info("Invoice {} already marked as PAID", invoice.getUuid());
+            return;
+        }
+
+        invoice.setStatus(InvoiceStatus.PAID);
+        invoice.setPaidAt(LocalDateTime.now());
+        invoiceRepository.save(invoice);
+        log.info("Marked invoice {} as PAID (via auto-charge)", invoice.getUuid());
     }
 
     @Override
@@ -287,7 +311,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         if (sub.getStartDate() == null || sub.getEndDate() == null) {
             return false;
         }
-        long days = java.time.temporal.ChronoUnit.DAYS.between(sub.getStartDate(), sub.getEndDate());
+        long days = ChronoUnit.DAYS.between(sub.getStartDate(), sub.getEndDate());
         return days > 180;
     }
 }

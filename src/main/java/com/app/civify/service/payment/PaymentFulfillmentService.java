@@ -1,12 +1,11 @@
 package com.app.civify.service.payment;
 
-import com.app.civify.entity.plans.PaymentTransaction;
+import com.app.civify.entity.billing.BillingTransaction;
 import com.app.civify.exception.ResourceNotFoundException;
-import com.app.civify.repository.plans.PaymentRepository;
+import com.app.civify.repository.billing.BillingTransactionRepository;
 import com.app.civify.service.billing.InvoiceService;
 import com.app.civify.service.plans.TokenPackageService;
 import com.app.civify.service.subscription.SubscriptionService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,8 +13,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Map;
 
 /**
  * Service responsible for fulfilling successful payments.
@@ -27,8 +24,7 @@ import java.util.Map;
 @Slf4j
 public class PaymentFulfillmentService {
 
-    private final PaymentRepository paymentRepository;
-    private final ObjectMapper objectMapper;
+    private final BillingTransactionRepository paymentRepository;
 
     @Lazy
     @Autowired
@@ -57,7 +53,7 @@ public class PaymentFulfillmentService {
         log.info("Fulfilling payment for order: {}", orderId);
 
         try {
-            PaymentTransaction transaction = paymentRepository.findByOrderId(orderId)
+            BillingTransaction transaction = paymentRepository.findByOrderId(orderId)
                     .orElseThrow(() -> new ResourceNotFoundException("payment.transaction.notfound"));
 
             return fulfillTransaction(transaction);
@@ -80,7 +76,7 @@ public class PaymentFulfillmentService {
         log.info("Fulfilling payment for paymentKey: {}", paymentKey);
 
         try {
-            PaymentTransaction transaction = paymentRepository.findByPaymentKey(paymentKey)
+            BillingTransaction transaction = paymentRepository.findByPaymentKey(paymentKey)
                     .orElseThrow(() -> new ResourceNotFoundException("payment.transaction.notfound"));
 
             return fulfillTransaction(transaction);
@@ -93,37 +89,35 @@ public class PaymentFulfillmentService {
     /**
      * Core fulfillment logic for a payment transaction.
      */
-    private boolean fulfillTransaction(PaymentTransaction transaction) {
+    private boolean fulfillTransaction(BillingTransaction transaction) {
         try {
-            // Check if this is a token top-up
-            if (transaction.getMetadata() != null) {
-                Map<String, Object> meta = objectMapper.readValue(transaction.getMetadata(), Map.class);
-
-                if ("TOKEN_TOPUP".equals(meta.get("type"))) {
+            switch (transaction.getType()) {
+                case TOKEN_TOPUP:
                     log.info("Processing TOKEN_TOPUP for order: {}", transaction.getOrderId());
                     tokenPackageService.fulfillTokenPurchase(transaction.getOrderId());
                     return true;
-                }
+                    
+                case RENEWAL:
+                    log.info("Processing RENEWAL for order: {}", transaction.getOrderId());
+                    boolean invoiceHandled = invoiceService.handleSuccessfulPayment(transaction.getOrderId());
+                    if (!invoiceHandled) {
+                        invoiceHandled = invoiceService.handleSuccessfulPayment(transaction.getPaymentKey());
+                    }
+                    return invoiceHandled;
+                    
+                case SUBSCRIPTION:
+                    log.info("Processing SUBSCRIPTION activation for orderId: {}", transaction.getOrderId());
+                    subscriptionService.activateSubscription(transaction.getOrderId());
+                    return true;
+                    
+                case REFUND:
+                    log.info("Refund processing not yet implemented for order: {}", transaction.getOrderId());
+                    return false;
+                    
+                default:
+                    log.warn("Unknown transaction type {} for order {}", transaction.getType(), transaction.getOrderId());
+                    return false;
             }
-
-            // Try to handle invoice payment first (for renewals)
-            // NOTE: Invoice stores orderId as paymentTransactionId, so try orderId first
-            boolean invoiceHandled = invoiceService.handleSuccessfulPayment(transaction.getOrderId());
-            
-            // Fallback: try with paymentKey for backwards compatibility
-            if (!invoiceHandled) {
-                invoiceHandled = invoiceService.handleSuccessfulPayment(transaction.getPaymentKey());
-            }
-
-            if (!invoiceHandled) {
-                // No invoice found - activate subscription (initial purchase flow)
-                log.info("Processing SUBSCRIPTION activation for orderId: {}", transaction.getOrderId());
-                subscriptionService.activateSubscription(transaction.getOrderId());
-            } else {
-                log.info("Invoice payment processed for order: {}", transaction.getOrderId());
-            }
-
-            return true;
         } catch (Exception e) {
             log.error("Failed to fulfill transaction {}: {}", transaction.getOrderId(), e.getMessage(), e);
             return false;

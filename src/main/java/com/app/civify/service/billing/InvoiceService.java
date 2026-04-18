@@ -40,6 +40,11 @@ public interface InvoiceService {
     void markPaid(String paymentTransactionId);
 
     /**
+     * Mark invoice as paid by its ID (for auto-charge flows where no paymentTransactionId is available).
+     */
+    void markPaidById(Long invoiceId);
+
+    /**
      * Expire all pending invoices for a subscription.
      * Called when subscription is downgraded.
      */

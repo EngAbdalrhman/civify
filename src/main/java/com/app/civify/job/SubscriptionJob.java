@@ -135,45 +135,47 @@ public class SubscriptionJob implements Job {
                     continue;
                 }
 
+                // Paid plans - get or create invoice FIRST
+                Optional<Invoice> existingInvoice = invoiceService.findPendingInvoice(sub.getId());
+                Invoice invoice = null;
+
+                if (existingInvoice.isPresent()) {
+                    invoice = existingInvoice.get();
+                } else {
+                    Optional<Invoice> invoiceOpt = invoiceService.createRenewalInvoice(sub, amount, "EGP");
+                    if (invoiceOpt.isPresent()) {
+                        invoice = invoiceOpt.get();
+                        invoiceCount++;
+                        
+                        // Audit log: Invoice created
+                        subscriptionAuditService.logEvent(
+                            sub.getUser().getId(), sub.getId(),
+                            SubscriptionAuditType.INVOICE_CREATED, invoice.getId(),
+                            plan.getId(), "scheduler",
+                            "Renewal invoice created, amount: " + amount + " EGP"
+                        );
+                    }
+                }
+
                 // Attempt Auto-charge
                 if (sub.getSavedCardToken() != null && !sub.getSavedCardToken().isBlank()) {
-                    boolean charged = attemptAutoCharge(sub, amount, isAnnual);
+                    boolean charged = attemptAutoCharge(sub, amount, isAnnual, invoice);
                     if (charged) {
                         autoChargeCount++;
-                        continue; // Skip invoice creation — payment handled
+                        continue; 
                     }
                     // Auto-charge failed — fall through to manual invoice + email
                     log.warn("Auto-charge failed for subscription {}. Falling back to manual invoice.", sub.getId());
                 }
 
-                // Paid plans - handle invoicing and reminders
-                Optional<Invoice> existingInvoice = invoiceService.findPendingInvoice(sub.getId());
-
-                if (existingInvoice.isPresent()) {
-                    // Invoice exists - send daily reminder
-                    Invoice invoice = existingInvoice.get();
-                    invoiceService.sendReminderEmail(invoice);
-                    reminderCount++;
-                    log.info("📧 Sent reminder for invoice {} (subscription {})", invoice.getUuid(), sub.getId());
-                } else {
-                    // No invoice - create one and send first email
-                    Optional<Invoice> invoiceOpt = invoiceService.createRenewalInvoice(sub, amount, "EGP");
-
-                    if (invoiceOpt.isPresent()) {
-                        Invoice invoice = invoiceOpt.get();
+                // Send reminder since auto-charge failed or wasn't attempted
+                if (invoice != null) {
+                    if (existingInvoice.isPresent()) {
+                        invoiceService.sendReminderEmail(invoice);
+                        reminderCount++;
+                        log.info("📧 Sent reminder for invoice {} (subscription {})", invoice.getUuid(), sub.getId());
+                    } else {
                         sendRenewalNotificationEmail(sub, invoice, amount, isAnnual);
-                        invoiceCount++;
-                        
-                        // Audit log: Invoice created
-                        subscriptionAuditService.logEvent(
-                            sub.getUser().getId(),
-                            sub.getId(),
-                            SubscriptionAuditType.INVOICE_CREATED,
-                            invoice.getId(),
-                            plan.getId(),
-                            "scheduler",
-                            "Renewal invoice created, amount: " + amount + " EGP"
-                        );
                     }
                 }
             } catch (Exception e) {
@@ -188,7 +190,7 @@ public class SubscriptionJob implements Job {
     // Helper methods remain private as they are internal to this logic
     private static final int MAX_AUTO_CHARGE_FAILURES = 3;
 
-    private boolean attemptAutoCharge(UserSubscription sub, BigDecimal amount, boolean isAnnual) {
+    private boolean attemptAutoCharge(UserSubscription sub, BigDecimal amount, boolean isAnnual, Invoice invoice) {
         try {
             if (sub.getAutoChargeFailureCount() >= MAX_AUTO_CHARGE_FAILURES) {
                 log.warn("🚫 Auto-charge disabled for subscription {} after {} failures. Skipping.", sub.getId(), sub.getAutoChargeFailureCount());
@@ -205,7 +207,8 @@ public class SubscriptionJob implements Job {
                 sub.getUser().getId(),
                 amount.doubleValue(),
                 sub.getSavedCardToken(),
-                sub.getId()
+                sub.getId(),
+                invoice != null ? invoice.getId() : null
             );
 
             if (success) {
@@ -216,6 +219,11 @@ public class SubscriptionJob implements Job {
                 sub.setCurrentCycleCount(sub.getCurrentCycleCount() + 1);
                 sub.setAutoChargeFailureCount(0);
                 subscriptionRepository.save(sub);
+
+                // Mark the invoice as PAID (prevents orphan PENDING invoices)
+                if (invoice != null) {
+                    invoiceService.markPaidById(invoice.getId());
+                }
 
                 log.info("✅ Auto-charge successful for subscription {}. Extended to {}", sub.getId(), newEnd.toLocalDate());
 

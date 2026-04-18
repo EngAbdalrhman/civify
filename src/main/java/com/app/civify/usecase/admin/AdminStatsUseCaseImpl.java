@@ -3,7 +3,7 @@ package com.app.civify.usecase.admin;
 import com.app.civify.dto.admin.AdminStatsDTO;
 import com.app.civify.entity.enums.CvOperationAction;
 import com.app.civify.enums.StatsPeriod;
-import com.app.civify.repository.billing.InvoiceRepository;
+import com.app.civify.repository.billing.BillingTransactionRepository;
 import com.app.civify.repository.logs.ApiKeyUsageLogRepository;
 import com.app.civify.repository.logs.CvOperationLogRepository;
 import com.app.civify.service.subscription.SubscriptionService;
@@ -11,7 +11,6 @@ import com.app.civify.service.user.UserService;
 import com.app.civify.util.persistence.CommonService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -26,7 +25,7 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
     private final SubscriptionService subscriptionService;
     private final CvOperationLogRepository cvOperationLogRepository;
     private final ApiKeyUsageLogRepository apiKeyUsageLogRepository;
-    private final InvoiceRepository invoiceRepository;
+    private final BillingTransactionRepository billingTransactionRepository;
 
     @Override
     public AdminStatsDTO getStats(StatsPeriod period) {
@@ -47,11 +46,18 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
         long apiCallsThisMonth;
         BigDecimal periodRevenue;
 
+        // Compute all-time totals once (reused for OVERALL period and totalRevenue
+        // fields)
+        BigDecimal totalRevenue = billingTransactionRepository.sumCompletedRevenue();
+        BigDecimal totalInvoiceRevenue = billingTransactionRepository.sumCompletedSubscriptionRevenue();
+        BigDecimal totalTokenRevenue = billingTransactionRepository.sumCompletedTokenRevenue();
+        long completedTokenPurchases = billingTransactionRepository.countCompletedTokenPurchases();
+
         if (period == StatsPeriod.OVERALL) {
-            // All time stats
+            // All time stats — reuse the totals already computed above
             totalCVs = cvOperationLogRepository.countByAction(CvOperationAction.UPLOAD);
             totalApiCalls = apiKeyUsageLogRepository.count();
-            periodRevenue = invoiceRepository.sumPaidRevenue();
+            periodRevenue = totalRevenue;
         } else {
             // Period-based stats
             long periodCVs = countOperationsInPeriod(CvOperationAction.UPLOAD, startDate, endDate);
@@ -59,13 +65,14 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
 
             totalCVs = periodCVs;
             totalApiCalls = periodApiCalls;
-            periodRevenue = invoiceRepository.sumPaidRevenueByDateRange(startDate, endDate);
+            periodRevenue = billingTransactionRepository.sumCompletedRevenueByDateRange(startDate, endDate);
         }
 
         // Always represent the current month to match UI label semantics.
         apiCallsThisMonth = apiKeyUsageLogRepository.countByDateRange(startOfMonth, endDate);
-        BigDecimal revenueThisMonth = invoiceRepository.sumPaidRevenueByDateRange(startOfMonth, endDate);
-        BigDecimal totalRevenue = invoiceRepository.sumPaidRevenue();
+
+        BigDecimal revenueThisMonth = billingTransactionRepository.sumCompletedRevenueByDateRange(startOfMonth,
+                endDate);
 
         return AdminStatsDTO.builder()
                 .totalUsers(totalUsers)
@@ -77,6 +84,9 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
                 .periodRevenue(periodRevenue)
                 .revenueThisMonth(revenueThisMonth)
                 .totalRevenue(totalRevenue)
+                .subscriptionRevenue(totalInvoiceRevenue)
+                .tokenPurchaseRevenue(totalTokenRevenue)
+                .completedTokenPurchases(completedTokenPurchases)
                 .period(period.name())
                 .periodStart(startDate != null ? startDate.toString() : null)
                 .periodEnd(endDate.toString())
@@ -91,7 +101,8 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
             case QUARTERLY -> {
                 int currentMonth = now.getMonthValue();
                 int quarterStartMonth = ((currentMonth - 1) / 3) * 3 + 1;
-                yield now.withMonth(quarterStartMonth).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+                yield now.withMonth(quarterStartMonth).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0)
+                        .withNano(0);
             }
             case YEARLY -> now.withMonth(1).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
             case OVERALL -> null; // No start date for overall

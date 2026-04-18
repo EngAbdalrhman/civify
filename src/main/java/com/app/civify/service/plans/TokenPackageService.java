@@ -1,5 +1,7 @@
 package com.app.civify.service.plans;
 
+import com.app.civify.entity.enums.TransactionType;
+
 import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.dto.token.TokenBalanceResponse;
@@ -18,6 +20,7 @@ import com.app.civify.repository.plans.TokenPurchaseRepository;
 import com.app.civify.repository.plans.UserPromoUsageRepository;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
 import com.app.civify.service.audit.AuditService;
+import com.app.civify.service.logs.BillingAuditService;
 import com.app.civify.service.payment.PaymentService;
 import com.app.civify.service.payment.PromoCodeService;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +48,7 @@ public class TokenPackageService {
     private final TokenPurchaseRepository tokenPurchaseRepository;
     private final UserPromoUsageRepository userPromoUsageRepository;
     private final com.app.civify.service.i18n.MessageService messageService;
+    private final BillingAuditService billingAuditService;
 
     public List<TokenPackage> getAllActivePackages() {
         return tokenPackageRepository.findByActiveTrue();
@@ -183,7 +187,7 @@ public class TokenPackageService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("user.notfound"));
 
-        BigDecimal finalPrice = BigDecimal.valueOf(tokenPackage.getPrice());
+        BigDecimal finalPrice = tokenPackage.getPrice();
         PromoCode promo = null;
 
         // Validate promo code
@@ -233,10 +237,10 @@ public class TokenPackageService {
 
         log.info("Initiating token purchase for user {} - Package: {} - Amount: {}", userId, tokenPackage.getName(), finalPrice);
 
-        PaymentCreationResult paymentResult = paymentService.createPayment(userId, finalPrice.doubleValue(), gateway, methods, metadata);
+        PaymentCreationResult paymentResult = paymentService.createPayment(userId, finalPrice.doubleValue(), gateway, methods, TransactionType.TOKEN_TOPUP, metadata);
         
-        // Link purchase to payment transaction
-        purchase.setPaymentTransactionId(paymentResult.getPaymentKey());
+        // Link purchase to payment transaction using orderId instead of paymentKey
+        purchase.setPaymentTransactionId(paymentResult.getOrderId());
         tokenPurchaseRepository.save(purchase);
         
         return paymentResult;
@@ -251,17 +255,12 @@ public class TokenPackageService {
     public void fulfillTokenPurchase(String paymentRef) {
         log.info("Fulfilling token purchase for payment ref: {}", paymentRef);
         
-        // Find by transaction ID
-        var purchaseOpt = tokenPurchaseRepository.findByPaymentTransactionId(paymentRef);
+        // Use pessimistic lock to prevent double-fulfillment from concurrent webhook + verify calls
+        var purchaseOpt = tokenPurchaseRepository.findByPaymentTransactionIdForUpdate(paymentRef);
         if (purchaseOpt.isEmpty()) {
-            // TODO Fallback: try finding by orderId if that's what was passed (sometimes gateways confuse terms)
-            // Ideally we'd have search methods for both or normalize before calling.
-            // For now, if not found, we might be receiving the 'orderId' but stored 'paymentKey' or vice versa.
-            // Let's assume passed ref matches stored ref. if not found, we log error.
+            // paymentTransactionId now stores orderId (fixed), so this should always match.
+            // If not found, the purchase may not exist or may have been created with a different ref.
              log.error("TokenPurchase not found for payment ref: {}", paymentRef);
-             // Logic for fallback via metadata if we passed it? 
-             // Metadata has purchaseId. If we had that, we could look it up directly.
-             // But signature here is generic.
              return;
         }
         
@@ -282,6 +281,12 @@ public class TokenPackageService {
         userRepository.updateExtraTokens(purchase.getUser().getId(), currentExtra);
         
         log.info("Tokens (+{}) added to user {} wallet. New balance: {}", purchase.getTokens(), purchase.getUser().getId(), currentExtra);
+        
+        billingAuditService.logInvoiceAction(null, purchase.getUser().getId(),
+            com.app.civify.entity.enums.BillingAuditType.TOKEN_FULFILLED,
+            String.format("Fulfilled %d tokens for package '%s' (purchase=%d, ref=%s)",
+                purchase.getTokens(), purchase.getTokenPackage().getName(),
+                purchase.getId(), paymentRef));
         
         // Record Promo Usage if applicable and not already recorded
         if (purchase.getPromoCode() != null) {
@@ -315,7 +320,7 @@ public class TokenPackageService {
             throw new RuntimeException("token.package.unavailable");
         }
 
-        BigDecimal originalPrice = BigDecimal.valueOf(tokenPackage.getPrice());
+        BigDecimal originalPrice = tokenPackage.getPrice();
         BigDecimal finalPrice = originalPrice;
         BigDecimal discountAmount = BigDecimal.ZERO;
         String message = null;

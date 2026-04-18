@@ -62,7 +62,8 @@ public class EmailBatchSchedulerService {
             batchRepository.save(batch);
 
             List<String> recipients = objectMapper.readValue(
-                    batch.getRecipientEmails(), new TypeReference<List<String>>() {});
+                    batch.getRecipientEmails(), new TypeReference<List<String>>() {
+                    });
 
             if (recipients.isEmpty()) {
                 batch.setStatus("SENT");
@@ -117,8 +118,7 @@ public class EmailBatchSchedulerService {
                         batch.getId(), batch.getMaxRetries());
             } else {
                 batch.setStatus("FAILED");
-                // Exponential backoff: 5min, 20min, 1hr
-                long delayMinutes = (long) Math.pow(4, batch.getRetryCount()) * 5;
+                long delayMinutes = (long) 12 * 60;
                 batch.setNextRetryAt(LocalDateTime.now().plusMinutes(delayMinutes));
                 log.info("🔄 Email batch #{} scheduled for retry in {} minutes",
                         batch.getId(), delayMinutes);
