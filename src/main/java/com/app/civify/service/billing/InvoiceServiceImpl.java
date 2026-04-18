@@ -161,6 +161,26 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional
+    public void markPaidById(Long invoiceId) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElse(null);
+        if (invoice == null) {
+            log.warn("No invoice found for ID: {}", invoiceId);
+            return;
+        }
+        if (invoice.getStatus() == InvoiceStatus.PAID) {
+            log.info("Invoice {} already marked as PAID", invoice.getUuid());
+            return;
+        }
+
+        invoice.setStatus(InvoiceStatus.PAID);
+        invoice.setPaidAt(LocalDateTime.now());
+        invoiceRepository.save(invoice);
+        log.info("Marked invoice {} as PAID (via auto-charge)", invoice.getUuid());
+    }
+
+    @Override
+    @Transactional
     public void expirePendingInvoices(Long subscriptionId) {
         int updated = invoiceRepository.expirePendingInvoicesBySubscriptionId(subscriptionId, InvoiceStatus.EXPIRED);
         if (updated > 0) {

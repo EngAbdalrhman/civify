@@ -162,8 +162,6 @@ public class SubscriptionJob implements Job {
                     boolean charged = attemptAutoCharge(sub, amount, isAnnual, invoice);
                     if (charged) {
                         autoChargeCount++;
-                        // If charged, the invoice should be marked as completed, but we let handleSuccessfulPayment do that later
-                        // or we could mark it paid here. For now, we just skip sending reminders.
                         continue; 
                     }
                     // Auto-charge failed — fall through to manual invoice + email
@@ -221,6 +219,11 @@ public class SubscriptionJob implements Job {
                 sub.setCurrentCycleCount(sub.getCurrentCycleCount() + 1);
                 sub.setAutoChargeFailureCount(0);
                 subscriptionRepository.save(sub);
+
+                // Mark the invoice as PAID (prevents orphan PENDING invoices)
+                if (invoice != null) {
+                    invoiceService.markPaidById(invoice.getId());
+                }
 
                 log.info("✅ Auto-charge successful for subscription {}. Extended to {}", sub.getId(), newEnd.toLocalDate());
 
