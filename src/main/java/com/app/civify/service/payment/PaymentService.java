@@ -18,7 +18,7 @@ public interface PaymentService {
      * @param method payment Method
      * @return PaymentCreationResult
      */
-    PaymentCreationResult createPayment(Long userId, double amount, String gateway, PaymentMethods method, Map<String, Object> metadata);
+    PaymentCreationResult createPayment(Long userId, double amount, String gateway, PaymentMethods method, com.app.civify.entity.enums.TransactionType type, Map<String, Object> metadata);
 
     /**
      * Verify a payment transaction

@@ -5,8 +5,8 @@ import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.entity.enums.BillingAuditType;
 import com.app.civify.entity.enums.PaymentStatus;
-import com.app.civify.entity.plans.PaymentTransaction;
-import com.app.civify.repository.plans.PaymentRepository;
+import com.app.civify.entity.billing.BillingTransaction;
+import com.app.civify.repository.billing.BillingTransactionRepository;
 import com.app.civify.service.logs.BillingAuditService;
 import com.app.civify.service.notification.NotificationService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -38,7 +38,7 @@ import java.util.Map;
 public class FawaterakPaymentGateway implements PaymentGateway {
 
     private final FawaterakClient fawaterakClient;
-    private final PaymentRepository paymentRepository;
+    private final BillingTransactionRepository paymentRepository;
     private final ObjectMapper objectMapper;
     private final NotificationService notificationService;
     private final BillingAuditService billingAuditService;
@@ -77,7 +77,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
 
     @Override
     @Transactional
-    public PaymentCreationResult createPayment(Long userId, double amount, PaymentMethods method, Map<String, Object> metadata) {
+    public PaymentCreationResult createPayment(Long userId, double amount, PaymentMethods method, com.app.civify.entity.enums.TransactionType type, Map<String, Object> metadata) {
         if (!isEnabled()) {
             throw new RuntimeException("Fawaterak gateway is not configured properly.");
         }
@@ -124,12 +124,13 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                 }
 
                 // Save transaction
-                PaymentTransaction transaction = new PaymentTransaction();
+                BillingTransaction transaction = new BillingTransaction();
                 transaction.setUserId(userId);
                 transaction.setAmount(BigDecimal.valueOf(amount));
                 transaction.setOrderId(String.valueOf(invoiceId));
                 transaction.setPaymentKey(paymentKey);
                 transaction.setStatus(PaymentStatus.PENDING);
+                transaction.setType(type);
                 transaction.setGateway(getGatewayName());
                 transaction.setCurrency("EGP");
 
@@ -162,7 +163,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     public boolean verifyPayment(String paymentKey) {
         log.info("Verifying Fawaterak payment with key/order: {}", paymentKey);
 
-        PaymentTransaction transaction = paymentRepository.findByOrderId(paymentKey)
+        BillingTransaction transaction = paymentRepository.findByOrderId(paymentKey)
                 .orElseGet(() -> paymentRepository.findByPaymentKey(paymentKey)
                 .orElseThrow(() -> new RuntimeException("Transaction not found")));
 
@@ -235,7 +236,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
             log.info("Processing invoice {} with status: {}", invoiceId, status);
 
             // Step 4: Find transaction with PESSIMISTIC LOCK (prevents race conditions)
-            PaymentTransaction transaction = paymentRepository.findByOrderIdWithLock(invoiceId)
+            BillingTransaction transaction = paymentRepository.findByOrderIdWithLock(invoiceId)
                     .orElseThrow(() -> {
                         log.error("Transaction not found for invoice: {}", invoiceId);
                         return new RuntimeException("TRANSACTION_NOT_FOUND");

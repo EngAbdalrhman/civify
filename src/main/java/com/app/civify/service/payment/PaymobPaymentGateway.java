@@ -7,9 +7,9 @@ import com.app.civify.dto.payment.paymob.PaymobAuthResponse;
 import com.app.civify.dto.payment.paymob.PaymobOrderResponse;
 import com.app.civify.dto.payment.paymob.PaymobPaymentKeyResponse;
 import com.app.civify.entity.enums.BillingAuditType;
-import com.app.civify.entity.plans.PaymentTransaction;
+import com.app.civify.entity.billing.BillingTransaction;
 import com.app.civify.entity.enums.PaymentStatus;
-import com.app.civify.repository.plans.PaymentRepository;
+import com.app.civify.repository.billing.BillingTransactionRepository;
 import com.app.civify.service.logs.BillingAuditService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -52,7 +52,7 @@ import com.app.civify.entity.User;
 public class PaymobPaymentGateway implements PaymentGateway {
 
     private final PaymobClient paymobClient;
-    private final PaymentRepository paymentRepository;
+    private final BillingTransactionRepository paymentRepository;
     private final UserSubscriptionRepository subscriptionRepository;
     private final ObjectMapper objectMapper;
     private final BillingAuditService billingAuditService;
@@ -111,19 +111,19 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
     @Override
     @Transactional
-    public PaymentCreationResult createPayment(Long userId, double amount, PaymentMethods method, Map<String, Object> metadata) {
+    public PaymentCreationResult createPayment(Long userId, double amount, PaymentMethods method, com.app.civify.entity.enums.TransactionType type, Map<String, Object> metadata) {
         if (!isEnabled()) {
             throw new RuntimeException("Paymob gateway is not configured properly. Please check api-key and integration-id in application.properties");
         }
 
         if (useV2) {
-            return createPaymentV2(userId, amount, method, metadata);
+            return createPaymentV2(userId, amount, method, type, metadata);
         } else {
-            return createPaymentLegacy(userId, amount, method, metadata);
+            return createPaymentLegacy(userId, amount, method, type, metadata);
         }
     }
 
-    private PaymentCreationResult createPaymentV2(Long userId, double amount, PaymentMethods method, Map<String, Object> metadata) {
+    private PaymentCreationResult createPaymentV2(Long userId, double amount, PaymentMethods method, com.app.civify.entity.enums.TransactionType type, Map<String, Object> metadata) {
         try {
             log.info("Creating Paymob V2 payment (Intention) for user {} with amount {} EGP", userId, amount);
 
@@ -193,7 +193,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
                     publicKey, clientSecret);
 
             // Save Transaction
-            PaymentTransaction transaction = new PaymentTransaction();
+            BillingTransaction transaction = new BillingTransaction();
             transaction.setUserId(userId);
             transaction.setAmount(BigDecimal.valueOf(amount));
             transaction.setOrderId(orderId); 
@@ -201,6 +201,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
             transaction.setStatus(PaymentStatus.PENDING);
             transaction.setGateway(getGatewayName());
             transaction.setCurrency("EGP");
+            transaction.setType(type);
             
             // Set subscription ID if present in metadata
             if (metadata.containsKey("subscriptionId")) {
@@ -233,7 +234,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
         }
     }
 
-    private PaymentCreationResult createPaymentLegacy(Long userId, double amount, PaymentMethods method, Map<String, Object> metadata) {
+    private PaymentCreationResult createPaymentLegacy(Long userId, double amount, PaymentMethods method, com.app.civify.entity.enums.TransactionType type, Map<String, Object> metadata) {
         try {
             log.info("Creating Paymob payment (Legacy) for user {} with amount {} EGP", userId, amount);
 
@@ -252,12 +253,13 @@ public class PaymobPaymentGateway implements PaymentGateway {
             log.debug("Paymob payment key generated");
 
             // Step 4: Save transaction record
-            PaymentTransaction transaction = new PaymentTransaction();
+            BillingTransaction transaction = new BillingTransaction();
             transaction.setUserId(userId);
             transaction.setAmount(BigDecimal.valueOf(amount));
             transaction.setOrderId(orderId);
             transaction.setPaymentKey(paymentKey);
             transaction.setStatus(PaymentStatus.PENDING);
+            transaction.setType(type);
             transaction.setGateway(getGatewayName());
             transaction.setCurrency("EGP");
 
@@ -322,7 +324,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
         log.info("Verifying Paymob payment with key/order: {}", paymentKey);
 
         // Try orderId first (frontend now sends orderId from redirect params)
-        PaymentTransaction transaction = paymentRepository.findByOrderId(paymentKey)
+        BillingTransaction transaction = paymentRepository.findByOrderId(paymentKey)
                 .orElseGet(() -> paymentRepository.findByPaymentKey(paymentKey)
                 .orElseThrow(() -> new RuntimeException("Payment transaction not found for key: " + paymentKey)));
 
@@ -364,7 +366,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
         return isSuccessful;
     }
 
-    private boolean isV2Transaction(PaymentTransaction transaction) {
+    private boolean isV2Transaction(BillingTransaction transaction) {
         if (transaction.getMetadata() == null) return false;
         try {
             JsonNode meta = objectMapper.readTree(transaction.getMetadata());
@@ -374,7 +376,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
         }
     }
 
-    private boolean verifyPaymentV2(PaymentTransaction transaction) {
+    private boolean verifyPaymentV2(BillingTransaction transaction) {
         try {
             // V2 Verification: Use Transaction Inquiry API with merchant_order_id
             // Our orderId IS the special_reference (merchant_order_id in Paymob's terms)
@@ -427,7 +429,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
         }
     }
 
-    private boolean verifyPaymentLegacy(PaymentTransaction transaction) {
+    private boolean verifyPaymentLegacy(BillingTransaction transaction) {
         // Authenticate and check payment status from Paymob Order (Acceptance API)
         // Let infrastructure exceptions (API errors, timeouts) propagate
         // so the controller can return 503 instead of a misleading "payment failed"
@@ -486,7 +488,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
             boolean isSuccess = Boolean.parseBoolean(params.getOrDefault("success", "false"));
 
             // Find transaction
-            PaymentTransaction transaction = paymentRepository.findByOrderId(orderId)
+            BillingTransaction transaction = paymentRepository.findByOrderId(orderId)
                      .orElseThrow(() -> new RuntimeException("Payment transaction not found for order: " + orderId));
             
             if (isSuccess) {
@@ -603,7 +605,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
 
             // 3. Find transaction — try by merchant_order_id (our special_reference stored as orderId)
             //    first, then fallback to Paymob's numeric order ID
-            PaymentTransaction transaction = null;
+            BillingTransaction transaction = null;
             if (merchantOrderId != null && !merchantOrderId.isEmpty()) {
                 transaction = paymentRepository.findByOrderId(merchantOrderId).orElse(null);
             }
@@ -1123,7 +1125,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
             boolean success = payRoot.has("success") && payRoot.get("success").asBoolean();
 
             // Save transaction record
-            PaymentTransaction transaction = new PaymentTransaction();
+            BillingTransaction transaction = new BillingTransaction();
             transaction.setUserId(userId);
             transaction.setAmount(BigDecimal.valueOf(amount));
             transaction.setOrderId(orderId); // Intention ID as Order ID
@@ -1131,6 +1133,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
             transaction.setStatus(success ? PaymentStatus.COMPLETED : PaymentStatus.FAILED);
             transaction.setGateway(getGatewayName());
             transaction.setCurrency("EGP");
+            transaction.setType(com.app.civify.entity.enums.TransactionType.RENEWAL);
             transaction.setSubscriptionId(subscriptionId);
             transaction.setSavedCardToken(cardToken);
             if (success) transaction.setCompletedAt(LocalDateTime.now());

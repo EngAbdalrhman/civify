@@ -24,7 +24,7 @@ import com.app.civify.service.payment.PaymentService;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
 import com.app.civify.util.persistence.CommonService;
-import com.app.civify.repository.plans.PaymentRepository;
+import com.app.civify.repository.billing.BillingTransactionRepository;
 import com.app.civify.service.i18n.MessageService;
 import com.app.civify.util.EmailService;
 import lombok.RequiredArgsConstructor;
@@ -59,7 +59,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     private final UserRepository userRepository;
     private final PaymentService paymentService;
     private final MessageService messageService;
-    private final PaymentRepository paymentRepository;
+    private final BillingTransactionRepository paymentRepository;
     private final InvoiceService invoiceService;
     private final TokenUsageService tokenUsageService;
     private final EmailService emailService;
@@ -381,13 +381,13 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             metadata.put("subscriptionId", subscription.getId());
         }
 
-        PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), gateway, method, metadata);
+        PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), gateway, method, com.app.civify.entity.enums.TransactionType.SUBSCRIPTION, metadata);
 
         // Link payment to subscription using orderId (same ID used for lookup in activateSubscription)
         subscription.setPaymentTransactionId(paymentResult.getOrderId());
         subscriptionRepository.save(subscription);
 
-        // Link PaymentTransaction → Subscription (needed for token extraction in webhook)
+        // Link BillingTransaction → Subscription (needed for token extraction in webhook)
         paymentRepository.findByOrderId(paymentResult.getOrderId()).ifPresent(tx -> {
             tx.setSubscriptionId(subscription.getId());
             paymentRepository.save(tx);
@@ -590,7 +590,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
 
         BigDecimal amountPaid = BigDecimal.ZERO;
         if (paymentTransactionId != null && !paymentTransactionId.startsWith("FREE-")) {
-            java.util.Optional<PaymentTransaction> txOpt = paymentRepository.findByOrderId(paymentTransactionId);
+            java.util.Optional<com.app.civify.entity.billing.BillingTransaction> txOpt = paymentRepository.findByOrderId(paymentTransactionId);
             if (txOpt.isPresent() && txOpt.get().getAmount() != null) {
                 amountPaid = txOpt.get().getAmount();
             }
