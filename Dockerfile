@@ -18,6 +18,12 @@ RUN ./mvnw clean package -P${PROFILE} -DskipTests
 FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
 
+# Install Tesseract OCR and native libraries required for JNA
+RUN apt-get update && \
+    apt-get install -y tesseract-ocr tesseract-ocr-ara libtesseract-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy only the built JAR from the builder stage
 COPY --from=builder /app/target/*.jar app.jar
 

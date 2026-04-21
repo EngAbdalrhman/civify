@@ -144,19 +144,16 @@ public class PermissionsEncryptionService {
         }
     }
     
-    /**
-     * Get AES secret key from configuration
-     */
     private SecretKey getSecretKey() {
-        // Ensure key is exactly 32 bytes for AES-256
-        byte[] keyBytes = encryptionKey.getBytes(StandardCharsets.UTF_8);
-        if (keyBytes.length != 32) {
-            log.warn("Encryption key is not 32 bytes, padding/truncating. Please configure a proper 32-byte key!");
-            byte[] paddedKey = new byte[32];
-            System.arraycopy(keyBytes, 0, paddedKey, 0, Math.min(keyBytes.length, 32));
-            keyBytes = paddedKey;
+        try {
+            // Hash the input key using SHA-256 to consistently generate exactly 32 bytes (256-bit)
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] keyBytes = digest.digest(encryptionKey.getBytes(StandardCharsets.UTF_8));
+            return new SecretKeySpec(keyBytes, "AES");
+        } catch (java.security.NoSuchAlgorithmException e) {
+            log.error("SHA-256 algorithm not found", e);
+            throw new RuntimeException("SHA-256 algorithm not found", e);
         }
-        return new SecretKeySpec(keyBytes, "AES");
     }
     
     /**
