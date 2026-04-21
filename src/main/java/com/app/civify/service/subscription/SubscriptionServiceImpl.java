@@ -813,6 +813,10 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             existingPlan.setCvLimit(updatedPlan.getCvLimit());
         }
 
+        if (updatedPlan.getJobMatchLimit() != null) {
+            existingPlan.setJobMatchLimit(updatedPlan.getJobMatchLimit());
+        }
+
         if (updatedPlan.getTokenLimit() != null) {
             existingPlan.setTokenLimit(updatedPlan.getTokenLimit());
         }
