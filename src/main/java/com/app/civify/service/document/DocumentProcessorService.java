@@ -1,8 +1,10 @@
 package com.app.civify.service.document;
 
 import com.app.civify.dto.document.DocumentType;
+import com.app.civify.dto.document.FileScanResult;
 import com.app.civify.dto.document.ProcessedDocument;
 import com.app.civify.exception.BadRequestException;
+import com.app.civify.exception.MaliciousFileException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.langdetect.optimaize.OptimaizeLangDetector;
 import org.apache.tika.language.detect.LanguageDetector;
@@ -27,6 +29,7 @@ public class DocumentProcessorService {
     private final List<DocumentProcessor> processors;
     private final LanguageDetector languageDetector;
     private final com.app.civify.service.i18n.MessageService messageService;
+    private final FileScannerService fileScannerService;
 
     private static final Set<String> SUPPORTED_MIME_TYPES = Set.of(
             "application/pdf",
@@ -41,9 +44,10 @@ public class DocumentProcessorService {
 
     private static final long MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
-    public DocumentProcessorService(List<DocumentProcessor> processors, com.app.civify.service.i18n.MessageService messageService) {
+    public DocumentProcessorService(List<DocumentProcessor> processors, com.app.civify.service.i18n.MessageService messageService, FileScannerService fileScannerService) {
         this.processors = processors;
         this.messageService = messageService;
+        this.fileScannerService = fileScannerService;
 
         LanguageDetector detector = null;
         try {
@@ -139,9 +143,17 @@ public class DocumentProcessorService {
         DocumentType type = detectDocumentType(file);
 
         if (type == DocumentType.UNKNOWN) {
-        if (type == DocumentType.UNKNOWN) {
             throw new BadRequestException(messageService.getMessage("document.file.type", new Object[]{contentType}));
         }
+
+        // Security scan: check for malware/threats before any processing
+        FileScanResult scanResult = fileScannerService.scanFile(file);
+        if (!scanResult.isClean()) {
+            log.warn("File '{}' rejected by security scan: {} - {}",
+                    file.getOriginalFilename(), scanResult.getThreatType(), scanResult.getDetails());
+            throw new MaliciousFileException(
+                    messageService.getMessage("document.file.malicious", new Object[]{scanResult.getThreatType()}),
+                    scanResult.getThreatType());
         }
     }
 
@@ -284,6 +296,16 @@ public class DocumentProcessorService {
                     .success(false)
                     .errorMessage(messageService.getMessage("document.file.type", new Object[]{mimeType}))
                     .build();
+        }
+
+        // Security scan for raw byte uploads
+        FileScanResult scanResult = fileScannerService.scanBytes(fileData, mimeType);
+        if (!scanResult.isClean()) {
+            log.warn("Raw byte upload rejected by security scan: {} - {}",
+                    scanResult.getThreatType(), scanResult.getDetails());
+            throw new MaliciousFileException(
+                    messageService.getMessage("document.file.malicious", new Object[]{scanResult.getThreatType()}),
+                    scanResult.getThreatType());
         }
 
         log.info("Processing document from bytes, type: {}, size: {} bytes", documentType, fileData.length);
