@@ -27,6 +27,7 @@ public class PlanDetailResponse {
     private String details;
     
     private Integer cvLimit;
+    private Integer jobMatchLimit;
     private Integer tokenLimit;
     private Boolean watermark;
     private Boolean dashboard;
