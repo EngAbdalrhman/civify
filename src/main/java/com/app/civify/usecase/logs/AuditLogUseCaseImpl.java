@@ -2,13 +2,14 @@ package com.app.civify.usecase.logs;
 
 import com.app.civify.dto.audit.BillingAuditDto;
 import com.app.civify.dto.audit.SubscriptionAuditDto;
+import com.app.civify.dto.billing.BillingTransactionDto;
 import com.app.civify.dto.token.TokenUsageDto;
 import com.app.civify.dto.token.TokenUsageSummaryDto;
-import com.app.civify.entity.User;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.logs.BillingAuditService;
 import com.app.civify.service.logs.SubscriptionAuditService;
 import com.app.civify.service.logs.TokenUsageService;
+import com.app.civify.service.billing.BillingTransactionService;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
 import com.app.civify.util.persistence.CommonService;
@@ -25,6 +26,7 @@ public class AuditLogUseCaseImpl extends CommonService implements AuditLogUseCas
     private final TokenUsageService tokenUsageService;
     private final SubscriptionAuditService subscriptionAuditService;
     private final BillingAuditService billingAuditService;
+    private final BillingTransactionService billingTransactionService;
 
     @Override
     public Page<TokenUsageDto> getMyTokenUsageHistory(UserPrincipal user, int page, int size) {
@@ -44,7 +46,6 @@ public class AuditLogUseCaseImpl extends CommonService implements AuditLogUseCas
         return tokenUsageService.filterUsageLogs(inputData);
     }
 
-
     @Override
     public PagedResponse<SubscriptionAuditDto> filterSubscriptionAuditLogs(InputDataModel inputData) {
         log.debug("UseCase: Admin filtering subscription audit logs");
@@ -55,5 +56,12 @@ public class AuditLogUseCaseImpl extends CommonService implements AuditLogUseCas
     public PagedResponse<BillingAuditDto> filterBillingAuditLogs(InputDataModel inputData) {
         log.debug("UseCase: Admin filtering billing audit logs");
         return billingAuditService.filterAuditLogs(inputData);
+    }
+
+    @Override
+    public PagedResponse<BillingTransactionDto> filterBillingTransactions(
+            InputDataModel inputData) {
+        log.debug("UseCase: Admin filtering billing transactions");
+        return billingTransactionService.filterTransactions(inputData);
     }
 }
