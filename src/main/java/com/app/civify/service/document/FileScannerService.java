@@ -43,10 +43,17 @@ public class FileScannerService {
             "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
 
     // ── PDF threat markers ───────────────────────────────────────────────
+    // Only markers that are inherently dangerous on their own.
+    // /OpenAction and /AA are STANDARD PDF features (page view, zoom, annotations)
+    // and are present in virtually every PDF. They are only dangerous when they
+    // reference JavaScript, which we detect via the JS markers below.
     private static final String[] PDF_JS_MARKERS = {
-            "/JavaScript", "/JS ", "/JS(", "/JS<",
-            "/OpenAction", "/AA",
-            "/Launch"
+            "/JavaScript", "/JS "
+    };
+
+    // Additional JS patterns that appear in PDF object streams
+    private static final String[] PDF_JS_PATTERNS = {
+            "/JS(", "/JS<", "/JS/"
     };
 
     private static final String PDF_ENCRYPT_MARKER = "/Encrypt";
@@ -189,10 +196,17 @@ public class FileScannerService {
     }
 
     /**
-     * Scan PDF content for JavaScript, launch actions, and encryption.
-     * Searches a window of the first 100KB and last 20KB of the file,
-     * which covers the header, catalog, and cross-reference table areas
-     * where these markers are typically found.
+     * Scan PDF content for embedded JavaScript and encryption.
+     *
+     * <p><b>Important:</b> We intentionally do NOT flag {@code /OpenAction} or
+     * {@code /AA} on their own — they are standard PDF operators present in
+     * virtually every PDF (for initial page view, zoom, annotations). They are
+     * only dangerous when they reference JavaScript, which we detect via the
+     * {@code /JavaScript} and {@code /JS} markers.</p>
+     *
+     * <p>Similarly, {@code /Launch} is only flagged when it co-occurs with
+     * action-triggering operators, indicating an attempt to execute an external
+     * program.</p>
      */
     private FileScanResult scanPdf(byte[] data) {
         // Convert relevant portions to string for marker searching
@@ -207,16 +221,34 @@ public class FileScannerService {
 
         String combined = headContent + tailContent;
 
-        // Check for JavaScript / action markers
+        // 1. Check for explicit JavaScript markers (always dangerous)
         for (String marker : PDF_JS_MARKERS) {
             if (combined.contains(marker)) {
-                log.warn("PDF threat marker '{}' detected in uploaded file.", marker);
+                log.warn("PDF JavaScript marker '{}' detected in uploaded file.", marker);
                 return FileScanResult.threat("JAVASCRIPT_IN_PDF",
-                        "PDF contains potentially dangerous active content (" + marker.trim() + ").");
+                        "PDF contains embedded JavaScript (" + marker.trim() + ").");
             }
         }
 
-        // Check for encryption
+        // 2. Check for additional JS patterns in object streams
+        for (String pattern : PDF_JS_PATTERNS) {
+            if (combined.contains(pattern)) {
+                log.warn("PDF JavaScript pattern '{}' detected in uploaded file.", pattern);
+                return FileScanResult.threat("JAVASCRIPT_IN_PDF",
+                        "PDF contains embedded JavaScript.");
+            }
+        }
+
+        // 3. Check for /Launch action (attempt to execute external program)
+        //    Only flag when combined with /Action or /S (action type specifier)
+        if (combined.contains("/Launch") &&
+                (combined.contains("/S /Launch") || combined.contains("/S/Launch"))) {
+            log.warn("PDF Launch action detected in uploaded file.");
+            return FileScanResult.threat("LAUNCH_ACTION_IN_PDF",
+                    "PDF contains a Launch action that attempts to execute an external program.");
+        }
+
+        // 4. Check for encryption
         if (combined.contains(PDF_ENCRYPT_MARKER)) {
             log.warn("Encrypted/password-protected PDF detected.");
             return FileScanResult.threat("ENCRYPTED_PDF",
