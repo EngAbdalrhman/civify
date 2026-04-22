@@ -2,6 +2,7 @@ package com.app.civify.controller.v1.admin;
 
 import com.app.civify.dto.audit.BillingAuditDto;
 import com.app.civify.dto.audit.SubscriptionAuditDto;
+import com.app.civify.dto.billing.BillingTransactionDto;
 import com.app.civify.security.annotation.CivifyAuthorization;
 import com.app.civify.usecase.logs.AuditLogUseCase;
 import com.app.civify.util.filter.InputDataModel;
@@ -35,6 +36,15 @@ public class AdminAuditLogsController {
     public ResponseEntity<PagedResponse<BillingAuditDto>> filterBillingAuditLogs(
             @RequestBody InputDataModel inputData) {
         PagedResponse<BillingAuditDto> logs = auditLogUseCase.filterBillingAuditLogs(inputData);
+        return ResponseEntity.ok(logs);
+    }
+
+    @Operation(summary = "Get billing transactions with filtering")
+    @PostMapping("/transactions/filter")
+    @CivifyAuthorization(permission = "SYSTEM.LOGS.VIEW")
+    public ResponseEntity<PagedResponse<BillingTransactionDto>> filterBillingTransactions(
+            @RequestBody InputDataModel inputData) {
+        PagedResponse<BillingTransactionDto> logs = auditLogUseCase.filterBillingTransactions(inputData);
         return ResponseEntity.ok(logs);
     }
 }

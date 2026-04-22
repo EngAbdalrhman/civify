@@ -211,6 +211,26 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handle malicious file upload exceptions.
+     * Returns 422 Unprocessable Entity to indicate the file content is rejected.
+     */
+    @ExceptionHandler(MaliciousFileException.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    public ResponseEntity<CommonResponse<Void>> handleMaliciousFileException(MaliciousFileException ex, WebRequest request) {
+        String requestId = getRequestId(request);
+        log.warn("MALICIOUS_FILE_DETECTED | requestId={} | threatType={} | message={}",
+                requestId, ex.getThreatType(), ex.getMessage());
+
+        String localizedMessage = getLocalizedMessage(ex.getMessage());
+        setErrorMessageAttribute(request, localizedMessage);
+
+        return ResponseEntity
+                .status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .header("X-Request-ID", requestId)
+                .body(CommonResponse.error(localizedMessage));
+    }
+
+    /**
      * Handle unauthorized access exceptions
      */
     @ExceptionHandler(UnauthorizedException.class)

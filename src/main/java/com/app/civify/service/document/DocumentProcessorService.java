@@ -1,16 +1,22 @@
 package com.app.civify.service.document;
 
 import com.app.civify.dto.document.DocumentType;
+import com.app.civify.dto.document.FileScanResult;
 import com.app.civify.dto.document.ProcessedDocument;
 import com.app.civify.exception.BadRequestException;
+import com.app.civify.exception.MaliciousFileException;
+import com.app.civify.service.i18n.MessageService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.langdetect.optimaize.OptimaizeLangDetector;
 import org.apache.tika.language.detect.LanguageDetector;
 import org.apache.tika.language.detect.LanguageResult;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.*;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +32,8 @@ public class DocumentProcessorService {
 
     private final List<DocumentProcessor> processors;
     private final LanguageDetector languageDetector;
-    private final com.app.civify.service.i18n.MessageService messageService;
+    private final MessageService messageService;
+    private final FileScannerService fileScannerService;
 
     private static final Set<String> SUPPORTED_MIME_TYPES = Set.of(
             "application/pdf",
@@ -39,11 +46,16 @@ public class DocumentProcessorService {
             "image/webp"
     );
 
-    private static final long MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+    @Value("#{${max.file.size:5} * 1024 * 1024}")
+    private long maxFileSize;
 
-    public DocumentProcessorService(List<DocumentProcessor> processors, com.app.civify.service.i18n.MessageService messageService) {
+    @Value("${doc.scan.enable:false}")
+    private boolean enableScan;
+
+    public DocumentProcessorService(List<DocumentProcessor> processors, MessageService messageService, FileScannerService fileScannerService) {
         this.processors = processors;
         this.messageService = messageService;
+        this.fileScannerService = fileScannerService;
 
         LanguageDetector detector = null;
         try {
@@ -131,7 +143,7 @@ public class DocumentProcessorService {
             throw new BadRequestException("document.file.required");
         }
 
-        if (file.getSize() > MAX_FILE_SIZE) {
+        if (file.getSize() > maxFileSize) {
             throw new BadRequestException("document.file.sizes");
         }
 
@@ -139,9 +151,18 @@ public class DocumentProcessorService {
         DocumentType type = detectDocumentType(file);
 
         if (type == DocumentType.UNKNOWN) {
-        if (type == DocumentType.UNKNOWN) {
             throw new BadRequestException(messageService.getMessage("document.file.type", new Object[]{contentType}));
         }
+
+        // Security scan: check for malware/threats before any processing
+        FileScanResult scanResult = fileScannerService.scanFile(file);
+        if (!scanResult.isClean()) {
+            log.warn("File '{}' rejected by security scan: {} - {}",
+                    file.getOriginalFilename(), scanResult.getThreatType(), scanResult.getDetails());
+            if (enableScan)
+                throw new MaliciousFileException(
+                        messageService.getMessage("document.file.malicious", new Object[]{scanResult.getThreatType()}),
+                        scanResult.getThreatType());
         }
     }
 
@@ -167,7 +188,7 @@ public class DocumentProcessorService {
     }
 
     private DocumentType detectByMagicNumbers(MultipartFile file) {
-        try (var is = new java.io.BufferedInputStream(file.getInputStream())) {
+        try (var is = new BufferedInputStream(file.getInputStream())) {
             if (!is.markSupported()) {
                 // Should not happen with BufferedInputStream, but safe check
                 log.warn("Mark/Reset not supported even with BufferedInputStream");
@@ -271,7 +292,7 @@ public class DocumentProcessorService {
                     .build();
         }
 
-        if (fileData.length > MAX_FILE_SIZE) {
+        if (fileData.length > maxFileSize) {
             return ProcessedDocument.builder()
                     .success(false)
                     .errorMessage(messageService.getMessage("document.file.sizes"))
@@ -284,6 +305,16 @@ public class DocumentProcessorService {
                     .success(false)
                     .errorMessage(messageService.getMessage("document.file.type", new Object[]{mimeType}))
                     .build();
+        }
+
+        // Security scan for raw byte uploads
+        FileScanResult scanResult = fileScannerService.scanBytes(fileData, mimeType);
+        if (!scanResult.isClean()) {
+            log.warn("Raw byte upload rejected by security scan: {} - {}",
+                    scanResult.getThreatType(), scanResult.getDetails());
+            throw new MaliciousFileException(
+                    messageService.getMessage("document.file.malicious", new Object[]{scanResult.getThreatType()}),
+                    scanResult.getThreatType());
         }
 
         log.info("Processing document from bytes, type: {}, size: {} bytes", documentType, fileData.length);
@@ -362,13 +393,13 @@ public class DocumentProcessorService {
         }
 
         @Override
-        public java.io.InputStream getInputStream() {
-            return new java.io.ByteArrayInputStream(content);
+        public InputStream getInputStream() {
+            return new ByteArrayInputStream(content);
         }
 
         @Override
-        public void transferTo(java.io.File dest) throws java.io.IOException {
-            java.nio.file.Files.write(dest.toPath(), content);
+        public void transferTo(File dest) throws IOException {
+            Files.write(dest.toPath(), content);
         }
     }
 }
