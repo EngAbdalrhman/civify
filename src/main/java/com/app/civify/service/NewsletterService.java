@@ -13,6 +13,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -176,15 +177,15 @@ public class NewsletterService {
     }
 
     @Transactional
-    public java.net.URI processUnsubscribeLink(UUID id) {
+    public URI processUnsubscribeLink(UUID id) {
         if (id == null) {
-            return java.net.URI.create(frontendBaseUrl + "/en/unsubscribe?status=error");
+            return URI.create(frontendBaseUrl + "/en/unsubscribe?status=error");
         }
         boolean success = unsubscribeById(id);
         if (success) {
-            return java.net.URI.create(frontendBaseUrl + "/en/unsubscribe?status=success");
+            return URI.create(frontendBaseUrl + "/en/unsubscribe?status=success");
         }
-        return java.net.URI.create(frontendBaseUrl + "/en/unsubscribe?status=error");
+        return URI.create(frontendBaseUrl + "/en/unsubscribe?status=error");
     }
 }
 

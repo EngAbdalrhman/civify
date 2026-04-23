@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Value;
 
+import java.net.URI;
 import java.util.Map;
 import java.util.UUID;
 
@@ -49,7 +50,7 @@ public class NewsletterController {
     @GetMapping("/unsubscribe-link")
     @Operation(summary = "Unsubscribe via link (public)")
     public ResponseEntity<Void> unsubscribeLink(@RequestParam(value = "id", required = false) UUID id) {
-        java.net.URI redirectUri = newsletterService.processUnsubscribeLink(id);
+        URI redirectUri = newsletterService.processUnsubscribeLink(id);
         return ResponseEntity.status(HttpStatus.FOUND).location(redirectUri).build();
     }
 }
