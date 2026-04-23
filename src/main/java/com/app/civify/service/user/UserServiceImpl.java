@@ -88,9 +88,15 @@ public class UserServiceImpl implements UserService {
             user.setPrimaryIntent(request.getPrimaryIntent());
         }
 
-        User savedUser = userRepository.save(user);
+        // Use custom query to bypass audit listeners for onboarding updates
+        userRepository.updateUserOnboarding(
+                user.getId(),
+                user.getOnboardingCompleted(),
+                user.getCompletedTours(),
+                user.getPrimaryIntent()
+        );
         log.info("User onboarding status updated for: {}", user.getUsername());
-        return userMapper.toDto(savedUser);
+        return userMapper.toDto(user);
     }
 
     @Override
