@@ -32,6 +32,9 @@ public class NewsletterService {
     @Value("${app.backend.base-url:http://localhost:8077}")
     private String backendBaseUrl;
 
+    @Value("${app.frontend.base-url}")
+    private String frontendBaseUrl;
+
     @Transactional
     public void subscribe(String email) {
         Optional<NewsletterSubscriber> existing = newsletterRepository.findByEmail(email);
@@ -170,6 +173,18 @@ public class NewsletterService {
                     return true;
                 })
                 .orElse(false);
+    }
+
+    @Transactional
+    public java.net.URI processUnsubscribeLink(UUID id) {
+        if (id == null) {
+            return java.net.URI.create(frontendBaseUrl + "/en/unsubscribe?status=error");
+        }
+        boolean success = unsubscribeById(id);
+        if (success) {
+            return java.net.URI.create(frontendBaseUrl + "/en/unsubscribe?status=success");
+        }
+        return java.net.URI.create(frontendBaseUrl + "/en/unsubscribe?status=error");
     }
 }
 
