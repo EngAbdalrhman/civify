@@ -9,10 +9,14 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.beans.factory.annotation.Value;
 
+import java.net.URI;
 import java.util.Map;
 import java.util.UUID;
 
@@ -45,21 +49,8 @@ public class NewsletterController {
 
     @GetMapping("/unsubscribe-link")
     @Operation(summary = "Unsubscribe via link (public)")
-    public ResponseEntity<String> unsubscribeLink(@RequestParam(value = "id", required = false) UUID id) {
-        if (id == null) {
-            return ResponseEntity.badRequest()
-                    .contentType(MediaType.TEXT_HTML)
-                    .body("<html><body><h1>Error</h1><p>Invalid or missing unsubscribe link. Please check the link from your email.</p></body></html>");
-        }
-        
-        boolean success = newsletterService.unsubscribeById(id);
-        if (success) {
-            return ResponseEntity.ok()
-                    .contentType(MediaType.TEXT_HTML)
-                    .body("<html><body><h1>Unsubscribed</h1><p>You have been successfully unsubscribed from the newsletter.</p></body></html>");
-        }
-        return ResponseEntity.badRequest()
-                .contentType(MediaType.TEXT_HTML)
-                .body("<html><body><h1>Error</h1><p>Invalid unsubscribe link or you are already unsubscribed.</p></body></html>");
+    public ResponseEntity<Void> unsubscribeLink(@RequestParam(value = "id", required = false) UUID id) {
+        URI redirectUri = newsletterService.processUnsubscribeLink(id);
+        return ResponseEntity.status(HttpStatus.FOUND).location(redirectUri).build();
     }
 }

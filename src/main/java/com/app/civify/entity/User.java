@@ -33,7 +33,6 @@ import java.util.stream.Collectors;
 @Builder
 @EqualsAndHashCode(callSuper = true)
 @EntityListeners(UserAuditListener.class)
-
 @FilterFieldMapping({
         @FilterField(alias = "plan",   mapping = "subscriptions.plan.name"),
         @FilterField(alias = "status", mapping = "status"),

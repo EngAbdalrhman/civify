@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -63,6 +64,18 @@ public interface UserRepository extends CommonRepo<User, Long> {
     void updateUserPreferences(@Param("userId") Long userId,
                                @Param("language") UserPreferredLanguage language,
                                @Param("theme") UserPreferredTheme theme);
+
+    /**
+     * Update user onboarding completion status and tours.
+     * Bypasses EntityListeners (Audit).
+     */
+    @Modifying
+    @Query("UPDATE User u SET u.onboardingCompleted = :onboardingCompleted, u.completedTours = :completedTours, u.primaryIntent = :primaryIntent WHERE u.id = :userId")
+    void updateUserOnboarding(@Param("userId") Long userId,
+                              @Param("onboardingCompleted") Boolean onboardingCompleted,
+                              @Param("completedTours") String completedTours,
+                              @Param("primaryIntent") String primaryIntent);
+
     @Query("SELECT u FROM User u WHERE u.status = com.app.civify.entity.enums.UserStatus.ACTIVE AND u.isDeleted = false")
-    java.util.List<User> findAllActiveUsers();
+    List<User> findAllActiveUsers();
 }

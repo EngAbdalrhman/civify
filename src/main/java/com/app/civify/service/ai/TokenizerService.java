@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
  * Gemini-accurate token counting:
  * - Uses Gemini models:countTokens endpoint (same tokenizer as the model).
  * - Extracts real usage from Gemini generateContent responses (usageMetadata).
- *
+ * <p>
  * If Gemini API key isn't configured, falls back to heuristic.
  */
 @Service
@@ -29,13 +29,13 @@ public class TokenizerService {
     @Value("${ai.default.model:gemini-pro}")
     private String defaultModel;
 
-
     public int countTokens(String text) {
         return countTokens(defaultModel, text);
     }
 
     public int countTokens(String model, String text) {
-        if (text == null || text.isBlank()) return 0;
+        if (text == null || text.isBlank())
+            return 0;
 
         try {
             String body = buildRequest(text);
@@ -78,8 +78,10 @@ public class TokenizerService {
      * and model thinking overhead.
      *
      * @param promptTokens     - counted input tokens
-     * @param outputMultiplier - expected output size relative to input (e.g., 2.0 for structured parsing)
-     * @param thinkingOverhead - additional thinking tokens (e.g., 1.5 for gemini-2.5-flash)
+     * @param outputMultiplier - expected output size relative to input (e.g., 2.0
+     *  for structured parsing)
+     * @param thinkingOverhead - additional thinking tokens (e.g., 1.5 for
+     *  gemini-2.5-flash)
      */
     public int estimateTotalCost(int promptTokens, double outputMultiplier, double thinkingOverhead) {
         return (int) Math.ceil(promptTokens * (1.0 + outputMultiplier + thinkingOverhead));
