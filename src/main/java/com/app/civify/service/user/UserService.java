@@ -6,6 +6,7 @@ import com.app.civify.dto.user.UserDto;
 import com.app.civify.entity.User;
 import com.app.civify.security.UserPrincipal;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface UserService {
@@ -25,6 +26,8 @@ public interface UserService {
     Long getCurrentUserId();
 
     long countTotalUsers();
+
+    long countUsersInPeriod(LocalDateTime startDate, LocalDateTime endDate);
 
     UserDto updateProfilePicture(Long userId, String base64Image);
 

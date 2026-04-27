@@ -50,6 +50,9 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
     @Query("SELECT COUNT(s) FROM UserSubscription s WHERE s.status = :status AND LOWER(s.plan.name) != LOWER(:excludePlanName)")
     long countByStatusAndPlanNameNotIgnoreCase(@Param("status") SubscriptionStatus status, @Param("excludePlanName") String excludePlanName);
 
+    @Query("SELECT COUNT(s) FROM UserSubscription s WHERE s.status = :status AND LOWER(s.plan.name) != LOWER(:excludePlanName) AND s.createdAt BETWEEN :startDate AND :endDate")
+    long countByStatusAndPlanNameNotIgnoreCaseAndCreatedAtBetween(@Param("status") SubscriptionStatus status, @Param("excludePlanName") String excludePlanName, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+
     // Admin queries
     Page<UserSubscription> findByStatus(SubscriptionStatus status, Pageable pageable);
 

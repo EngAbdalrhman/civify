@@ -121,6 +121,14 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public long countUsersInPeriod(java.time.LocalDateTime startDate, java.time.LocalDateTime endDate) {
+        if (startDate == null) {
+            return userRepository.count();
+        }
+        return userRepository.countByCreatedAtBetween(startDate, endDate);
+    }
+
+    @Override
     @Transactional
     public UserDto updateProfilePicture(Long userId, String base64Image) {
         User user = userRepository.findById(userId)
