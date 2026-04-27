@@ -290,6 +290,19 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     }
 
     @Override
+    public long countSubscriptionsInPeriod(java.time.LocalDateTime startDate, java.time.LocalDateTime endDate) {
+        if (startDate == null) {
+            return countActiveSubscriptions();
+        }
+        return subscriptionRepository.countByStatusAndPlanNameNotIgnoreCaseAndCreatedAtBetween(
+                SubscriptionStatus.ACTIVE,
+                FREE_PLAN_NAME,
+                startDate,
+                endDate
+        );
+    }
+
+    @Override
     public PriceCalculationResponse calculateTotalPrice(Long userId, Long planId, boolean isAnnual, String promoCode) {
         SubscriptionPlan plan = planRepository.findById(planId)
                 .orElseThrow(() -> new ResourceNotFoundException("subscription.plan.notfound"));

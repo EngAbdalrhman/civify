@@ -3,6 +3,7 @@ package com.app.civify.service.cv;
 import com.app.civify.dto.cv.CvTailorRequest;
 import com.app.civify.dto.cv.CvTailorResponse;
 import com.app.civify.dto.cv.CvTailorResponse.*;
+import com.app.civify.dto.cv.CvTranslateResponse;
 import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.service.ai.AiService;
 import com.app.civify.service.ai.JsonSanitizer;
@@ -237,6 +238,26 @@ public class CvEnhancementService {
             Output ONLY the cover letter body texts (or with header if appropriate).
             """;
 
+    private static final String TRANSLATE_CV_PROMPT = """
+            You are an expert professional translator. Translate this CV into the target language.
+
+            Target Language: {TARGET_LANGUAGE}
+
+            TRANSLATION RULES (CRITICAL):
+            1. Translate ALL descriptive text, summaries, item descriptions, tags, and section titles into the target language.
+            2. KEEP original PII fields EXACTLY as they are: fullName, email, phone, linkedin, github, website.
+            3. KEEP dates and locations in their original format unless translation is strictly necessary (e.g. "Present" -> "الحالي").
+            4. Ensure the translation sounds professional and uses appropriate industry terminology for the target language.
+            5. Output strict valid YAML matching the structure exactly.
+            6. Set metadata.language to the ISO 639-1 code of the target language.
+            7. Set metadata.layoutDirection to "rtl" if translating to Arabic, Farsi, Urdu, or Hebrew. Otherwise "ltr".
+
+            Current CV (YAML):
+            {CV_YAML}
+
+            Output YAML only (strict valid YAML):
+            """;
+
     // ==================== Main Tailor Method ====================
 
     public CvTailorResponse tailorCv(CvTailorRequest request) {
@@ -352,6 +373,42 @@ public class CvEnhancementService {
     }
 
     // ==================== Individual AI Methods ====================
+
+    public CvTranslateResponse translateCv(ResumeData resumeData, String targetLanguage) {
+        long startTime = System.currentTimeMillis();
+        log.info("Starting CV translation to language: {}", targetLanguage);
+
+        try {
+            String cvYaml = convertToYaml(resumeData);
+            String promptBody = TRANSLATE_CV_PROMPT
+                    .replace("{TARGET_LANGUAGE}", targetLanguage != null ? targetLanguage : "English")
+                    .replace("{CV_YAML}", cvYaml != null ? cvYaml : "");
+
+            AiModelResponse response = aiService.callModel(promptBody, defaultProvider, defaultModel);
+
+            String cleanedResponse = jsonSanitizer.cleanAiResponse(response.getContent());
+            ResumeData rawData = parseYamlToResumeData(cleanedResponse);
+
+            if (rawData == null || jsonSanitizer.isTruncated(rawData)) {
+                throw new RuntimeException("Tailored CV parsing failed or resulted in truncated data");
+            }
+
+            // Optional: clean clichés? Typically we shouldn't modify translator's choices too much,
+            // but we can if desired. For now, let's keep the raw translated data.
+
+            return CvTranslateResponse.builder()
+                    .translatedCv(rawData)
+                    .sourceLanguage(resumeData.getMetadata() != null ? resumeData.getMetadata().getLanguage() : "unknown")
+                    .targetLanguage(targetLanguage)
+                    .tokensUsed(response.getTotalTokens())
+                    .processingTimeMs(System.currentTimeMillis() - startTime)
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error translating CV content: {}", e.getMessage());
+            throw new RuntimeException("Failed to translate CV", e);
+        }
+    }
 
     private ResumeData tailorCvContent(ResumeData resumeData, String jobDescription, AtomicInteger tokenTracker) {
         try {

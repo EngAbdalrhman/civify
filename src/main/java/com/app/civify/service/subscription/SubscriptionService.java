@@ -9,6 +9,7 @@ import com.app.civify.entity.plans.SubscriptionPlan;
 import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.exception.ResourceNotFoundException;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,6 +39,8 @@ public interface SubscriptionService {
     List<UserSubscription> getUserSubscriptions(Long userId);
 
     long countActiveSubscriptions();
+
+    long countSubscriptionsInPeriod(LocalDateTime startDate, LocalDateTime endDate);
 
     // Payment and checkout
     PriceCalculationResponse calculateTotalPrice(Long userId, Long planId, boolean isAnnual, String promoCode);

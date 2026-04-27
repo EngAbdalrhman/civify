@@ -39,6 +39,18 @@ public interface CvUseCase {
                                String clientIp, String userAgent);
 
     /**
+     * Translate a CV to a target language.
+     *
+     * @param request translation request with resume data and target language
+     * @param userId the authenticated user's ID (nullable for unauthenticated)
+     * @param clientIp client IP address for logging
+     * @param userAgent user agent string for logging
+     * @return translated CV response
+     */
+    com.app.civify.dto.cv.CvTranslateResponse translateCv(com.app.civify.dto.cv.CvTranslateRequest request, Long userId, 
+                               String clientIp, String userAgent);
+
+    /**
      * Calculate general ATS score for a CV without a specific job description.
      *
      * @param resumeData the resume data to analyze

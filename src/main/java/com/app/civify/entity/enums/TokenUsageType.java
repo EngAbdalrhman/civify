@@ -13,6 +13,11 @@ public enum TokenUsageType {
      * AI tailoring CV for job description
      */
     CV_TAILOR,
+
+    /**
+     * AI translating CV
+     */
+    CV_TRANSLATE,
     
     /**
      * Cover letter generation

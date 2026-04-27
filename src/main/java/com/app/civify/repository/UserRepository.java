@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -78,4 +79,6 @@ public interface UserRepository extends CommonRepo<User, Long> {
 
     @Query("SELECT u FROM User u WHERE u.status = com.app.civify.entity.enums.UserStatus.ACTIVE AND u.isDeleted = false")
     List<User> findAllActiveUsers();
+
+    long countByCreatedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
 }

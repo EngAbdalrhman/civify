@@ -37,8 +37,8 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
         LocalDateTime startOfMonth = endDate.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
 
         // Gather stats from various services
-        long totalUsers = userService.countTotalUsers();
-        long subscribedUsers = subscriptionService.countActiveSubscriptions();
+        long allTimeUsers = userService.countTotalUsers();
+        long allTimeSubscribed = subscriptionService.countActiveSubscriptions();
 
         // CV counts based on period
         long totalCVs;
@@ -53,13 +53,20 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
         BigDecimal totalTokenRevenue = billingTransactionRepository.sumCompletedTokenRevenue();
         long completedTokenPurchases = billingTransactionRepository.countCompletedTokenPurchases();
 
+        long totalUsers;
+        long subscribedUsers;
+
         if (period == StatsPeriod.OVERALL) {
             // All time stats — reuse the totals already computed above
+            totalUsers = allTimeUsers;
+            subscribedUsers = allTimeSubscribed;
             totalCVs = cvOperationLogRepository.countByAction(CvOperationAction.UPLOAD);
             totalApiCalls = apiKeyUsageLogRepository.count();
             periodRevenue = totalRevenue;
         } else {
             // Period-based stats
+            totalUsers = userService.countUsersInPeriod(startDate, endDate);
+            subscribedUsers = subscriptionService.countSubscriptionsInPeriod(startDate, endDate);
             long periodCVs = countOperationsInPeriod(CvOperationAction.UPLOAD, startDate, endDate);
             long periodApiCalls = apiKeyUsageLogRepository.countByDateRange(startDate, endDate);
 
@@ -80,7 +87,7 @@ public class AdminStatsUseCaseImpl extends CommonService implements AdminStatsUs
                 .totalCVs(totalCVs)
                 .totalApiCalls(totalApiCalls)
                 .apiCallsThisMonth(apiCallsThisMonth)
-                .activeSubscriptions(subscribedUsers)
+                .activeSubscriptions(allTimeSubscribed)
                 .periodRevenue(periodRevenue)
                 .revenueThisMonth(revenueThisMonth)
                 .totalRevenue(totalRevenue)
