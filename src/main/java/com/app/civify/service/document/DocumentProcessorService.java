@@ -155,7 +155,9 @@ public class DocumentProcessorService {
         }
 
         // Security scan: check for malware/threats before any processing
+        log.info("⚠️ Start Scanning file fore Malware...");
         FileScanResult scanResult = fileScannerService.scanFile(file);
+        log.info("scan result: {}", scanResult.getDetails());
         if (!scanResult.isClean()) {
             log.warn("File '{}' rejected by security scan: {} - {}",
                     file.getOriginalFilename(), scanResult.getThreatType(), scanResult.getDetails());
