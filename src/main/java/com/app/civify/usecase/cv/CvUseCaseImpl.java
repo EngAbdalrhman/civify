@@ -136,6 +136,44 @@ public class CvUseCaseImpl implements CvUseCase {
     }
 
     @Override
+    public com.app.civify.dto.cv.CvTranslateResponse translateCv(com.app.civify.dto.cv.CvTranslateRequest request, Long userId,
+                                      String clientIp, String userAgent) {
+        long startTime = System.currentTimeMillis();
+        String targetLanguage = request.getTargetLanguage() != null ? request.getTargetLanguage() : "en";
+        log.info("Translating CV to language: {}", targetLanguage);
+
+        User user = userId != null ? userRepository.findById(userId).orElse(null) : null;
+        com.app.civify.dto.cv.CvTranslateResponse response = cvEnhancementService.translateCv(request.getResumeData(), targetLanguage);
+
+        long processingTime = System.currentTimeMillis() - startTime;
+
+        // Log the CV operation
+        cvOperationLogService.logTailor(
+                user,
+                request.getResumeData(),
+                "/api/v1/cvs/translate",
+                processingTime,
+                true,
+                null,
+                clientIp,
+                userAgent,
+                "Translate to " + targetLanguage
+        );
+
+        if (userId != null && response.getTokensUsed() > 0) {
+            try {
+                subscriptionService.chargeTokens(userId, response.getTokensUsed(), TokenUsageType.CV_TRANSLATE,
+                        "CV Translation to: " + targetLanguage);
+                log.info("Logged {} tokens for CV translate: userId={}", response.getTokensUsed(), userId);
+            } catch (Exception e) {
+                log.error("Failed to log token usage for translate operation: {}", e.getMessage());
+            }
+        }
+
+        return response;
+    }
+
+    @Override
     public AtsScore calculateScore(ResumeData resumeData, Long userId) {
         log.info("Calculating general ATS score for CV. User: {}", userId);
         

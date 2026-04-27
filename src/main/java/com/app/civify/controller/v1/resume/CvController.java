@@ -8,6 +8,7 @@ import com.app.civify.dto.cv.CvTailorResponse.AtsScore;
 import com.app.civify.dto.document.CvParseRequest;
 import com.app.civify.dto.document.CvParseResponse;
 import com.app.civify.security.UserPrincipal;
+import com.app.civify.security.annotation.CivifyAuthorization;
 import com.app.civify.usecase.cv.CvUseCase;
 import com.app.civify.util.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -105,6 +106,36 @@ public class CvController {
         );
         
         return ResponseEntity.ok(CommonResponse.success("CV tailored successfully", response));
+    }
+
+    @Operation(
+            summary = "Translate CV",
+            description = "Translates a CV into a target language using AI.",
+            security = @SecurityRequirement(name = "bearer-jwt")
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "CV translated successfully",
+                content = @Content(mediaType = "application/json",
+                        schema = @Schema(implementation = com.app.civify.dto.cv.CvTranslateResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Invalid request"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+        @ApiResponse(responseCode = "403", description = "Forbidden - CV.TRANSLATE permission required")
+    })
+    @CivifyAuthorization(permission = "CV.TRANSLATE")
+    @PostMapping("/translate")
+    public ResponseEntity<CommonResponse<com.app.civify.dto.cv.CvTranslateResponse>> translate(
+            @Valid @RequestBody com.app.civify.dto.cv.CvTranslateRequest request,
+            HttpServletRequest httpRequest) {
+        
+        Long userId = getCurrentUserId();
+        com.app.civify.dto.cv.CvTranslateResponse response = cvUseCase.translateCv(
+                request, 
+                userId, 
+                getClientIp(httpRequest),
+                httpRequest.getHeader("User-Agent")
+        );
+        
+        return ResponseEntity.ok(CommonResponse.success("CV translated successfully", response));
     }
 
     @Operation(
