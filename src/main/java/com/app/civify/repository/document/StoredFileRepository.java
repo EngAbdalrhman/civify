@@ -11,4 +11,5 @@ import java.util.Optional;
 public interface StoredFileRepository extends JpaRepository<StoredFile, Long> {
     List<StoredFile> findByUserId(Long userId);
     Optional<StoredFile> findByStorageKey(String storageKey);
+    Optional<StoredFile> findFirstByFileHash(String fileHash);
 }
