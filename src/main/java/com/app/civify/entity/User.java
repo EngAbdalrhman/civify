@@ -140,6 +140,11 @@ public class User extends BaseEntity implements Serializable {
     private UserPreferredTheme preferredTheme = UserPreferredTheme.LIGHT;
 
     @Builder.Default
+    @ColumnDefault("true")
+    @Column(name = "auto_save_enabled", nullable = false)
+    private Boolean autoSaveEnabled = true;
+
+    @Builder.Default
     @Column(name = "welcome_email_sent", nullable = false)
     private Boolean welcomeEmailSent = false;
 
