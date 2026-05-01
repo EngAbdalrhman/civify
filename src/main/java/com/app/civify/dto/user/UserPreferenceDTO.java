@@ -8,5 +8,6 @@ import com.app.civify.entity.enums.UserPreferredTheme;
  */
 public record UserPreferenceDTO(
     UserPreferredLanguage preferredLanguage,
-    UserPreferredTheme preferredTheme
+    UserPreferredTheme preferredTheme,
+    Boolean autoSaveEnabled
 ) {}

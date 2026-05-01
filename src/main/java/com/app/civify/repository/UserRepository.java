@@ -57,14 +57,15 @@ public interface UserRepository extends CommonRepo<User, Long> {
     int updateWelcomeEmailSent(@Param("userId") Long userId);
 
     /**
-     * Update user preferences (Language & Theme) directly.
+     * Update user preferences (Language, Theme & Auto Save) directly.
      * Bypasses EntityListeners (Audit).
      */
     @Modifying
-    @Query("UPDATE User u SET u.preferredLanguage = :language, u.preferredTheme = :theme WHERE u.id = :userId")
+    @Query("UPDATE User u SET u.preferredLanguage = :language, u.preferredTheme = :theme, u.autoSaveEnabled = :autoSave WHERE u.id = :userId")
     void updateUserPreferences(@Param("userId") Long userId,
                                @Param("language") UserPreferredLanguage language,
-                               @Param("theme") UserPreferredTheme theme);
+                               @Param("theme") UserPreferredTheme theme,
+                               @Param("autoSave") Boolean autoSave);
 
     /**
      * Update user onboarding completion status and tours.

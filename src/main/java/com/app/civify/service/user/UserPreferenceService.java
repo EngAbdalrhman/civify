@@ -85,12 +85,37 @@ public class UserPreferenceService {
     }
 
     /**
-     * Get both user preferences
+     * Get user preferred autoSaveEnabled with caching
+     */
+    public Boolean getUserAutoSaveEnabled(Long userId) {
+        String cacheKey = PREF_CACHE_PREFIX + userId + ":autosave";
+        String cached = cacheService.get(cacheKey);
+
+        if (cached != null) {
+            return Boolean.valueOf(cached);
+        }
+
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return true; // Default
+        }
+
+        Boolean autoSave = user.getAutoSaveEnabled() != null 
+            ? user.getAutoSaveEnabled() 
+            : true;
+
+        cacheService.set(cacheKey, autoSave.toString(), PREF_CACHE_TTL);
+        return autoSave;
+    }
+
+    /**
+     * Get all user preferences
      */
     public UserPreferenceDTO getUserPreferences(Long userId) {
         return new UserPreferenceDTO(
             getUserLanguage(userId),
-            getUserTheme(userId)
+            getUserTheme(userId),
+            getUserAutoSaveEnabled(userId)
         );
     }
 
@@ -108,22 +133,27 @@ public class UserPreferenceService {
         UserPreferredTheme newTheme =
             preferences.preferredTheme() != null ? preferences.preferredTheme() : user.getPreferredTheme();
             
+        Boolean newAutoSave =
+            preferences.autoSaveEnabled() != null ? preferences.autoSaveEnabled() : user.getAutoSaveEnabled();
+
         // Use direct update to bypass Audit Listener
-        userRepository.updateUserPreferences(userId, newLanguage, newTheme);
+        userRepository.updateUserPreferences(userId, newLanguage, newTheme, newAutoSave);
         
         // Update the entity object for return value (though it won't be re-fetched)
         user.setPreferredLanguage(newLanguage);
         user.setPreferredTheme(newTheme);
+        user.setAutoSaveEnabled(newAutoSave);
         
         // Invalidate cache
         invalidateCache(userId);
         
-        log.info("Updated preferences for user {}: language={}, theme={}", 
-            userId, user.getPreferredLanguage(), user.getPreferredTheme());
+        log.info("Updated preferences for user {}: language={}, theme={}, autoSave={}", 
+            userId, user.getPreferredLanguage(), user.getPreferredTheme(), user.getAutoSaveEnabled());
         
         return new UserPreferenceDTO(
             user.getPreferredLanguage(),
-            user.getPreferredTheme()
+            user.getPreferredTheme(),
+            user.getAutoSaveEnabled()
         );
     }
 
@@ -133,5 +163,6 @@ public class UserPreferenceService {
     public void invalidateCache(Long userId) {
         cacheService.delete(PREF_CACHE_PREFIX + userId + ":theme");
         cacheService.delete(PREF_CACHE_PREFIX + userId + ":lang");
+        cacheService.delete(PREF_CACHE_PREFIX + userId + ":autosave");
     }
 }
