@@ -98,6 +98,13 @@ public class SubscriptionPlan extends BaseEntity {
     @ColumnDefault("false")
     private Boolean hasApiAccess = false;
 
+    /**
+     * Whether this plan includes resume translation feature.
+     */
+    @Column
+    @ColumnDefault("false")
+    private Boolean allowTranslation = false;
+
     // ==================== NEW RELATIONSHIPS ====================
     /**
      * Features included in this plan with their limits

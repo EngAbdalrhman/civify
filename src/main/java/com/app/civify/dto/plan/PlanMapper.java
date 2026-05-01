@@ -42,6 +42,8 @@ public class PlanMapper {
                 // Display settings
                 .isFeatured(plan.getIsFeatured())
                 .sortOrder(plan.getSortOrder())
+                .hasApiAccess(plan.getHasApiAccess())
+                .allowTranslation(plan.getAllowTranslation())
                 // Linked group
                 .linkedGroupId(plan.getLinkedGroup() != null ? plan.getLinkedGroup().getId() : null)
                 .linkedGroupName(plan.getLinkedGroup() != null ? plan.getLinkedGroup().getName() : null)
