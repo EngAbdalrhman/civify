@@ -26,6 +26,9 @@ public interface SubscriptionPlanMapper {
     @Mapping(target = "renewalAllowed", source = "renewalAllowed")
     @Mapping(target = "sortOrder", source = "sortOrder")
     @Mapping(target = "hasApiAccess", source = "hasApiAccess")
+    @Mapping(target = "jobMatchLimit", source = "jobMatchLimit")
+    @Mapping(target = "tokenLimit", source = "tokenLimit")
+    @Mapping(target = "allowTranslation", source = "allowTranslation")
     SimplePlanDTO toSimplePlan(SubscriptionPlan plan);
 
     List<SimplePlanDTO> toSimplePlans(List<SubscriptionPlan> plans);

@@ -32,4 +32,7 @@ public class SimplePlanDTO {
     private Boolean renewalAllowed;
     private Integer sortOrder;
     private Boolean hasApiAccess;
+    private Integer jobMatchLimit;
+    private Integer tokenLimit;
+    private Boolean allowTranslation;
 }
