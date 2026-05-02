@@ -41,23 +41,24 @@ public class BucketService {
      * Store CV in Cloudflare R2 bucket.
      * Path: cvs/YYYY-MM-DD/timestamp_filename
      */
-    public void storeCv(MultipartFile file, Long userId) {
-        if (!r2Enabled) {
-            log.info("R2 storage is disabled, skipping CV upload.");
-            return;
-        }
-
-        log.info("starting storing on s3 bucket");
+    public String storeCv(MultipartFile file, Long userId) {
 
         try {
             byte[] fileBytes = file.getBytes();
             String fileHash = computeSha256(fileBytes);
 
+            if (!r2Enabled) {
+                log.info("R2 storage is disabled, skipping CV upload.");
+                return fileHash;
+            }
+
+            log.info("starting storing on s3 bucket");
+
             if (dedupEnabled && fileHash != null) {
                 Optional<StoredFile> existingFile = storedFileRepository.findFirstByFileHash(fileHash);
                 if (existingFile.isPresent()) {
                     log.info("Duplicate file detected (hash: {}). Skipping S3 upload.", fileHash);
-                    return;
+                    return fileHash;
                 }
             }
 
@@ -82,10 +83,12 @@ public class BucketService {
 
             log.info("stored metadata");
 
+            return fileHash;
+
         } catch (Exception e) {
             log.error("Failed to store CV in R2: {}", e.getMessage(), e);
-            // We do not throw exception here to avoid failing the whole parsing process if storage fails
         }
+        return null;
     }
 
     /**

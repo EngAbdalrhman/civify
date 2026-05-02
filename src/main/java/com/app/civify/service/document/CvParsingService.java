@@ -11,9 +11,13 @@ import com.app.civify.dto.ai.AiModelResponse;
 import com.app.civify.service.ai.TokenizerService;
 import com.app.civify.service.ai.JsonSanitizer;
 import com.app.civify.service.subscription.SubscriptionService;
+import com.app.civify.entity.document.ParsedCvCache;
+import com.app.civify.repository.document.ParsedCvCacheRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
@@ -36,6 +40,10 @@ public class CvParsingService {
     private final ObjectMapper objectMapper;
     private final BucketService bucketService;
     private final JsonSanitizer jsonSanitizer;
+    private final ParsedCvCacheRepository parsedCvCacheRepository;
+
+    @Value("${civify.cv.cache-enabled:true}")
+    private boolean cacheEnabled;
 
     @Value("${ai.default.provider:gemini}")
     private String defaultProvider;
@@ -98,7 +106,7 @@ public class CvParsingService {
 
         try {
             // Step 0: Store CV in server folder
-            bucketService.storeCv(file, userId);
+            String fileHash = bucketService.storeCv(file, userId);
 
             // Step 1: Process document to extract text
             long docProcStart = System.currentTimeMillis();
@@ -118,6 +126,24 @@ public class CvParsingService {
 
             log.info("Document processed, text length: {}, method: {}",
                     processedDoc.getRawText().length(), processedDoc.getProcessingMethod());
+
+            if (cacheEnabled && fileHash != null) {
+                Optional<ParsedCvCache> cached = parsedCvCacheRepository.findByFileHash(fileHash);
+                if (cached.isPresent()) {
+                    log.info("Cache HIT for fileHash: {}. Skipping AI parse.", fileHash);
+                    ResumeData cachedData = objectMapper.readValue(cached.get().getParsedJson(), ResumeData.class);
+                    return CvParseResponse.builder()
+                            .success(true)
+                            .resumeData(cachedData)
+                            .confidence(cached.get().getConfidence())
+                            .processingMethod(cached.get().getProcessingMethod() + " (cached)")
+                            .detectedLanguage(cached.get().getDetectedLanguage())
+                            .processingTimeMs(System.currentTimeMillis() - startTime)
+                            .tokensUsed(0)  // No AI call, no tokens consumed
+                            .build();
+                }
+                log.info("Cache MISS for fileHash: {}. Proceeding to AI parse.", fileHash);
+            }
 
             // Step 2: Parse text with AI
             long aiStart = System.currentTimeMillis();
@@ -153,12 +179,26 @@ public class CvParsingService {
             ResumeData resumeData = parseResult.resumeData;
             int actualTokens = parseResult.tokensUsed;
 
-            // Step 4: Charge tokens after successful parse
-            if (userId != null) {
-                // Charge ACTUAL tokens instead of estimated
-                subscriptionService.chargeTokens(userId, actualTokens, TokenUsageType.CV_PARSE, "CV Upload Parsing");
-                log.info("Charged {} tokens (Estimated: {}) to user {}", actualTokens, estimatedTokens, userId);
+            if (cacheEnabled && fileHash != null) {
+                try {
+                    ParsedCvCache cacheEntry = new ParsedCvCache();
+                    cacheEntry.setFileHash(fileHash);
+                    cacheEntry.setParsedJson(objectMapper.writeValueAsString(resumeData));
+                    cacheEntry.setDetectedLanguage(processedDoc.getPrimaryLanguage());
+                    cacheEntry.setConfidence(processedDoc.getConfidence());
+                    cacheEntry.setProcessingMethod(processedDoc.getProcessingMethod());
+                    cacheEntry.setTokensUsed(actualTokens); // Storing tokens used
+                    parsedCvCacheRepository.save(cacheEntry);
+                    log.info("Cached parse result for fileHash: {}", fileHash);
+                } catch (Exception e) {
+                    log.warn("Failed to cache parse result: {}", e.getMessage());
+                    // Non-fatal: parsing succeeded, just caching failed
+                }
             }
+
+            // Step 4: Charge tokens after successful parse
+            subscriptionService.chargeTokens(userId, actualTokens, TokenUsageType.CV_PARSE, "CV Upload Parsing");
+            log.info("Charged {} tokens (Estimated: {}) to user {}", actualTokens, estimatedTokens, userId);
 
             return CvParseResponse.builder()
                     .success(true)
@@ -425,8 +465,9 @@ public class CvParsingService {
     }
 
     /**
-     * Hash file content for cache key generation.
-     * Used for CV parsing caching based on file content.
+     * Redis-cached CV parsing by file hash.
+     * Used for fast lookups via @Cacheable (cv-parsing bucket, 24h TTL).
+     * The DB parsed_cv_cache table provides persistent storage underneath.
      */
     @Cacheable(value = "cv-parsing", key = "#fileHash")
     public ResumeData parseCvCached(String fileHash, String text, boolean piiOnly) {
