@@ -1,26 +1,28 @@
 package com.app.civify.service.document;
 
-import com.app.civify.dto.ai.AiModelResponse;
 import com.app.civify.dto.document.CvParseRequest;
 import com.app.civify.dto.document.CvParseResponse;
 import com.app.civify.dto.document.ProcessedDocument;
 import com.app.civify.dto.resume.ResumeData;
-import com.app.civify.entity.document.ParsedCvCache;
 import com.app.civify.entity.enums.TokenUsageType;
 import com.app.civify.exception.BadRequestException;
-import com.app.civify.repository.document.ParsedCvCacheRepository;
 import com.app.civify.service.ai.AiService;
-import com.app.civify.service.ai.JsonSanitizer;
+import com.app.civify.dto.ai.AiModelResponse;
 import com.app.civify.service.ai.TokenizerService;
+import com.app.civify.service.ai.JsonSanitizer;
 import com.app.civify.service.subscription.SubscriptionService;
+import com.app.civify.entity.document.ParsedCvCache;
+import com.app.civify.repository.document.ParsedCvCacheRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Service for parsing CVs/Resumes into structured data. Integrates document
@@ -51,7 +53,7 @@ public class CvParsingService {
 
     private static final String CV_PARSE_PROMPT = """
             Extract structured data from this CV in YAML format.
-            
+
             Structure:
             personalInfo:
               fullName: string
@@ -79,7 +81,7 @@ public class CvParsingService {
                     tags: [string] # Flat list of strings only
             metadata:
               language: code
-            
+
             Rules:
             1. Extract ALL content.
             2. Use original language.
@@ -88,7 +90,7 @@ public class CvParsingService {
             5. CRITICAL: If a string value contains a colon (:), it MUST be wrapped in double quotes.
             6. Escape special characters inside quoted strings (use \" for quotes).
             7. For multi-line text, use a single quoted line or YAML block scalar (|) syntax.
-            
+
             CV Text:
             {CV_TEXT}
             """;
@@ -117,7 +119,7 @@ public class CvParsingService {
                         .success(false)
                         .message("Failed to extract text from document: "
                                 + (processedDoc.getErrorMessage() != null ? processedDoc.getErrorMessage()
-                                : "No text found"))
+                                        : "No text found"))
                         .processingTimeMs(System.currentTimeMillis() - startTime)
                         .build();
             }
@@ -223,7 +225,7 @@ public class CvParsingService {
      */
     private static final String PII_PARSE_PROMPT = """
             Extract structured data from this CV in YAML format.
-            
+
             Structure:
             personalInfo:
               fullName: string
@@ -251,7 +253,7 @@ public class CvParsingService {
                     tags: [string] # Flat list of strings only
             metadata:
               language: code
-            
+
             Rules:
             1. Extract ALL content.
             2. Use original language.
@@ -260,7 +262,7 @@ public class CvParsingService {
             5. CRITICAL: If a string value contains a colon (:), it MUST be wrapped in double quotes.
             6. Escape special characters inside quoted strings (use \" for quotes).
             7. For multi-line text, use a single quoted line or YAML block scalar (|) syntax.
-            
+
             CV Text:
             {CV_TEXT}
             """;
@@ -279,16 +281,16 @@ public class CvParsingService {
             if (useCustomTemplate) {
                 promptTemplate = """
                         Extract data from this CV based on the following user-defined structure/template on %s (JSON or YAML).
-                        
+
                         User Template:
                         %s
-                        
+
                         Rules:
                         1. Extract content from CV and map it to the structure above.
                         2. Use original language from the CV.
                         3. Output MUST be valid %s (matching the template format).
                         4. Do not include markdown fences/blocks if possible, or just standard ```json / ```yaml.
-                        
+
                         CV Text:
                         %%s
                         """
@@ -303,17 +305,17 @@ public class CvParsingService {
                 // Better approach:
                 promptTemplate = """
                         Extract structured data from this CV according to the provided User Template.
-                        
+
                         User Template:
                         {USER_TEMPLATE}
-                        
+
                         Rules:
                         1. Extract ALL relevant content matching the template keys.
                         2. Maintain the structure of the User Template.
                         3. Return valid JSON or YAML depending on what the template looks like (default to YAML if unsure).
                         4. Strictly NO prose. Only the data.
                         5. CRITICAL: If returning YAML, double-quote all string values.
-                        
+
                         CV Text:
                         {CV_TEXT}
                         """
@@ -399,7 +401,7 @@ public class CvParsingService {
     }
 
     /**
-     *
+     * 
      * /**
      * Attempt to parse the AI output as YAML; return null on failure (caller may
      * retry).
@@ -461,4 +463,16 @@ public class CvParsingService {
         log.warn("Truncating CV text from {} to {} characters to control token usage", rawText.length(), maxChars);
         return rawText.substring(0, maxChars);
     }
+
+    /**
+     * Redis-cached CV parsing by file hash.
+     * Used for fast lookups via @Cacheable (cv-parsing bucket, 24h TTL).
+     * The DB parsed_cv_cache table provides persistent storage underneath.
+     */
+    @Cacheable(value = "cv-parsing", key = "#fileHash")
+    public ResumeData parseCvCached(String fileHash, String text, boolean piiOnly) {
+        ParsedCvResult result = parseTextWithAi(text, CvParseRequest.builder().piiOnly(piiOnly).build());
+        return result != null ? result.resumeData : null;
+    }
+
 }
