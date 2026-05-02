@@ -44,7 +44,7 @@ public class CommonService {
             InputDataModel inputData,
             Class<T> entityClass) {
 
-        filterMappingResolver.applyMappings(inputData, entityClass);
+        applyMappings(inputData, entityClass);
 
         Specification<T> spec = createSpecificationFromInputData(inputData);
         Sort sort = createSort(inputData.getSorts());
@@ -55,13 +55,33 @@ public class CommonService {
 
     public <T> Page<T> filterEntities(JpaSpecificationExecutor<T> repository, InputDataModel inputData) {
 
+        applyMappings(inputData, resolveEntityClass(repository));
+
         Specification<T> spec = createSpecificationFromInputData(inputData);
-
         Sort sort = createSort(inputData.getSorts());
-
         Pageable pageable = PageRequest.of(inputData.getPage(), inputData.getSize(), sort);
 
         return repository.findAll(spec, pageable);
+    }
+
+    private void applyMappings(InputDataModel inputData, Class<?> entityClass) {
+        if (inputData == null || entityClass == null) {
+            return;
+        }
+
+        filterMappingResolver.applyMappings(inputData, entityClass);
+    }
+
+    private Class<?> resolveEntityClass(JpaSpecificationExecutor<?> repository) {
+        if (repository == null) {
+            return null;
+        }
+
+        if (repository instanceof CommonRepo<?, ?> commonRepo) {
+            return commonRepo.getEntityClass();
+        }
+
+        return CommonRepo.resolveEntityClass(repository.getClass());
     }
 
     /**
@@ -392,13 +412,17 @@ public class CommonService {
 
         List<Sort.Order> orders = new ArrayList<>();
         for (SortCriteria sortCriteria : sorts) {
+            if (sortCriteria == null || sortCriteria.getFieldName() == null || sortCriteria.getFieldName().isBlank()) {
+                continue;
+            }
+
             Sort.Direction direction = sortCriteria.getDirection() == SortDirection.DESC
                     ? Sort.Direction.DESC
                     : Sort.Direction.ASC;
             orders.add(new Sort.Order(direction, sortCriteria.getFieldName()));
         }
 
-        return Sort.by(orders);
+        return orders.isEmpty() ? Sort.unsorted() : Sort.by(orders);
     }
 
     /**
@@ -450,3 +474,4 @@ public class CommonService {
         return value;
     }
 }
+

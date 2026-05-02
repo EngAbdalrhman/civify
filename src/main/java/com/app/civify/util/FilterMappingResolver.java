@@ -5,6 +5,7 @@ import com.app.civify.annotation.FilterFieldMapping;
 import com.app.civify.util.filter.FilterCriteria;
 import com.app.civify.util.filter.FilterGroup;
 import com.app.civify.util.filter.InputDataModel;
+import com.app.civify.util.filter.SortCriteria;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
@@ -44,12 +45,23 @@ public class FilterMappingResolver {
         if (inputData.getFilterGroups() != null) {
             inputData.getFilterGroups().forEach(group -> resolveGroup(group, mappings));
         }
+
+        if (inputData.getSorts() != null) {
+            inputData.getSorts().forEach(sort -> resolveSort(sort, mappings));
+        }
     }
 
     private void resolveField(FilterCriteria filter, Map<String, String> mappings) {
         String mapped = mappings.get(filter.getFieldName());
         if (mapped != null) {
             filter.setFieldName(mapped);
+        }
+    }
+
+    private void resolveSort(SortCriteria sort, Map<String, String> mappings) {
+        String mapped = mappings.get(sort.getFieldName());
+        if (mapped != null) {
+            sort.setFieldName(mapped);
         }
     }
 
@@ -63,3 +75,4 @@ public class FilterMappingResolver {
     }
 
 }
+
