@@ -3,6 +3,7 @@ package com.app.civify.service.user;
 import com.app.civify.dto.user.UserCustomeMapper;
 import com.app.civify.dto.user.UserResponseDTO;
 import com.app.civify.entity.User;
+import com.app.civify.entity.enums.SubscriptionStatus;
 import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.entity.security.Group;
 import com.app.civify.exception.ResourceNotFoundException;
@@ -11,6 +12,8 @@ import com.app.civify.repository.logs.ApiKeyUsageLogRepository;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
 import com.app.civify.repository.resume.ResumeRepository;
 import com.app.civify.repository.security.GroupRepository;
+import com.app.civify.util.filter.FilterCriteria;
+import com.app.civify.util.filter.FilterGroup;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
 import com.app.civify.util.persistence.CommonService;
@@ -20,6 +23,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -43,6 +47,8 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
     @Override
     public PagedResponse<UserResponseDTO> filterUsers(InputDataModel inputData) {
         log.debug("Filtering users with criteria: {}", inputData);
+
+        normalizePlanFilters(inputData);
         
         // Use CommonService (inherited) to filter entities
         Page<User> userPage = filterEntities(userRepository, inputData);
@@ -90,6 +96,76 @@ public class AdminUserServiceImpl extends CommonService implements AdminUserServ
         log.debug("Filtered {} users out of {} total", userDTOs.size(), userPage.getTotalElements());
         
         return response;
+    }
+
+    private void normalizePlanFilters(InputDataModel inputData) {
+        if (inputData == null) {
+            return;
+        }
+
+        normalizePlanFilters(inputData.getFilters());
+
+        if (inputData.getFilterGroups() != null) {
+            inputData.getFilterGroups().forEach(this::normalizePlanFilters);
+        }
+    }
+
+    private void normalizePlanFilters(FilterGroup filterGroup) {
+        if (filterGroup == null) {
+            return;
+        }
+
+        normalizePlanFilters(filterGroup.getFilters());
+
+        if (filterGroup.getGroups() != null) {
+            filterGroup.getGroups().forEach(this::normalizePlanFilters);
+        }
+    }
+
+    private void normalizePlanFilters(List<FilterCriteria> filters) {
+        if (filters == null || filters.isEmpty()) {
+            return;
+        }
+
+        List<FilterCriteria> normalizedFilters = new ArrayList<>();
+        for (FilterCriteria filter : filters) {
+            if (isPlanFilter(filter)) {
+                normalizedFilters.add(buildActiveSubscriptionFilter());
+                normalizedFilters.add(buildPlanNameFilter(filter));
+                continue;
+            }
+
+            normalizedFilters.add(filter);
+        }
+
+        filters.clear();
+        filters.addAll(normalizedFilters);
+    }
+
+    private boolean isPlanFilter(FilterCriteria filter) {
+        if (filter == null || filter.getFieldName() == null) {
+            return false;
+        }
+
+        return "plan".equals(filter.getFieldName())
+                || "subscriptions.plan.name".equals(filter.getFieldName());
+    }
+
+    private FilterCriteria buildActiveSubscriptionFilter() {
+        return FilterCriteria.builder()
+                .fieldName("subscriptions.status")
+                .operation(com.app.civify.util.filter.FilterOperation.EQUAL)
+                .value(SubscriptionStatus.ACTIVE.name())
+                .build();
+    }
+
+    private FilterCriteria buildPlanNameFilter(FilterCriteria originalFilter) {
+        return FilterCriteria.builder()
+                .fieldName("subscriptions.plan.name")
+                .operation(originalFilter.getOperation())
+                .value(originalFilter.getValue())
+                .value2(originalFilter.getValue2())
+                .build();
     }
 
     @Override
