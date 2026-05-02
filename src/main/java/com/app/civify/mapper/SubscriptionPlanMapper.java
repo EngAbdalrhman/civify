@@ -29,6 +29,7 @@ public interface SubscriptionPlanMapper {
     @Mapping(target = "jobMatchLimit", source = "jobMatchLimit")
     @Mapping(target = "tokenLimit", source = "tokenLimit")
     @Mapping(target = "allowTranslation", source = "allowTranslation")
+    @Mapping(target = "allowDocExport", source = "allowDocExport")
     SimplePlanDTO toSimplePlan(SubscriptionPlan plan);
 
     List<SimplePlanDTO> toSimplePlans(List<SubscriptionPlan> plans);

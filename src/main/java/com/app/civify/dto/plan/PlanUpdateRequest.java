@@ -45,6 +45,7 @@ public class PlanUpdateRequest {
     private Integer sortOrder;
     private Boolean hasApiAccess;
     private Boolean allowTranslation;
+    private Boolean allowDocExport;
     
     // New enhanced fields
     @Valid

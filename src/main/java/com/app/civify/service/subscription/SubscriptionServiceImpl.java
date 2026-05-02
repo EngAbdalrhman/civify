@@ -884,6 +884,10 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             existingPlan.setAllowTranslation(updatedPlan.getAllowTranslation());
         }
 
+        if (updatedPlan.getAllowDocExport() != null) {
+            existingPlan.setAllowDocExport(updatedPlan.getAllowDocExport());
+        }
+
         // Linked group
         if (updatedPlan.getLinkedGroup() != null) {
             existingPlan.setLinkedGroup(updatedPlan.getLinkedGroup());

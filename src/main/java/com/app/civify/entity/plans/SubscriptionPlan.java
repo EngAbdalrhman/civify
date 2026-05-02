@@ -99,11 +99,18 @@ public class SubscriptionPlan extends BaseEntity {
     private Boolean hasApiAccess = false;
 
     /**
-     * Whether this plan includes resume translation feature.
+     * Whether this plan allows multilingual AI translation of resumes.
      */
     @Column
     @ColumnDefault("false")
     private Boolean allowTranslation = false;
+
+    /**
+     * Whether this plan allows exporting resumes to Word (DOCX) format.
+     */
+    @Column
+    @ColumnDefault("false")
+    private Boolean allowDocExport = false;
 
     // ==================== NEW RELATIONSHIPS ====================
     /**

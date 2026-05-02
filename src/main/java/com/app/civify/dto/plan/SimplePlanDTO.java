@@ -35,4 +35,5 @@ public class SimplePlanDTO {
     private Integer jobMatchLimit;
     private Integer tokenLimit;
     private Boolean allowTranslation;
+    private Boolean allowDocExport;
 }
