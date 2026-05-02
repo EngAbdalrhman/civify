@@ -33,6 +33,9 @@ public class StoredFile extends BaseEntity {
     @Column(nullable = false)
     private String bucketName;
 
+    @Column(length = 64)
+    private String fileHash;
+
     private LocalDateTime uploadDate;
 
     @Override

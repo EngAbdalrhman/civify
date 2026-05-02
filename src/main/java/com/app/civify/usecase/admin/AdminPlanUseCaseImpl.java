@@ -89,6 +89,8 @@ public class AdminPlanUseCaseImpl extends CommonService implements AdminPlanUseC
         if (request.getIsFeatured() != null) plan.setIsFeatured(request.getIsFeatured());
         if (request.getSortOrder() != null) plan.setSortOrder(request.getSortOrder());
         if (request.getHasApiAccess() != null) plan.setHasApiAccess(request.getHasApiAccess());
+        if (request.getAllowTranslation() != null) plan.setAllowTranslation(request.getAllowTranslation());
+        if (request.getAllowDocExport() != null) plan.setAllowDocExport(request.getAllowDocExport());
 
         if (request.getLinkedGroupId() != null) {
             Group linkedGroup = groupRepository.findById(request.getLinkedGroupId())
@@ -136,6 +138,8 @@ public class AdminPlanUseCaseImpl extends CommonService implements AdminPlanUseC
         if (request.getIsFeatured() != null) updatedPlan.setIsFeatured(request.getIsFeatured());
         if (request.getSortOrder() != null) updatedPlan.setSortOrder(request.getSortOrder());
         if (request.getHasApiAccess() != null) updatedPlan.setHasApiAccess(request.getHasApiAccess());
+        if (request.getAllowTranslation() != null) updatedPlan.setAllowTranslation(request.getAllowTranslation());
+        if (request.getAllowDocExport() != null) updatedPlan.setAllowDocExport(request.getAllowDocExport());
         
         // Linked group
         if (request.getLinkedGroupId() != null) {

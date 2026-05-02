@@ -53,6 +53,8 @@ public class PlanCreateRequest {
     private Boolean isFeatured;
     private Integer sortOrder;
     private Boolean hasApiAccess;
+    private Boolean allowTranslation;
+    private Boolean allowDocExport;
     
     // New enhanced fields
     @Valid
