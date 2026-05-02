@@ -88,6 +88,7 @@ public class CommonService {
      * Generic method to count entities using InputDataModel filters
      */
     public <T> long countEntities(JpaSpecificationExecutor<T> repository, InputDataModel inputData) {
+        applyMappings(inputData, resolveEntityClass(repository));
         Specification<T> spec = createSpecificationFromInputData(inputData);
         return repository.count(spec);
     }
