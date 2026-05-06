@@ -20,6 +20,10 @@ public class JsonSanitizer {
 
     private final ObjectMapper objectMapper;
 
+    // Defined CV schema root keys. If the CV schema expands with new top-level keys,
+    // they MUST be added here so the preamble stripper doesn't accidentally truncate valid YAML.
+    private static final String YAML_ROOT_KEYS = "personalInfo:|sections:|metadata:|---";
+
     public JsonSanitizer(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
@@ -146,9 +150,9 @@ public class JsonSanitizer {
 
         // Strip conversational preamble before YAML
         // Find the first line that looks like a known YAML root key or "---"
-        // We use explicit keys rather than a generic word matcher to prevent false-positives
+        // We use explicit keys (YAML_ROOT_KEYS) rather than a generic word matcher to prevent false-positives
         // on Arabic sentences that start with a word and a colon (e.g. "ملاحظة:")
-        Matcher matcher = Pattern.compile("(?m)^(personalInfo:|sections:|metadata:|---)").matcher(cleaned);
+        Matcher matcher = Pattern.compile("(?m)^(" + YAML_ROOT_KEYS + ")").matcher(cleaned);
         if (matcher.find()) {
             cleaned = cleaned.substring(matcher.start());
         }

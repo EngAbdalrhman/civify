@@ -21,7 +21,7 @@ public class AdminBlogController {
 
     @PostMapping("/")
     @CivifyAuthorization(permission = "CREATE.BLOG")
-    public BlogDetailsDto create(@RequestBody CreateBlogRequest req ,
+    public BlogDetailsDto create(@RequestBody CreateBlogRequest req,
                                  @AuthenticationPrincipal UserPrincipal userPrincipal) {
 
         return blogService.create(req, userPrincipal);
