@@ -145,8 +145,10 @@ public class JsonSanitizer {
         cleaned = cleaned.trim();
 
         // Strip conversational preamble before YAML
-        // Find the first line that looks like a YAML root key (e.g. "personalInfo:") or "---"
-        Matcher matcher = Pattern.compile("(?m)^([\\p{L}\\p{N}_]+:|---)").matcher(cleaned);
+        // Find the first line that looks like a known YAML root key or "---"
+        // We use explicit keys rather than a generic word matcher to prevent false-positives
+        // on Arabic sentences that start with a word and a colon (e.g. "ملاحظة:")
+        Matcher matcher = Pattern.compile("(?m)^(personalInfo:|sections:|metadata:|---)").matcher(cleaned);
         if (matcher.find()) {
             cleaned = cleaned.substring(matcher.start());
         }
