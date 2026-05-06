@@ -86,6 +86,12 @@ public class CvEnhancementService {
             4. YOU MAY rephrase descriptions to align with JD terminology ONLY IF the underlying work supports it.
             5. DO NOT add "implied" skills unless you are 100%% certain the candidate has them based on the text.
 
+            CRITICAL OUTPUT RULES:
+            1. Output ONLY valid YAML. No conversational text before or after.
+            2. Do NOT include markdown formatting, backticks, or preamble in any language.
+            3. Do NOT translate YAML key names. Keep all keys in English exactly as shown.
+            4. Start your response directly with "personalInfo:" — nothing before it.
+
             Job Description:
             {JOB_DESCRIPTION}
 
@@ -243,14 +249,19 @@ public class CvEnhancementService {
 
             Target Language: {TARGET_LANGUAGE}
 
-            TRANSLATION RULES (CRITICAL):
+            TRANSLATE_CV_PROMPT RULES (CRITICAL):
             1. Translate ALL descriptive text, summaries, item descriptions, tags, and section titles into the target language.
             2. KEEP original PII fields EXACTLY as they are: fullName, email, phone, linkedin, github, website.
             3. KEEP dates and locations in their original format unless translation is strictly necessary (e.g. "Present" -> "الحالي").
             4. Ensure the translation sounds professional and uses appropriate industry terminology for the target language.
-            5. Output strict valid YAML matching the structure exactly.
-            6. Set metadata.language to the ISO 639-1 code of the target language.
-            7. Set metadata.layoutDirection to "rtl" if translating to Arabic, Farsi, Urdu, or Hebrew. Otherwise "ltr".
+            5. Set metadata.language to the ISO 639-1 code of the target language.
+            6. Set metadata.layoutDirection to "rtl" if translating to Arabic, Farsi, Urdu, or Hebrew. Otherwise "ltr".
+
+            CRITICAL OUTPUT RULES:
+            1. Output ONLY valid YAML. No conversational text before or after.
+            2. Do NOT include markdown formatting, backticks, or preamble in any language.
+            3. Do NOT translate YAML key names. Keep all keys in English exactly as shown.
+            4. Start your response directly with "personalInfo:" — nothing before it.
 
             Current CV (YAML):
             {CV_YAML}
@@ -390,7 +401,12 @@ public class CvEnhancementService {
             ResumeData rawData = parseYamlToResumeData(cleanedResponse);
 
             if (rawData == null || jsonSanitizer.isTruncated(rawData)) {
-                throw new RuntimeException("Tailored CV parsing failed or resulted in truncated data");
+                log.warn("Tailored CV parsing failed or resulted in truncated data. Attempting sanitization and retry.");
+                String sanitized = sanitizeYamlValues(cleanedResponse);
+                rawData = parseYamlToResumeData(sanitized);
+                if (rawData == null || jsonSanitizer.isTruncated(rawData)) {
+                    throw new RuntimeException("Tailored CV parsing failed or resulted in truncated data even after sanitization");
+                }
             }
 
             // Optional: clean clichés? Typically we shouldn't modify translator's choices too much,
@@ -854,8 +870,14 @@ public class CvEnhancementService {
         try {
             return YAML_MAPPER.readValue(yaml, ResumeData.class);
         } catch (Exception e) {
-            log.error("Error parsing YAML to ResumeData: {}", e.getMessage());
-            return null;
+            log.warn("First YAML parse failed for ResumeData, attempting sanitization: {}", e.getMessage());
+            try {
+                String sanitized = sanitizeYamlValues(yaml);
+                return YAML_MAPPER.readValue(sanitized, ResumeData.class);
+            } catch (Exception e2) {
+                log.error("Error parsing YAML to ResumeData after sanitization: {}", e2.getMessage());
+                return null;
+            }
         }
     }
 
@@ -974,7 +996,7 @@ public class CvEnhancementService {
 
         // Step 3: Quote plain list items that contain colons, escaping internal quotes
         // Example: "  - Address Experience Gap: The \"minimum\"..." -> "  - \"Address Experience Gap: The \\\"minimum\\\"...\""
-        Matcher listMatcher = Pattern.compile("(?m)^(\\s*-\\s+)(?![a-zA-Z0-9_]+:\\s+)(?![\"'])(.*?:.*)(?<![\"'])$").matcher(sanitized);
+        Matcher listMatcher = Pattern.compile("(?m)^(\\s*-\\s+)(?![\\p{L}\\p{N}_]+:\\s+)(?![\"'])(.*?:.*)(?<![\"'])$").matcher(sanitized);
         StringBuffer listSb = new StringBuffer();
         while (listMatcher.find()) {
             String prefix = listMatcher.group(1);
@@ -986,7 +1008,7 @@ public class CvEnhancementService {
 
         // Step 4: Quote unquoted map values that contain colons, escaping internal quotes
         // Example: "- step: Master OAuth 2.0: protocol \"A\"" -> "- step: \"Master OAuth 2.0: protocol \\\"A\\\"\""
-        Matcher mapMatcher = Pattern.compile("(?m)^(\\s*-?\\s*[a-zA-Z0-9_]+:\\s+)(?![\"'])(.*?:.*)(?<![\"'])$").matcher(sanitized);
+        Matcher mapMatcher = Pattern.compile("(?m)^(\\s*-?\\s*[\\p{L}\\p{N}_]+:\\s+)(?![\"'])(.*?:.*)(?<![\"'])$").matcher(sanitized);
         StringBuffer mapSb = new StringBuffer();
         while (mapMatcher.find()) {
             String prefix = mapMatcher.group(1);

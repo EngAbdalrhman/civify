@@ -144,6 +144,13 @@ public class JsonSanitizer {
 
         cleaned = cleaned.trim();
 
+        // Strip conversational preamble before YAML
+        // Find the first line that looks like a YAML root key (e.g. "personalInfo:") or "---"
+        Matcher matcher = Pattern.compile("(?m)^([\\p{L}\\p{N}_]+:|---)").matcher(cleaned);
+        if (matcher.find()) {
+            cleaned = cleaned.substring(matcher.start());
+        }
+
         // Strip control characters that break YAML parsers
         // 1. Replace tabs with spaces (AI sometimes uses tabs for indentation)
         cleaned = cleaned.replace("\t", "  ");
@@ -284,13 +291,9 @@ public class JsonSanitizer {
         }
 
         // Contains other YAML-special chars that could cause issues
-        if (value.contains("#") || value.contains("&") || value.contains("*")
+        return value.contains("#") || value.contains("&") || value.contains("*")
                 || value.contains("!") || value.contains("%") || value.contains("@")
-                || value.contains("`")) {
-            return true;
-        }
-
-        return false;
+                || value.contains("`") || value.contains("(") || value.contains(")");
     }
 
     public <T> T cleanAiResponse(String jsonResponse, Class<T> targetType) {
