@@ -1,0 +1,14 @@
+package com.app.civify.dto.blog;
+
+public record UpdateBlogRequest(
+        String title,
+        String content,
+        String slug,
+        String metaDescription,
+        String metaKeywords,
+        String coverImageUrl,
+        String readingTime,
+        Boolean published,
+        Boolean featured
+) {
+}

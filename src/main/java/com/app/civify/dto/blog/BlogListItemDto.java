@@ -1,4 +1,17 @@
 package com.app.civify.dto.blog;
 
-public record BlogListItemDto(Long id, String title, String slug) {
+import java.time.LocalDateTime;
+
+public record BlogListItemDto(
+        Long id,
+        String title,
+        String slug,
+        String metaDescription,
+        String coverImageUrl,
+        String readingTime,
+        Boolean published,
+        Boolean featured,
+        LocalDateTime publishedAt,
+        String authorName
+) {
 }
