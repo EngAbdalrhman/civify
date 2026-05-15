@@ -55,19 +55,32 @@ public class BlogPublicController {
     }
 
     @Operation(
-            summary = "Get blog post by slug",
-            description = "Returns the full content of a published blog post by its SEO-friendly slug. Used for individual blog post pages."
+            summary = "Get published blog post by slug",
+            description = "Returns the full content of a published blog post by its SEO-friendly slug. Unpublished/draft posts return 404."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Blog post retrieved successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = BlogDetailsDto.class))),
-            @ApiResponse(responseCode = "404", description = "Blog post not found",
+            @ApiResponse(responseCode = "404", description = "Blog post not found or not published",
                     content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/{slug}")
     public BlogDetailsDto getBySlug(
             @Parameter(description = "SEO-friendly slug of the blog post", example = "how-to-build-a-great-cv", required = true)
             @PathVariable String slug) {
-        return blogService.getBySlug(slug);
+        return blogService.getPublishedBySlug(slug);
+    }
+
+    @Operation(
+            summary = "Get all published blog slugs",
+            description = "Returns a list of slugs for all published posts. Used for sitemap generation and static page pre-rendering."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Slugs retrieved successfully")
+    })
+    @GetMapping("/slugs")
+    public List<String> getSlugs() {
+        return blogService.getAllPublishedSlugs();
     }
 }
+

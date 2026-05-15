@@ -104,17 +104,32 @@ public class BlogService {
     }
 
     public List<BlogListItemDto> listPublished() {
-        return blogRepository.findAll().stream()
-                .filter(b -> Boolean.TRUE.equals(b.getPublished()))
+        return blogRepository.findByPublishedTrueOrderByPublishedAtDesc().stream()
                 .map(this::toListItemDto)
                 .toList();
     }
 
     public List<BlogListItemDto> listFeatured() {
-        return blogRepository.findAll().stream()
-                .filter(b -> Boolean.TRUE.equals(b.getPublished()) && Boolean.TRUE.equals(b.getFeatured()))
+        return blogRepository.findByPublishedTrueAndFeaturedTrueOrderByPublishedAtDesc().stream()
                 .map(this::toListItemDto)
                 .toList();
+    }
+
+    /**
+     * Public-safe slug lookup — only returns published posts.
+     * Prevents draft/unpublished posts from leaking via the public API.
+     */
+    public BlogDetailsDto getPublishedBySlug(String slug) {
+        Blog b = blogRepository.findBySlugAndPublishedTrue(slug)
+                .orElseThrow(() -> new ResourceNotFoundException("Blog not found"));
+        return toDetailsDto(b);
+    }
+
+    /**
+     * Returns all published blog slugs for sitemap generation.
+     */
+    public List<String> getAllPublishedSlugs() {
+        return blogRepository.findAllPublishedSlugs();
     }
 
     public BlogDetailsDto getBySlug(String slug) {
@@ -158,6 +173,7 @@ public class BlogService {
                 b.getTitle(),
                 b.getSlug(),
                 b.getMetaDescription(),
+                b.getMetaKeywords(),
                 b.getCoverImageUrl(),
                 b.getReadingTime(),
                 b.getPublished(),

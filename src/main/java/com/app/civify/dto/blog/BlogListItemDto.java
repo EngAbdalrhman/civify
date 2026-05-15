@@ -7,6 +7,7 @@ public record BlogListItemDto(
         String title,
         String slug,
         String metaDescription,
+        String metaKeywords,
         String coverImageUrl,
         String readingTime,
         Boolean published,
