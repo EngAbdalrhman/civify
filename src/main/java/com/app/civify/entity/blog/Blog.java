@@ -73,7 +73,10 @@ public class Blog {
     private LocalDateTime updatedAt;
 
     // Author relationship
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "author_id")
     private User author;
+
+//    @Column(name = "author")
+//    private String author;
 }
