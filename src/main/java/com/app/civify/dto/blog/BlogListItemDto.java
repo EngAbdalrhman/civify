@@ -13,6 +13,6 @@ public record BlogListItemDto(
         Boolean published,
         Boolean featured,
         LocalDateTime publishedAt,
-        String authorName
+        String author
 ) {
 }

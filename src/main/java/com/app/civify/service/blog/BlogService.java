@@ -12,6 +12,7 @@ import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.slug.SlugService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -24,6 +25,7 @@ public class BlogService {
     private final SlugService slugService;
 
     @Transactional
+    @CacheEvict(value = "publicBlogs", allEntries = true)
     public BlogDetailsDto create(CreateBlogRequest req, UserPrincipal author) {
         String base = slugService.slugify(req.title());
         String slug;
@@ -49,6 +51,7 @@ public class BlogService {
                 .featured(Boolean.TRUE.equals(req.featured()))
                 .publishedAt(isPublished ? LocalDateTime.now() : null)
                 .author(author.getUser())
+                .authorName(req.author() != null && !req.author().isBlank() ? req.author() : "Civify Team")
                 .build();
 
         Blog saved = blogRepository.save(blog);
@@ -56,6 +59,7 @@ public class BlogService {
     }
 
     @Transactional
+    @CacheEvict(value = "publicBlogs", allEntries = true)
     public BlogDetailsDto update(Long id, UpdateBlogRequest req) {
         Blog blog = blogRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Blog not found"));
@@ -67,6 +71,7 @@ public class BlogService {
         if (req.coverImageUrl() != null) blog.setCoverImageUrl(req.coverImageUrl());
         if (req.readingTime() != null) blog.setReadingTime(req.readingTime());
         if (req.featured() != null) blog.setFeatured(req.featured());
+        if (req.author() != null) blog.setAuthorName(req.author());
 
         if (req.slug() != null && !req.slug().isEmpty() && !req.slug().equals(blog.getSlug())) {
             if (blogRepository.existsBySlug(req.slug()))
@@ -91,6 +96,7 @@ public class BlogService {
     }
 
     @Transactional
+    @CacheEvict(value = "publicBlogs", allEntries = true)
     public void delete(Long id) {
         if (!blogRepository.existsById(id))
             throw new ResourceNotFoundException("Blog not found");
@@ -147,7 +153,8 @@ public class BlogService {
     // ── Mappers ──────────────────────────────────────────────────────────────
 
     private BlogDetailsDto toDetailsDto(Blog b) {
-        String authorName = b.getAuthor() != null ? b.getAuthor().getName() : null;
+        String name = b.getAuthorName() != null && !b.getAuthorName().isBlank() ? b.getAuthorName() : 
+                      (b.getAuthor() != null ? b.getAuthor().getName() : "Civify Team");
         return new BlogDetailsDto(
                 b.getId(),
                 b.getTitle(),
@@ -162,12 +169,13 @@ public class BlogService {
                 b.getPublishedAt(),
                 b.getCreatedAt(),
                 b.getUpdatedAt(),
-                authorName
+                name
         );
     }
 
     private BlogListItemDto toListItemDto(Blog b) {
-        String authorName = b.getAuthor() != null ? b.getAuthor().getName() : null;
+        String name = b.getAuthorName() != null && !b.getAuthorName().isBlank() ? b.getAuthorName() : 
+                      (b.getAuthor() != null ? b.getAuthor().getName() : "Civify Team");
         return new BlogListItemDto(
                 b.getId(),
                 b.getTitle(),
@@ -179,7 +187,7 @@ public class BlogService {
                 b.getPublished(),
                 b.getFeatured(),
                 b.getPublishedAt(),
-                authorName
+                name
         );
     }
 }

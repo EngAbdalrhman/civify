@@ -77,6 +77,6 @@ public class Blog {
     @JoinColumn(name = "author_id")
     private User author;
 
-//    @Column(name = "author")
-//    private String author;
+    @Column(name = "author_name", length = 100)
+    private String authorName;
 }

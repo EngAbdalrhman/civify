@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,6 +38,7 @@ public class BlogPublicController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = BlogListItemDto.class)))
     })
     @GetMapping("/")
+    @Cacheable("publicBlogs")
     public List<BlogListItemDto> list() {
         return blogService.listPublished();
     }
@@ -50,6 +52,7 @@ public class BlogPublicController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = BlogListItemDto.class)))
     })
     @GetMapping("/featured")
+    @Cacheable("publicBlogs")
     public List<BlogListItemDto> listFeatured() {
         return blogService.listFeatured();
     }
@@ -65,6 +68,7 @@ public class BlogPublicController {
                     content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/{slug}")
+    @Cacheable(value = "publicBlogs", key = "#slug")
     public BlogDetailsDto getBySlug(
             @Parameter(description = "SEO-friendly slug of the blog post", example = "how-to-build-a-great-cv", required = true)
             @PathVariable String slug) {
@@ -79,6 +83,7 @@ public class BlogPublicController {
             @ApiResponse(responseCode = "200", description = "Slugs retrieved successfully")
     })
     @GetMapping("/slugs")
+    @Cacheable("publicBlogs")
     public List<String> getSlugs() {
         return blogService.getAllPublishedSlugs();
     }

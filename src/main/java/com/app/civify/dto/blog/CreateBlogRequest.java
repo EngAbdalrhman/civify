@@ -9,6 +9,7 @@ public record CreateBlogRequest(
         String coverImageUrl,
         String readingTime,
         Boolean published,
-        Boolean featured
+        Boolean featured,
+        String author
 ) {
 }

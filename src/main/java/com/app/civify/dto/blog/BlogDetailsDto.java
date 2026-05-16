@@ -16,6 +16,6 @@ public record BlogDetailsDto(
         LocalDateTime publishedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
-        String authorName
+        String author
 ) {
 }
