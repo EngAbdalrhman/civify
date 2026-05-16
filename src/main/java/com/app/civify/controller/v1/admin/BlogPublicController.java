@@ -38,7 +38,7 @@ public class BlogPublicController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = BlogListItemDto.class)))
     })
     @GetMapping("")
-    @Cacheable("publicBlogs")
+    @Cacheable(value = "publicBlogs", key = "'all'")
     public List<BlogListItemDto> list() {
         return blogService.listPublished();
     }
@@ -52,7 +52,7 @@ public class BlogPublicController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = BlogListItemDto.class)))
     })
     @GetMapping("/featured")
-    @Cacheable("publicBlogs")
+    @Cacheable(value = "publicBlogs", key = "'featured'")
     public List<BlogListItemDto> listFeatured() {
         return blogService.listFeatured();
     }
@@ -83,7 +83,7 @@ public class BlogPublicController {
             @ApiResponse(responseCode = "200", description = "Slugs retrieved successfully")
     })
     @GetMapping("/slugs")
-    @Cacheable("publicBlogs")
+    @Cacheable(value = "publicBlogs", key = "'slugs'")
     public List<String> getSlugs() {
         return blogService.getAllPublishedSlugs();
     }
