@@ -37,7 +37,7 @@ public class BlogPublicController {
             @ApiResponse(responseCode = "200", description = "Published blog posts retrieved successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = BlogListItemDto.class)))
     })
-    @GetMapping("/")
+    @GetMapping("")
     @Cacheable("publicBlogs")
     public List<BlogListItemDto> list() {
         return blogService.listPublished();
