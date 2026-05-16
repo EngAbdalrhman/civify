@@ -285,7 +285,7 @@ public class EmailService {
                 .append("  </div>")
 
                 // Content Body Start: Better padding and typography settings
-                .append("  <div style=\"padding: 40px 40px 20px 40px; color: #333333; line-height: 1.6; font-size: 16px;\">")
+                .append("  <div style=\"padding: 20px 25px; color: #333333; line-height: 1.5; font-size: 16px;\">")
                 .toString();
     }
 
@@ -303,7 +303,7 @@ public class EmailService {
                 .append("  </div>")
 
                 // Content Body Start
-                .append("  <div style=\"padding: 30px; color: #2d3748; line-height: 1.6;\">")
+                .append("  <div style=\"padding: 20px 25px; color: #2d3748; line-height: 1.5;\">")
                 .toString();
     }
 

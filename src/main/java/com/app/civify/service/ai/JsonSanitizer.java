@@ -20,6 +20,10 @@ public class JsonSanitizer {
 
     private final ObjectMapper objectMapper;
 
+    // Defined CV schema root keys. If the CV schema expands with new top-level keys,
+    // they MUST be added here so the preamble stripper doesn't accidentally truncate valid YAML.
+    private static final String YAML_ROOT_KEYS = "personalInfo:|sections:|metadata:|---";
+
     public JsonSanitizer(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
@@ -143,6 +147,15 @@ public class JsonSanitizer {
         }
 
         cleaned = cleaned.trim();
+
+        // Strip conversational preamble before YAML
+        // Find the first line that looks like a known YAML root key or "---"
+        // We use explicit keys (YAML_ROOT_KEYS) rather than a generic word matcher to prevent false-positives
+        // on Arabic sentences that start with a word and a colon (e.g. "ملاحظة:")
+        Matcher matcher = Pattern.compile("(?m)^(" + YAML_ROOT_KEYS + ")").matcher(cleaned);
+        if (matcher.find()) {
+            cleaned = cleaned.substring(matcher.start());
+        }
 
         // Strip control characters that break YAML parsers
         // 1. Replace tabs with spaces (AI sometimes uses tabs for indentation)
@@ -284,13 +297,9 @@ public class JsonSanitizer {
         }
 
         // Contains other YAML-special chars that could cause issues
-        if (value.contains("#") || value.contains("&") || value.contains("*")
+        return value.contains("#") || value.contains("&") || value.contains("*")
                 || value.contains("!") || value.contains("%") || value.contains("@")
-                || value.contains("`")) {
-            return true;
-        }
-
-        return false;
+                || value.contains("`") || value.contains("(") || value.contains(")");
     }
 
     public <T> T cleanAiResponse(String jsonResponse, Class<T> targetType) {

@@ -85,11 +85,10 @@ public class NewsletterService {
         }
 
         // Prepare per-subscriber content with unique unsubscribe links
-        String templateFooterStart = "  </div>" +
-                "  <div style=\"background-color: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #e0e0e0;\">" +
-                "    <p>You are receiving this email because you subscribed to our newsletter.</p>";
-        String templateFooterEnd = "  </div>" +
-                "</div>";
+        String templateFooterStart = "<br><hr style=\"border: 0; border-top: 1px solid #e0e0e0; margin: 30px 0 20px 0;\">" +
+                "  <div style=\"background-color: #f8f9fa; padding: 15px; border-radius: 6px; text-align: center; font-size: 12px; color: #666;\">" +
+                "    <p style=\"margin: 0 0 10px 0;\">You are receiving this email because you subscribed to our newsletter.</p>";
+        String templateFooterEnd = "  </div>";
 
         int batchSize = 50;
         int totalSubscribers = subscribers.size();

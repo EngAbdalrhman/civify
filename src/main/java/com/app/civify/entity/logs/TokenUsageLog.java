@@ -34,11 +34,11 @@ public class TokenUsageLog {
     private Long userId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "usage_type", nullable = false, length = 30)
+    @Column(name = "usage_type", nullable = false, length = 30, columnDefinition = "varchar(30)")
     private TokenUsageType usageType;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "source", nullable = false, length = 20)
+    @Column(name = "source", nullable = false, length = 20, columnDefinition = "varchar(20)")
     private TokenSource source;
 
     @Column(name = "tokens_used", nullable = false)
