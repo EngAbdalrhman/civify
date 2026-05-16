@@ -10,7 +10,7 @@ import com.app.civify.exception.ResourceNotFoundException;
 import com.app.civify.repository.blog.BlogRepository;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.slug.SlugService;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
@@ -20,6 +20,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class BlogService {
     private final BlogRepository blogRepository;
     private final SlugService slugService;
