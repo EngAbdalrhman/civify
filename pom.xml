@@ -300,6 +300,24 @@
         </dependency>
 
         <!-- =========================
+             PAYMENT GATEWAYS
+             ========================= -->
+
+        <!-- Dodo Payments Java SDK for global payment processing -->
+        <dependency>
+            <groupId>com.dodopayments.api</groupId>
+            <artifactId>dodo-payments-java</artifactId>
+            <version>1.97.1</version>
+        </dependency>
+
+        <!-- MaxMind GeoIP2 for IP-based gateway routing (MENA vs Global) -->
+        <dependency>
+            <groupId>com.maxmind.geoip2</groupId>
+            <artifactId>geoip2</artifactId>
+            <version>4.2.1</version>
+        </dependency>
+
+        <!-- =========================
              MAIL & QR / API CLIENTS
              ========================= -->
         <dependency>

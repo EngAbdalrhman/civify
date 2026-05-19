@@ -112,6 +112,15 @@ public class SubscriptionPlan extends BaseEntity {
     @ColumnDefault("false")
     private Boolean allowDocExport = false;
 
+    // ==================== EXTERNAL GATEWAY MAPPING ====================
+    /**
+     * Dodo Payments product ID for this plan (e.g., "pdt_xxx").
+     * Only required for plans that should be available via the Dodo gateway.
+     * Null means this plan is not purchasable through Dodo.
+     */
+    @Column(name = "dodo_product_id")
+    private String dodoProductId;
+
     // ==================== NEW RELATIONSHIPS ====================
     /**
      * Features included in this plan with their limits
