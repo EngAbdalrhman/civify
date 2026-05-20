@@ -118,14 +118,25 @@ public class GatewayRegionResolver {
         }
         String xff = request.getHeader("X-Forwarded-For");
         if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
+            String[] ips = xff.split(",");
+            return ips[ips.length - 1].trim();
         }
         return request.getRemoteAddr();
     }
 
     private boolean isLocalIp(String ip) {
-        return "127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip) || ip.startsWith("192.168.") || ip.startsWith("10.");
+        if (ip == null || ip.isBlank()) {
+            return true;
+        }
+        try {
+            InetAddress address = InetAddress.getByName(ip);
+            return address.isLoopbackAddress() || address.isSiteLocalAddress() || address.isLinkLocalAddress();
+        } catch (Exception e) {
+            log.warn("Failed to parse IP to InetAddress for local IP check: {}, defaulting to true", ip);
+            return true;
+        }
     }
+
 
     private String lookupCountry(String ip) {
         if (geoReader == null) {

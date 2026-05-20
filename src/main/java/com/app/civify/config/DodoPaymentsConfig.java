@@ -7,6 +7,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import jakarta.annotation.PostConstruct;
+
 @Configuration
 @ConditionalOnProperty(name = "payment.gateway.dodo.enabled", havingValue = "true")
 public class DodoPaymentsConfig {
@@ -19,6 +21,16 @@ public class DodoPaymentsConfig {
 
     @Value("${payment.dodo.environment:test_mode}")
     private String environment;
+
+    @PostConstruct
+    public void validateConfig() {
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("Dodo Payments API Key (payment.dodo.api-key) is not configured, but Dodo Payments gateway is enabled.");
+        }
+        if (webhookKey == null || webhookKey.isBlank()) {
+            throw new IllegalStateException("Dodo Payments Webhook Key (payment.dodo.webhook-key) is not configured, but Dodo Payments gateway is enabled.");
+        }
+    }
 
     @Bean
     public DodoPaymentsClient dodoPaymentsClient() {
@@ -33,3 +45,4 @@ public class DodoPaymentsConfig {
                 .build();
     }
 }
+

@@ -579,7 +579,13 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         UserSubscription subscription = subscriptionRepository.findByPaymentTransactionId(paymentTransactionId)
                 .orElseThrow(() -> new ResourceNotFoundException("subscription.notfound"));
 
+        if (subscription.getStatus() == SubscriptionStatus.ACTIVE) {
+            log.info("Subscription {} is already ACTIVE. Skipping activation.", subscription.getId());
+            return;
+        }
+
         User user = subscription.getUser();
+
         SubscriptionPlan plan = subscription.getPlan();
 
         // OPTION A FLOW: Deactivate other subscriptions (including free plan)

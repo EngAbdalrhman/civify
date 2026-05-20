@@ -26,7 +26,11 @@ CREATE TABLE IF NOT EXISTS currency_conversion_rates (
     CONSTRAINT uq_currency_pair UNIQUE (from_currency, to_currency)
 );
 
--- 3) Seed the default USD→EGP rate (update this value to match current market rate)
+-- 3) Seed the default USD→EGP rate (WARNING: Operators must verify and update this rate to match current market conditions immediately post-deployment)
 INSERT INTO currency_conversion_rates (from_currency, to_currency, rate, created_by)
 VALUES ('USD', 'EGP', 50.00000000, 'system')
-ON CONFLICT ON CONSTRAINT uq_currency_pair DO NOTHING;
+ON CONFLICT ON CONSTRAINT uq_currency_pair DO UPDATE 
+SET rate = EXCLUDED.rate,
+    updated_at = NOW(),
+    updated_by = 'migration';
+

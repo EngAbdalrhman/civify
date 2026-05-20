@@ -1,7 +1,6 @@
 package com.app.civify.service.payment;
 
 import com.app.civify.repository.billing.CurrencyConversionRateRepository;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,31 +26,6 @@ public class CurrencyService {
     @Value("${payment.currency.usd-to-egp-rate:50.00}")
     private String usdToEgpRateFallback;
 
-    private BigDecimal cachedUsdToEgpRate;
-
-    @PostConstruct
-    void init() {
-        refreshRate();
-    }
-
-    /**
-     * Refresh the cached rate from DB, falling back to properties.
-     * Called on startup and can be called manually to reload.
-     */
-    public void refreshRate() {
-        cachedUsdToEgpRate = conversionRateRepository
-                .findByFromCurrencyAndToCurrency("USD", "EGP")
-                .map(rate -> {
-                    log.info("Loaded USD→EGP rate from database: {}", rate.getRate());
-                    return rate.getRate();
-                })
-                .orElseGet(() -> {
-                    BigDecimal fallback = new BigDecimal(usdToEgpRateFallback);
-                    log.info("No DB rate found for USD→EGP, using properties fallback: {}", fallback);
-                    return fallback;
-                });
-    }
-
     /**
      * Convert USD amount to EGP using the current rate.
      * Result is rounded to 2 decimal places (standard currency precision).
@@ -60,7 +34,7 @@ public class CurrencyService {
         if (usdAmount == null) {
             return BigDecimal.ZERO;
         }
-        return usdAmount.multiply(cachedUsdToEgpRate)
+        return usdAmount.multiply(getUsdToEgpRate())
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
@@ -72,7 +46,7 @@ public class CurrencyService {
         if (egpAmount == null) {
             return BigDecimal.ZERO;
         }
-        return egpAmount.divide(cachedUsdToEgpRate, 2, RoundingMode.HALF_UP);
+        return egpAmount.divide(getUsdToEgpRate(), 2, RoundingMode.HALF_UP);
     }
 
     /**
@@ -97,9 +71,18 @@ public class CurrencyService {
     }
 
     /**
-     * Get the current USD to EGP conversion rate.
+     * Get the current USD to EGP conversion rate dynamically.
      */
     public BigDecimal getUsdToEgpRate() {
-        return cachedUsdToEgpRate;
+        try {
+            return conversionRateRepository
+                    .findByFromCurrencyAndToCurrency("USD", "EGP")
+                    .map(rate -> rate.getRate())
+                    .orElseGet(() -> new BigDecimal(usdToEgpRateFallback));
+        } catch (Exception e) {
+            log.error("Failed to query database for USD→EGP rate: {}. Using properties fallback.", e.getMessage());
+            return new BigDecimal(usdToEgpRateFallback);
+        }
     }
 }
+
