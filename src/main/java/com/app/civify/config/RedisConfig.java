@@ -66,6 +66,10 @@ public class RedisConfig {
         cacheConfigurations.put("ai_responses",
                 defaultConfig.entryTtl(Duration.ofHours(24)));
 
+        // Public blog listings: 15 minutes (SSR + SEO; versioned cache name)
+        cacheConfigurations.put("publicBlogs-v2",
+                defaultConfig.entryTtl(Duration.ofMinutes(15)));
+
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)
                 .withInitialCacheConfigurations(cacheConfigurations)

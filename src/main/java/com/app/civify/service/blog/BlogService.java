@@ -26,7 +26,7 @@ public class BlogService {
     private final SlugService slugService;
 
     @Transactional
-    @CacheEvict(value = "publicBlogs", allEntries = true)
+    @CacheEvict(value = "publicBlogs-v2", allEntries = true)
     public BlogDetailsDto create(CreateBlogRequest req, UserPrincipal author) {
         String base = slugService.slugify(req.title());
         String slug;
@@ -97,7 +97,7 @@ public class BlogService {
     }
 
     @Transactional
-    @CacheEvict(value = "publicBlogs", allEntries = true)
+    @CacheEvict(value = "publicBlogs-v2", allEntries = true)
     public void delete(Long id) {
         if (!blogRepository.existsById(id))
             throw new ResourceNotFoundException("Blog not found");
