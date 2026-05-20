@@ -7,7 +7,10 @@ import com.app.civify.dto.payment.PaymentVerificationResponse;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.security.annotation.CivifyAuthorization;
 import com.app.civify.service.payment.PaymentService;
+import com.app.civify.service.payment.GatewayRegionResolver;
+import com.app.civify.service.payment.CurrencyService;
 import com.app.civify.usecase.user.PaymentUseCase;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +42,8 @@ public class PaymentController {
 
     private final PaymentUseCase paymentUseCase;
     private final PaymentService paymentService;
+    private final GatewayRegionResolver regionResolver;
+    private final CurrencyService currencyService;
 
     @Value("${payment.redirect.success-url:/payment/success}")
     private String successRedirectUrl;
@@ -67,11 +72,19 @@ public class PaymentController {
             @RequestParam(required = false) String gateway,
             @RequestParam(required = false) PaymentMethods paymentMethod,
             @RequestParam(required = false) String phoneNumber,
-            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            HttpServletRequest request) {
 
         try {
             Long userId = userPrincipal.getId();
-            PaymentInitiationResponse response = paymentUseCase.initiatePayment(userId, planId, isAnnual, promoCode, gateway, paymentMethod, phoneNumber);
+            String resolvedGateway = gateway;
+            if (resolvedGateway == null || resolvedGateway.isBlank()) {
+                resolvedGateway = regionResolver.resolveGateway(request);
+            }
+            log.info("Initiating payment for user {} with plan {}. Gateway parameter: {}, Resolved gateway: {}", 
+                    userId, planId, gateway, resolvedGateway);
+
+            PaymentInitiationResponse response = paymentUseCase.initiatePayment(userId, planId, isAnnual, promoCode, resolvedGateway, paymentMethod, phoneNumber);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -160,9 +173,13 @@ public class PaymentController {
             description = "Returns a list of enabled payment gateways."
     )
     @GetMapping("/config")
-    public ResponseEntity<Map<String, Object>> getPaymentConfig() {
+    public ResponseEntity<Map<String, Object>> getPaymentConfig(HttpServletRequest request) {
+        String resolvedGateway = regionResolver.resolveGateway(request);
         return ResponseEntity.ok(Map.of(
-                "enabledGateways", paymentUseCase.getEnabledGateways()
+                "enabledGateways", paymentUseCase.getEnabledGateways(),
+                "resolvedGateway", resolvedGateway != null ? resolvedGateway : "default",
+                "currency", currencyService.getGatewayCurrency(resolvedGateway),
+                "conversionRate", currencyService.getUsdToEgpRate()
         ));
     }
 
