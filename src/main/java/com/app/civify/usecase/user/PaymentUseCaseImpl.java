@@ -78,13 +78,9 @@ public class PaymentUseCaseImpl implements PaymentUseCase {
         boolean isVerified = paymentService.verifyPayment(gateway, paymentId);
 
         if (isVerified) {
-            // Delegate to PaymentFulfillmentService which correctly routes:
-            //   1. TOKEN_TOPUP → tokenPackageService.fulfillTokenPurchase()
-            //   2. Invoice payments → invoiceService.handleSuccessfulPayment()
-            //   3. New subscriptions → subscriptionService.activateSubscription()
-            boolean fulfilled = fulfillmentService.fulfillPayment(paymentId);
+            String fulfillOrderId = paymentService.resolveFulfillmentOrderId(gateway, paymentId);
+            boolean fulfilled = fulfillmentService.fulfillPayment(fulfillOrderId);
             if (!fulfilled) {
-                // Fallback: try by payment key (frontend may send either orderId or paymentKey)
                 fulfilled = fulfillmentService.fulfillPaymentByKey(paymentId);
             }
 

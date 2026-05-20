@@ -44,6 +44,11 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
+    public String resolveFulfillmentOrderId(String gateway, String clientPaymentId) {
+        return gatewayManager.resolveFulfillmentOrderId(gateway, clientPaymentId);
+    }
+
+    @Override
     public void handlePaymentCallback(String gateway, String orderId, String rawPayload, Map<String, String> headers) {
         log.info("Handling payment callback for gateway {} order {}", gateway, orderId);
         

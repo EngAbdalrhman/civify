@@ -89,4 +89,11 @@ public interface PaymentGateway {
     default boolean chargeWithToken(Long userId, double amount, String cardToken, Long subscriptionId, Long invoiceId) {
         throw new UnsupportedOperationException("Token charging not supported");
     }
+
+    /**
+     * Maps a client-visible payment reference (e.g. Dodo pay_xxx) to the internal orderId used for fulfillment.
+     */
+    default String resolveFulfillmentOrderId(String clientPaymentId) {
+        return clientPaymentId;
+    }
 }

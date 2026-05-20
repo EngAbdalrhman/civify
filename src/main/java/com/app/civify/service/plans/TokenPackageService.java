@@ -21,6 +21,7 @@ import com.app.civify.repository.plans.UserPromoUsageRepository;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
 import com.app.civify.service.audit.AuditService;
 import com.app.civify.service.logs.BillingAuditService;
+import com.app.civify.service.payment.CurrencyService;
 import com.app.civify.service.payment.PaymentService;
 import com.app.civify.service.payment.PromoCodeService;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,7 @@ public class TokenPackageService {
 
     private final TokenPackageRepository tokenPackageRepository;
     private final PaymentService paymentService;
+    private final CurrencyService currencyService;
     private final UserRepository userRepository;
     private final UserSubscriptionRepository subscriptionRepository;
     private final AuditService auditService;
@@ -235,9 +237,13 @@ public class TokenPackageService {
         metadata.put("packageId", packageId);
         metadata.put("purchaseId", purchase.getId()); // Helper to find it back if needed, but we rely on orderId usually
 
-        log.info("Initiating token purchase for user {} - Package: {} - Amount: {}", userId, tokenPackage.getName(), finalPrice);
+        BigDecimal amountToCharge = currencyService.convertForGateway(finalPrice, gateway);
+        String currencyCode = currencyService.getGatewayCurrency(gateway);
 
-        PaymentCreationResult paymentResult = paymentService.createPayment(userId, finalPrice.doubleValue(), gateway, methods, TransactionType.TOKEN_TOPUP, metadata);
+        log.info("Initiating token purchase for user {} - Package: {} - Amount: {} {}", userId, tokenPackage.getName(), amountToCharge, currencyCode);
+
+        PaymentCreationResult paymentResult = paymentService.createPayment(
+                userId, amountToCharge.doubleValue(), gateway, methods, TransactionType.TOKEN_TOPUP, metadata);
         
         // Link purchase to payment transaction using orderId instead of paymentKey
         purchase.setPaymentTransactionId(paymentResult.getOrderId());

@@ -119,7 +119,7 @@ public class GatewayRegionResolver {
         String xff = request.getHeader("X-Forwarded-For");
         if (xff != null && !xff.isBlank()) {
             String[] ips = xff.split(",");
-            return ips[ips.length - 1].trim();
+            return ips[0].trim();
         }
         return request.getRemoteAddr();
     }

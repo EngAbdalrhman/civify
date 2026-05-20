@@ -3,15 +3,20 @@ package com.app.civify.service.payment;
 import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.PaymentMethods;
+import com.app.civify.entity.billing.BillingTransaction;
+import com.app.civify.entity.enums.BillingAuditType;
 import com.app.civify.entity.enums.PaymentStatus;
 import com.app.civify.entity.enums.TransactionType;
-import com.app.civify.entity.billing.BillingTransaction;
 import com.app.civify.entity.plans.SubscriptionPlan;
+import com.app.civify.entity.plans.TokenPackage;
 import com.app.civify.entity.plans.UserSubscription;
 import com.app.civify.repository.billing.BillingTransactionRepository;
+import com.app.civify.repository.plans.TokenPackageRepository;
 import com.app.civify.repository.plans.UserSubscriptionRepository;
+import com.app.civify.service.logs.BillingAuditService;
 import com.app.civify.service.notification.NotificationService;
 import com.dodopayments.api.client.DodoPaymentsClient;
+import com.dodopayments.api.core.JsonValue;
 import com.dodopayments.api.models.checkoutsessions.CheckoutSessionCreateParams;
 import com.dodopayments.api.models.checkoutsessions.CheckoutSessionRequest;
 import com.dodopayments.api.models.checkoutsessions.CheckoutSessionResponse;
@@ -29,20 +34,26 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Optional;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class DodoPaymentGateway implements PaymentGateway {
+
+    static final String METADATA_CIVIFY_REFERENCE = "civify_reference";
+
     private final Optional<DodoPaymentsClient> dodoClient;
     private final BillingTransactionRepository paymentRepository;
     private final UserSubscriptionRepository subscriptionRepository;
+    private final TokenPackageRepository tokenPackageRepository;
     private final ObjectMapper objectMapper;
     private final PaymentFulfillmentService fulfillmentService;
     private final NotificationService notificationService;
+    private final BillingAuditService billingAuditService;
 
     @Value("${payment.gateway.dodo.enabled:false}")
     private boolean enabled;
@@ -65,7 +76,7 @@ public class DodoPaymentGateway implements PaymentGateway {
 
     @Override
     public Long getPaymentMethod(PaymentMethods paymentMethods) {
-        return 0L; // Dodo handles payment method selection on their hosted page
+        return 0L;
     }
 
     @Override
@@ -79,55 +90,40 @@ public class DodoPaymentGateway implements PaymentGateway {
         }
 
         try {
-            log.info("Creating Dodo Payments checkout session for user {} with amount {} USD", userId, amount);
+            log.info("Creating Dodo checkout for user {} amount {} USD type {}", userId, amount, type);
 
-            Long subscriptionId = null;
-            if (metadata != null && metadata.containsKey("subscriptionId")) {
-                Object subIdObj = metadata.get("subscriptionId");
-                if (subIdObj instanceof Number) {
-                    subscriptionId = ((Number) subIdObj).longValue();
-                } else if (subIdObj instanceof String) {
-                    subscriptionId = Long.parseLong((String) subIdObj);
+            String dodoProductId = resolveDodoProductId(type, metadata);
+            String civifyReference = "civify_dodo_" + userId + "_" + System.currentTimeMillis() + "_"
+                    + UUID.randomUUID().toString().substring(0, 8);
+
+            CheckoutSessionRequest.Metadata.Builder sessionMetadataBuilder =
+                    CheckoutSessionRequest.Metadata.builder()
+                            .putAdditionalProperty(METADATA_CIVIFY_REFERENCE, JsonValue.from(civifyReference));
+            if (metadata != null) {
+                if (metadata.containsKey("subscriptionId")) {
+                    sessionMetadataBuilder.putAdditionalProperty(
+                            "subscription_id", JsonValue.from(String.valueOf(metadata.get("subscriptionId"))));
+                }
+                if (metadata.containsKey("packageId")) {
+                    sessionMetadataBuilder.putAdditionalProperty(
+                            "package_id", JsonValue.from(String.valueOf(metadata.get("packageId"))));
+                }
+                if (metadata.containsKey("purchaseId")) {
+                    sessionMetadataBuilder.putAdditionalProperty(
+                            "purchase_id", JsonValue.from(String.valueOf(metadata.get("purchaseId"))));
                 }
             }
+            CheckoutSessionRequest.Metadata sessionMetadata = sessionMetadataBuilder.build();
 
-            if (subscriptionId == null) {
-                throw new IllegalArgumentException("Subscription ID is required for Dodo Payments.");
-            }
-
-            final Long finalSubscriptionId = subscriptionId;
-            UserSubscription subscription = subscriptionRepository.findById(finalSubscriptionId)
-                    .orElseThrow(() -> new IllegalArgumentException("Subscription not found for ID: " + finalSubscriptionId));
-
-            SubscriptionPlan plan = subscription.getPlan();
-            if (plan == null) {
-                throw new IllegalArgumentException("Subscription has no associated plan.");
-            }
-
-            String dodoProductId = plan.getDodoProductId();
-            if (dodoProductId == null || dodoProductId.isBlank()) {
-                throw new IllegalArgumentException("No Dodo Product ID mapped for plan: " + plan.getName());
-            }
-
-            log.info("Resolved Dodo Product ID: {} for plan: {}", dodoProductId, plan.getName());
-
-            // Build Checkout Session Request
             ProductItemReq productItem = ProductItemReq.builder()
                     .productId(dodoProductId)
                     .quantity(1)
                     .build();
 
-            // Include query params in returnUrl so redirect handling can determine success
-            String targetReturnUrl = returnUrl;
-            if (targetReturnUrl.contains("?")) {
-                targetReturnUrl += "&payment_id={CHECKOUT_SESSION_ID}&status=succeeded";
-            } else {
-                targetReturnUrl += "?payment_id={CHECKOUT_SESSION_ID}&status=succeeded";
-            }
-
             CheckoutSessionRequest sessionRequest = CheckoutSessionRequest.builder()
                     .addProductCart(productItem)
-                    .returnUrl(targetReturnUrl)
+                    .returnUrl(buildReturnUrl())
+                    .metadata(sessionMetadata)
                     .build();
 
             CheckoutSessionCreateParams params = CheckoutSessionCreateParams.builder()
@@ -138,53 +134,108 @@ public class DodoPaymentGateway implements PaymentGateway {
             String sessionId = response.sessionId();
             String checkoutUrl = response.checkoutUrl().orElse("");
 
-            log.info("Dodo Checkout Session created. Session ID: {}, URL: {}", sessionId, checkoutUrl);
+            log.info("Dodo session {} created for civify ref {}", sessionId, civifyReference);
 
-            // Save pending billing transaction
             BillingTransaction transaction = new BillingTransaction();
             transaction.setUserId(userId);
             transaction.setAmount(BigDecimal.valueOf(amount));
-            transaction.setOrderId(sessionId);
+            transaction.setOrderId(civifyReference);
             transaction.setPaymentKey(sessionId);
             transaction.setStatus(PaymentStatus.PENDING);
             transaction.setType(type);
             transaction.setGateway(getGatewayName());
             transaction.setCurrency("USD");
-            transaction.setSubscriptionId(subscriptionId);
 
-            Map<String, Object> mutableMetadata = metadata != null ? new HashMap<>(metadata) : new HashMap<>();
-            mutableMetadata.put("paymentUrl", checkoutUrl);
-            transaction.setMetadata(objectMapper.writeValueAsString(mutableMetadata));
+            if (metadata != null && metadata.containsKey("subscriptionId")) {
+                transaction.setSubscriptionId(parseLong(metadata.get("subscriptionId")));
+            }
+
+            Map<String, Object> txMeta = metadata != null ? new HashMap<>(metadata) : new HashMap<>();
+            txMeta.put("paymentUrl", checkoutUrl);
+            txMeta.put("dodoSessionId", sessionId);
+            txMeta.put(METADATA_CIVIFY_REFERENCE, civifyReference);
+            transaction.setMetadata(objectMapper.writeValueAsString(txMeta));
 
             paymentRepository.save(transaction);
 
             return PaymentCreationResult.builder()
                     .paymentKey(sessionId)
                     .paymentUrl(checkoutUrl)
-                    .orderId(sessionId)
+                    .orderId(civifyReference)
                     .build();
 
         } catch (Exception e) {
-            log.error("Failed to create Dodo Payments checkout session: {}", e.getMessage(), e);
+            log.error("Failed to create Dodo checkout session: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to create Dodo Payments checkout session", e);
         }
     }
 
+    private String resolveDodoProductId(TransactionType type, Map<String, Object> metadata) {
+        if (metadata == null) {
+            throw new IllegalArgumentException("Metadata is required for Dodo Payments.");
+        }
+
+        if (type == TransactionType.TOKEN_TOPUP && metadata.containsKey("packageId")) {
+            Long packageId = parseLong(metadata.get("packageId"));
+            TokenPackage tokenPackage = tokenPackageRepository.findById(packageId)
+                    .orElseThrow(() -> new IllegalArgumentException("Token package not found: " + packageId));
+            String productId = tokenPackage.getDodoProductId();
+            if (productId == null || productId.isBlank()) {
+                throw new IllegalArgumentException(
+                        "No Dodo product ID for token package: " + tokenPackage.getName()
+                                + ". Set token_packages.dodo_product_id in the database.");
+            }
+            return productId;
+        }
+
+        Long subscriptionId = parseLong(metadata.get("subscriptionId"));
+        if (subscriptionId == null) {
+            throw new IllegalArgumentException(
+                    "subscriptionId or packageId (TOKEN_TOPUP) is required for Dodo Payments.");
+        }
+
+        UserSubscription subscription = subscriptionRepository.findById(subscriptionId)
+                .orElseThrow(() -> new IllegalArgumentException("Subscription not found: " + subscriptionId));
+
+        SubscriptionPlan plan = subscription.getPlan();
+        if (plan == null) {
+            throw new IllegalArgumentException("Subscription has no associated plan.");
+        }
+
+        String dodoProductId = plan.getDodoProductId();
+        if (dodoProductId == null || dodoProductId.isBlank()) {
+            throw new IllegalArgumentException(
+                    "No Dodo product ID for plan: " + plan.getName()
+                            + ". Set subscription_plans.dodo_product_id in the database.");
+        }
+        return dodoProductId;
+    }
+
     @Override
     public boolean verifyPayment(String transactionId) {
-        if (dodoClient.isEmpty()) {
+        if (dodoClient.isEmpty() || transactionId == null || transactionId.isBlank()) {
             return false;
         }
         try {
-            if (transactionId.startsWith("dos_")) {
+            if (transactionId.startsWith("civify_")) {
+                return paymentRepository.findByOrderId(transactionId)
+                        .map(tx -> tx.getStatus() == PaymentStatus.COMPLETED)
+                        .orElse(false);
+            }
+            if (transactionId.startsWith("cks_")) {
                 CheckoutSessionStatus sessionStatus = dodoClient.get().checkoutSessions().retrieve(transactionId);
                 IntentStatus status = sessionStatus.paymentStatus().orElse(null);
                 return status == IntentStatus.SUCCEEDED;
-            } else {
+            }
+            if (transactionId.startsWith("pay_")) {
                 Payment payment = dodoClient.get().payments().retrieve(transactionId);
                 IntentStatus status = payment.status().orElse(null);
                 return status == IntentStatus.SUCCEEDED;
             }
+            return paymentRepository.findByOrderId(transactionId)
+                    .or(() -> paymentRepository.findByPaymentKey(transactionId))
+                    .map(tx -> tx.getStatus() == PaymentStatus.COMPLETED)
+                    .orElse(false);
         } catch (Exception e) {
             log.error("Failed to verify Dodo payment {}: {}", transactionId, e.getMessage());
             return false;
@@ -194,109 +245,82 @@ public class DodoPaymentGateway implements PaymentGateway {
     @Override
     @Transactional
     public PaymentCallbackResult handleCallback(String rawPayload, Map<String, String> headers) {
-        log.info("Processing Dodo Payments webhook callback");
+        log.info("Processing Dodo Payments webhook");
 
         PaymentCallbackResult result = new PaymentCallbackResult();
         result.setGatewayName(getGatewayName());
 
         try {
-            // Step 1: Verify webhook signature
             if (!verifyWebhookSignature(rawPayload, headers)) {
-                log.error("🔒 Dodo Payments signature verification FAILED - Potential security threat");
                 result.setSuccess(false);
                 result.setMessage("WEBHOOK_SIGNATURE_INVALID");
                 result.setErrorCode("WEBHOOK_SIGNATURE_INVALID");
                 return result;
             }
-            log.debug("✅ Dodo signature verified");
 
-            // Step 2: Parse JSON payload
             JsonNode root = objectMapper.readTree(rawPayload);
             String type = root.has("type") ? root.get("type").asText() : "";
             JsonNode dataNode = root.get("data");
 
             if (dataNode == null) {
-                log.error("❌ Missing 'data' block in Dodo webhook payload");
                 result.setSuccess(false);
                 result.setMessage("INVALID_WEBHOOK_PAYLOAD");
-                result.setErrorCode("INVALID_WEBHOOK_PAYLOAD");
                 return result;
             }
 
-            String checkoutSessionId = dataNode.has("checkout_session_id") ? dataNode.get("checkout_session_id").asText() : "";
             String paymentId = dataNode.has("payment_id") ? dataNode.get("payment_id").asText() : "";
+            String civifyReference = extractCivifyReference(dataNode);
 
-            if (checkoutSessionId == null || checkoutSessionId.isBlank()) {
-                log.error("❌ Missing checkout_session_id in Dodo webhook");
+            if (civifyReference == null || civifyReference.isBlank()) {
+                log.error("Missing civify_reference in Dodo webhook for payment {}", paymentId);
                 result.setSuccess(false);
                 result.setMessage("INVALID_WEBHOOK_PAYLOAD");
-                result.setErrorCode("INVALID_WEBHOOK_PAYLOAD");
                 return result;
             }
 
-            log.info("Processing Dodo event {} for checkoutSessionId: {} paymentId: {}", type, checkoutSessionId, paymentId);
+            log.info("Dodo webhook {} civifyRef={} paymentId={}", type, civifyReference, paymentId);
 
-            // Step 3: Find transaction with PESSIMISTIC LOCK (prevents race conditions)
-            BillingTransaction transaction = paymentRepository.findByOrderIdWithLock(checkoutSessionId)
-                    .orElseThrow(() -> {
-                        log.error("Transaction not found for Dodo checkout session: {}", checkoutSessionId);
-                        return new RuntimeException("TRANSACTION_NOT_FOUND");
-                    });
+            BillingTransaction transaction = paymentRepository.findByOrderIdWithLock(civifyReference)
+                    .orElseThrow(() -> new RuntimeException("TRANSACTION_NOT_FOUND"));
 
             result.setTransactionId(paymentId);
-            result.setOrderId(checkoutSessionId);
+            result.setOrderId(civifyReference);
 
-            // Step 4: Idempotency check
             if (transaction.getStatus() == PaymentStatus.COMPLETED) {
-                log.info("⚠️ Idempotent webhook detected - Dodo Checkout Session {} already COMPLETED", checkoutSessionId);
                 result.setSuccess(true);
                 result.setMessage("ALREADY_PROCESSED");
                 result.setAlreadyProcessed(true);
+                logWebhookAudit(transaction, civifyReference, true, "ALREADY_PROCESSED", rawPayload);
                 return result;
             }
-
-            PaymentStatus previousStatus = transaction.getStatus();
 
             if ("payment.succeeded".equalsIgnoreCase(type)) {
                 transaction.setStatus(PaymentStatus.COMPLETED);
                 transaction.setCompletedAt(LocalDateTime.now());
-
-                Map<String, Object> metadataMap = new HashMap<>();
-                if (transaction.getMetadata() != null && !transaction.getMetadata().isBlank()) {
-                    try {
-                        metadataMap = new HashMap<>(objectMapper.readValue(transaction.getMetadata(), Map.class));
-                    } catch (Exception e) {
-                        log.warn("Failed to parse existing metadata JSON: {}", e.getMessage());
-                    }
-                }
-                metadataMap.put("dodoPaymentId", paymentId);
-                transaction.setMetadata(objectMapper.writeValueAsString(metadataMap));
-
+                mergeTransactionMetadata(transaction, paymentId, null);
                 paymentRepository.save(transaction);
-                log.info("💾 Dodo payment COMPLETED. CheckoutSession: {} PaymentId: {}", checkoutSessionId, paymentId);
 
                 result.setSuccess(true);
                 result.setMessage("PAYMENT_COMPLETED");
 
                 try {
                     notificationService.sendToUser(transaction.getUserId(), "Payment Successful",
-                            "Your payment was successful and your plan is active.", com.app.civify.entity.enums.NotificationType.SYSTEM);
+                            "Your payment was successful.", com.app.civify.entity.enums.NotificationType.SYSTEM);
                 } catch (Exception ex) {
-                    log.error("Failed to send payment success notification: {}", ex.getMessage());
+                    log.error("Failed to send payment notification: {}", ex.getMessage());
                 }
 
-                // Trigger fulfillment!
-                fulfillmentService.fulfillPayment(checkoutSessionId);
+                fulfillmentService.fulfillPayment(civifyReference);
+                logWebhookAudit(transaction, civifyReference, true, result.getMessage(), rawPayload);
 
             } else if ("payment.failed".equalsIgnoreCase(type)) {
                 transaction.setStatus(PaymentStatus.FAILED);
+                mergeTransactionMetadata(transaction, paymentId, null);
                 paymentRepository.save(transaction);
-                log.warn("❌ Dodo payment FAILED. CheckoutSession: {} PaymentId: {}", checkoutSessionId, paymentId);
-
                 result.setSuccess(false);
                 result.setMessage("PAYMENT_FAILED");
+                logWebhookAudit(transaction, civifyReference, false, result.getMessage(), rawPayload);
             } else {
-                log.info("ℹ️ Ignored Dodo webhook event type: {}", type);
                 result.setSuccess(false);
                 result.setMessage("EVENT_IGNORED");
             }
@@ -314,27 +338,34 @@ public class DodoPaymentGateway implements PaymentGateway {
     @Override
     @Transactional
     public PaymentCallbackResult handleRedirect(Map<String, String> params) {
-        log.info("Processing Dodo Payments redirect callback with params: {}", params);
+        log.info("Processing Dodo redirect params: {}", params);
 
         PaymentCallbackResult result = new PaymentCallbackResult();
         result.setGatewayName(getGatewayName());
 
         try {
-            String checkoutSessionId = params.get("payment_id");
+            String dodoPaymentId = params.get("payment_id");
             String status = params.get("status");
 
-            if (checkoutSessionId == null || checkoutSessionId.isBlank()) {
-                log.error("❌ Missing payment_id (checkout session ID) in Dodo redirect");
+            if (dodoPaymentId == null || dodoPaymentId.isBlank()) {
                 result.setSuccess(false);
                 result.setMessage("INVALID_REDIRECT_PARAMS");
                 return result;
             }
 
-            BillingTransaction transaction = paymentRepository.findByOrderIdWithLock(checkoutSessionId)
+            String civifyReference = resolveCivifyReferenceFromPaymentId(dodoPaymentId);
+            if (civifyReference == null || civifyReference.isBlank()) {
+                log.error("Could not resolve civify_reference from Dodo payment {}", dodoPaymentId);
+                result.setSuccess(false);
+                result.setMessage("TRANSACTION_NOT_FOUND");
+                return result;
+            }
+
+            BillingTransaction transaction = paymentRepository.findByOrderIdWithLock(civifyReference)
                     .orElseThrow(() -> new RuntimeException("TRANSACTION_NOT_FOUND"));
 
-            result.setTransactionId(checkoutSessionId);
-            result.setOrderId(checkoutSessionId);
+            result.setTransactionId(dodoPaymentId);
+            result.setOrderId(civifyReference);
 
             if (transaction.getStatus() == PaymentStatus.COMPLETED) {
                 result.setSuccess(true);
@@ -343,20 +374,18 @@ public class DodoPaymentGateway implements PaymentGateway {
                 return result;
             }
 
-            if ("succeeded".equalsIgnoreCase(status)) {
-                boolean verified = verifyPayment(checkoutSessionId);
+            if (isRedirectSuccess(params)) {
+                boolean verified = verifyPayment(dodoPaymentId);
                 if (verified) {
                     transaction.setStatus(PaymentStatus.COMPLETED);
                     transaction.setCompletedAt(LocalDateTime.now());
+                    mergeTransactionMetadata(transaction, dodoPaymentId, null);
                     paymentRepository.save(transaction);
 
-                    log.info("✅ Dodo redirect verified successfully. Fulfilling payment: {}", checkoutSessionId);
                     result.setSuccess(true);
                     result.setMessage("PAYMENT_COMPLETED");
-
-                    fulfillmentService.fulfillPayment(checkoutSessionId);
+                    fulfillmentService.fulfillPayment(civifyReference);
                 } else {
-                    log.warn("⚠️ Dodo redirect indicates success but API verification returned not succeeded yet.");
                     result.setSuccess(false);
                     result.setMessage("PAYMENT_PENDING");
                 }
@@ -376,7 +405,30 @@ public class DodoPaymentGateway implements PaymentGateway {
 
     @Override
     public boolean isRedirectSuccess(Map<String, String> params) {
-        return params != null && "succeeded".equalsIgnoreCase(params.get("status"));
+        if (params == null) {
+            return false;
+        }
+        String status = params.get("status");
+        return "succeeded".equalsIgnoreCase(status) || "active".equalsIgnoreCase(status);
+    }
+
+    @Override
+    public String resolveFulfillmentOrderId(String clientPaymentId) {
+        if (clientPaymentId == null || clientPaymentId.isBlank()) {
+            return clientPaymentId;
+        }
+        if (clientPaymentId.startsWith("civify_")) {
+            return clientPaymentId;
+        }
+        if (clientPaymentId.startsWith("pay_")) {
+            String ref = resolveCivifyReferenceFromPaymentId(clientPaymentId);
+            return ref != null ? ref : clientPaymentId;
+        }
+        return paymentRepository.findByOrderId(clientPaymentId)
+                .map(BillingTransaction::getOrderId)
+                .orElseGet(() -> paymentRepository.findByPaymentKey(clientPaymentId)
+                        .map(BillingTransaction::getOrderId)
+                        .orElse(clientPaymentId));
     }
 
     @Override
@@ -394,6 +446,105 @@ public class DodoPaymentGateway implements PaymentGateway {
                     return "";
                 })
                 .orElse("");
+    }
+
+    private String buildReturnUrl() {
+        String base = returnUrl != null ? returnUrl.trim() : "/payment/success";
+        if (!base.contains("gateway=")) {
+            base += base.contains("?") ? "&gateway=dodo" : "?gateway=dodo";
+        }
+        return base;
+    }
+
+    private String extractCivifyReference(JsonNode dataNode) {
+        if (dataNode.has("metadata") && dataNode.get("metadata").isObject()) {
+            JsonNode meta = dataNode.get("metadata");
+            if (meta.has(METADATA_CIVIFY_REFERENCE)) {
+                return meta.get(METADATA_CIVIFY_REFERENCE).asText();
+            }
+        }
+        String paymentId = dataNode.has("payment_id") ? dataNode.get("payment_id").asText(null) : null;
+        if (paymentId != null && !paymentId.isBlank()) {
+            return resolveCivifyReferenceFromPaymentId(paymentId);
+        }
+        return null;
+    }
+
+    private String resolveCivifyReferenceFromPaymentId(String dodoPaymentId) {
+        if (dodoClient.isEmpty()) {
+            return null;
+        }
+        try {
+            Payment payment = dodoClient.get().payments().retrieve(dodoPaymentId);
+            Payment.Metadata paymentMeta = payment.metadata();
+            if (paymentMeta != null) {
+                JsonValue refValue = paymentMeta._additionalProperties().get(METADATA_CIVIFY_REFERENCE);
+                if (refValue != null) {
+                    Optional<String> ref = refValue.asString();
+                    if (ref.isPresent() && !ref.get().isBlank()) {
+                        return ref.get();
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Could not load Dodo payment {} metadata: {}", dodoPaymentId, e.getMessage());
+        }
+        return paymentRepository.findByPaymentKey(dodoPaymentId)
+                .map(BillingTransaction::getOrderId)
+                .orElse(null);
+    }
+
+    private void mergeTransactionMetadata(BillingTransaction transaction, String dodoPaymentId, String dodoSessionId) {
+        try {
+            Map<String, Object> metadataMap = new HashMap<>();
+            if (transaction.getMetadata() != null && !transaction.getMetadata().isBlank()) {
+                metadataMap = new HashMap<>(objectMapper.readValue(transaction.getMetadata(), Map.class));
+            }
+            if (dodoPaymentId != null) {
+                metadataMap.put("dodoPaymentId", dodoPaymentId);
+            }
+            if (dodoSessionId != null) {
+                metadataMap.put("dodoSessionId", dodoSessionId);
+            }
+            transaction.setMetadata(objectMapper.writeValueAsString(metadataMap));
+        } catch (Exception e) {
+            log.warn("Failed to merge transaction metadata: {}", e.getMessage());
+        }
+    }
+
+    private void logWebhookAudit(BillingTransaction transaction, String orderId, boolean success,
+                                 String message, String rawPayload) {
+        try {
+            billingAuditService.logWebhook(
+                    getGatewayName(),
+                    transaction.getUserId(),
+                    null,
+                    transaction.getPaymentKey(),
+                    orderId,
+                    success ? "success" : "failed",
+                    "callback",
+                    message,
+                    rawPayload,
+                    null,
+                    success ? BillingAuditType.WEBHOOK_SUCCESS : BillingAuditType.WEBHOOK_FAILED
+            );
+        } catch (Exception auditEx) {
+            log.warn("Failed to log billing audit (non-critical): {}", auditEx.getMessage());
+        }
+    }
+
+    private Long parseLong(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        try {
+            return Long.parseLong(value.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private boolean verifyWebhookSignature(String rawPayload, Map<String, String> headers) {
@@ -420,7 +571,8 @@ public class DodoPaymentGateway implements PaymentGateway {
 
             String toSign = webhookId + "." + webhookTimestamp + "." + rawPayload;
             javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
-            javax.crypto.spec.SecretKeySpec secretKey = new javax.crypto.spec.SecretKeySpec(keyBytes, "HmacSHA256");
+            javax.crypto.spec.SecretKeySpec secretKey =
+                    new javax.crypto.spec.SecretKeySpec(keyBytes, "HmacSHA256");
             mac.init(secretKey);
             byte[] signatureBytes = mac.doFinal(toSign.getBytes(java.nio.charset.StandardCharsets.UTF_8));
 

@@ -10,11 +10,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 
 /**
- * Precision-safe currency conversion service for multi-gateway pricing.
- * 
- * Reads conversion rates from the database first (currency_conversion_rates table).
- * Falls back to application.properties if no DB row exists.
- * All arithmetic uses BigDecimal with RoundingMode.HALF_UP — no floating point ever touches money.
+ * Precision-safe currency conversion for multi-gateway pricing.
+ * Base currency is configured via {@code payment.pricing.base-currency} (USD or EGP).
  */
 @Service
 @RequiredArgsConstructor
@@ -26,10 +23,9 @@ public class CurrencyService {
     @Value("${payment.currency.usd-to-egp-rate:50.00}")
     private String usdToEgpRateFallback;
 
-    /**
-     * Convert USD amount to EGP using the current rate.
-     * Result is rounded to 2 decimal places (standard currency precision).
-     */
+    @Value("${payment.pricing.base-currency:USD}")
+    private String pricingBaseCurrency;
+
     public BigDecimal usdToEgp(BigDecimal usdAmount) {
         if (usdAmount == null) {
             return BigDecimal.ZERO;
@@ -38,10 +34,6 @@ public class CurrencyService {
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
-    /**
-     * Convert EGP amount to USD using the current rate.
-     * Result is rounded to 2 decimal places.
-     */
     public BigDecimal egpToUsd(BigDecimal egpAmount) {
         if (egpAmount == null) {
             return BigDecimal.ZERO;
@@ -49,30 +41,40 @@ public class CurrencyService {
         return egpAmount.divide(getUsdToEgpRate(), 2, RoundingMode.HALF_UP);
     }
 
-    /**
-     * Get the native currency code for a given gateway.
-     */
     public String getGatewayCurrency(String gatewayName) {
         if ("dodo".equalsIgnoreCase(gatewayName)) {
             return "USD";
         }
-        return "EGP"; // Paymob, Fawaterak — all MENA gateways use EGP
+        return "EGP";
     }
 
     /**
-     * Convert a USD-denominated plan price to the gateway's native currency.
-     * Dodo → returns USD as-is. Paymob → converts to EGP.
+     * Converts a plan/package price stored in {@link #getPricingBaseCurrency()} to the gateway's charge currency.
      */
-    public BigDecimal convertForGateway(BigDecimal usdAmount, String gatewayName) {
-        if ("dodo".equalsIgnoreCase(gatewayName)) {
-            return usdAmount.setScale(2, RoundingMode.HALF_UP);
+    public BigDecimal convertForGateway(BigDecimal baseAmount, String gatewayName) {
+        if (baseAmount == null) {
+            return BigDecimal.ZERO;
         }
-        return usdToEgp(usdAmount);
+        if (isUsdBase()) {
+            if ("dodo".equalsIgnoreCase(gatewayName)) {
+                return baseAmount.setScale(2, RoundingMode.HALF_UP);
+            }
+            return usdToEgp(baseAmount);
+        }
+        if ("dodo".equalsIgnoreCase(gatewayName)) {
+            return egpToUsd(baseAmount);
+        }
+        return baseAmount.setScale(2, RoundingMode.HALF_UP);
     }
 
-    /**
-     * Get the current USD to EGP conversion rate dynamically.
-     */
+    public boolean isUsdBase() {
+        return "USD".equalsIgnoreCase(pricingBaseCurrency);
+    }
+
+    public String getPricingBaseCurrency() {
+        return isUsdBase() ? "USD" : "EGP";
+    }
+
     public BigDecimal getUsdToEgpRate() {
         try {
             return conversionRateRepository
@@ -85,4 +87,3 @@ public class CurrencyService {
         }
     }
 }
-

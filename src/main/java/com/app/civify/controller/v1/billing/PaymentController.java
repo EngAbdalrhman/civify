@@ -175,12 +175,13 @@ public class PaymentController {
     @GetMapping("/config")
     public ResponseEntity<Map<String, Object>> getPaymentConfig(HttpServletRequest request) {
         String resolvedGateway = regionResolver.resolveGateway(request);
-        return ResponseEntity.ok(Map.of(
-                "enabledGateways", paymentUseCase.getEnabledGateways(),
-                "resolvedGateway", resolvedGateway != null ? resolvedGateway : "default",
-                "currency", currencyService.getGatewayCurrency(resolvedGateway),
-                "conversionRate", currencyService.getUsdToEgpRate()
-        ));
+        Map<String, Object> config = new HashMap<>();
+        config.put("enabledGateways", paymentUseCase.getEnabledGateways());
+        config.put("resolvedGateway", resolvedGateway != null ? resolvedGateway : "default");
+        config.put("currency", currencyService.getGatewayCurrency(resolvedGateway));
+        config.put("conversionRate", currencyService.getUsdToEgpRate());
+        config.put("baseCurrency", currencyService.getPricingBaseCurrency());
+        return ResponseEntity.ok(config);
     }
 
     @Operation(
