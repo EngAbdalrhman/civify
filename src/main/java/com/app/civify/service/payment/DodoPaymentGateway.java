@@ -249,29 +249,86 @@ public class DodoPaymentGateway implements PaymentGateway {
             return false;
         }
         try {
+            // Civify internal reference: trust our DB state (webhook will have updated it)
             if (transactionId.startsWith("civify_")) {
-                return paymentRepository.findByOrderId(transactionId)
+                boolean completed = paymentRepository.findByOrderId(transactionId)
                         .map(tx -> tx.getStatus() == PaymentStatus.COMPLETED)
                         .orElse(false);
+                log.info("Dodo verify civify ref {}: completed={}", transactionId, completed);
+                return completed;
             }
+
+            // Dodo checkout session ID: query Dodo API
             if (transactionId.startsWith("cks_")) {
                 CheckoutSessionStatus sessionStatus = dodoClient.get().checkoutSessions().retrieve(transactionId);
-                IntentStatus status = sessionStatus.paymentStatus().orElse(null);
-                return status == IntentStatus.SUCCEEDED;
+                String statusStr = sessionStatus.paymentStatus().map(IntentStatus::toString).orElse(null);
+                boolean ok = isSuccessStatus(statusStr);
+                log.info("Dodo verify session {}: status={}, success={}", transactionId, statusStr, ok);
+                return ok || isLocallyCompleted(transactionId);
             }
+
+            // Dodo payment ID: query Dodo API AND fall back to local DB
             if (transactionId.startsWith("pay_")) {
-                Payment payment = dodoClient.get().payments().retrieve(transactionId);
-                IntentStatus status = payment.status().orElse(null);
-                return status == IntentStatus.SUCCEEDED;
+                String statusStr = null;
+                try {
+                    Payment payment = dodoClient.get().payments().retrieve(transactionId);
+                    statusStr = payment.status().map(IntentStatus::toString).orElse(null);
+                } catch (Exception apiEx) {
+                    log.warn("Dodo payments.retrieve({}) failed: {}", transactionId, apiEx.getMessage());
+                }
+                boolean apiOk = isSuccessStatus(statusStr);
+                boolean localOk = isLocallyCompletedByPaymentId(transactionId);
+                log.info("Dodo verify payment {}: apiStatus={}, apiOk={}, localOk={}",
+                        transactionId, statusStr, apiOk, localOk);
+                return apiOk || localOk;
             }
+
             return paymentRepository.findByOrderId(transactionId)
                     .or(() -> paymentRepository.findByPaymentKey(transactionId))
                     .map(tx -> tx.getStatus() == PaymentStatus.COMPLETED)
                     .orElse(false);
         } catch (Exception e) {
-            log.error("Failed to verify Dodo payment {}: {}", transactionId, e.getMessage());
+            log.error("Failed to verify Dodo payment {}: {}", transactionId, e.getMessage(), e);
             return false;
         }
+    }
+
+    /**
+     * Dodo IntentStatus values that mean the customer has paid (or auth+capture is in-flight).
+     * "succeeded" is the terminal success state. "requires_capture" means card is authorised and
+     * Civify can safely activate. "processing" is treated as transient — local DB will catch up.
+     */
+    private boolean isSuccessStatus(String status) {
+        if (status == null) {
+            return false;
+        }
+        String s = status.toLowerCase();
+        return "succeeded".equals(s)
+                || "requires_capture".equals(s)
+                || "partially_captured".equals(s)
+                || "partially_captured_and_capturable".equals(s);
+    }
+
+    private boolean isLocallyCompleted(String dodoTransactionId) {
+        return paymentRepository.findByPaymentKey(dodoTransactionId)
+                .map(tx -> tx.getStatus() == PaymentStatus.COMPLETED)
+                .orElse(false);
+    }
+
+    private boolean isLocallyCompletedByPaymentId(String dodoPaymentId) {
+        // Resolve civify_reference first, then check transaction status
+        String civifyRef = resolveCivifyReferenceFromPaymentId(dodoPaymentId);
+        if (civifyRef != null) {
+            boolean ok = paymentRepository.findByOrderId(civifyRef)
+                    .map(tx -> tx.getStatus() == PaymentStatus.COMPLETED)
+                    .orElse(false);
+            if (ok) {
+                return true;
+            }
+        }
+        return paymentRepository.findByPaymentKey(dodoPaymentId)
+                .map(tx -> tx.getStatus() == PaymentStatus.COMPLETED)
+                .orElse(false);
     }
 
     @Override
