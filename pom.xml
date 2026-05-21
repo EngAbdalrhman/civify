@@ -20,6 +20,8 @@
 		<java.version>21</java.version>
 		<spring-ai.version>1.0.3</spring-ai.version>
 		<spring-cloud.version>2025.0.0</spring-cloud.version>
+		<!-- Spring Boot 3.4 defaults to 2.18.1; Dodo SDK rejects it (jackson-databind #4639) and expects 2.18.2+ -->
+		<jackson-bom.version>2.18.2</jackson-bom.version>
 	</properties>
 
 	<dependencies>
