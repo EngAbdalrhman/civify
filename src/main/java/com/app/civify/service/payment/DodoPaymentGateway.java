@@ -18,11 +18,14 @@ import com.app.civify.service.notification.NotificationService;
 import com.dodopayments.api.client.DodoPaymentsClient;
 import com.dodopayments.api.core.JsonValue;
 import com.dodopayments.api.models.checkoutsessions.CheckoutSessionCreateParams;
+import com.dodopayments.api.models.checkoutsessions.CheckoutSessionFlags;
 import com.dodopayments.api.models.checkoutsessions.CheckoutSessionRequest;
 import com.dodopayments.api.models.checkoutsessions.CheckoutSessionResponse;
 import com.dodopayments.api.models.checkoutsessions.CheckoutSessionStatus;
 import com.dodopayments.api.models.checkoutsessions.ProductItemReq;
+import com.dodopayments.api.models.payments.CustomerRequest;
 import com.dodopayments.api.models.payments.IntentStatus;
+import com.dodopayments.api.models.payments.NewCustomer;
 import com.dodopayments.api.models.payments.Payment;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -63,6 +66,12 @@ public class DodoPaymentGateway implements PaymentGateway {
 
     @Value("${payment.dodo.return-url:}")
     private String returnUrl;
+
+    @Value("${payment.redirect.success-url:}")
+    private String paymentSuccessUrl;
+
+    @Value("${app.frontend.base-url:https://civify.cv}")
+    private String frontendBaseUrl;
 
     @Override
     public boolean isEnabled() {
@@ -113,18 +122,41 @@ public class DodoPaymentGateway implements PaymentGateway {
                             "purchase_id", JsonValue.from(String.valueOf(metadata.get("purchaseId"))));
                 }
             }
+            if (metadata != null && metadata.containsKey("finalAmount")) {
+                sessionMetadataBuilder.putAdditionalProperty(
+                        "final_amount", JsonValue.from(String.valueOf(metadata.get("finalAmount"))));
+            }
+            if (metadata != null && metadata.containsKey("promoCode")) {
+                sessionMetadataBuilder.putAdditionalProperty(
+                        "promo_code", JsonValue.from(String.valueOf(metadata.get("promoCode"))));
+            }
             CheckoutSessionRequest.Metadata sessionMetadata = sessionMetadataBuilder.build();
 
-            ProductItemReq productItem = ProductItemReq.builder()
+            ProductItemReq.Builder productBuilder = ProductItemReq.builder()
                     .productId(dodoProductId)
-                    .quantity(1)
-                    .build();
+                    .quantity(1);
+            Integer amountCents = resolveAmountCents(metadata, type);
+            if (amountCents != null && type == TransactionType.TOKEN_TOPUP) {
+                productBuilder.amount(amountCents);
+            }
+            ProductItemReq productItem = productBuilder.build();
 
-            CheckoutSessionRequest sessionRequest = CheckoutSessionRequest.builder()
+            CheckoutSessionRequest.Builder sessionBuilder = CheckoutSessionRequest.builder()
                     .addProductCart(productItem)
                     .returnUrl(buildReturnUrl())
-                    .metadata(sessionMetadata)
-                    .build();
+                    .metadata(sessionMetadata);
+
+            buildCustomer(metadata).ifPresent(sessionBuilder::customer);
+
+            String promoCode = metadata != null ? stringValue(metadata.get("promoCode")) : null;
+            if (promoCode != null && !promoCode.isBlank()) {
+                sessionBuilder.discountCode(promoCode);
+                sessionBuilder.featureFlags(CheckoutSessionFlags.builder()
+                        .allowDiscountCode(false)
+                        .build());
+            }
+
+            CheckoutSessionRequest sessionRequest = sessionBuilder.build();
 
             CheckoutSessionCreateParams params = CheckoutSessionCreateParams.builder()
                     .checkoutSessionRequest(sessionRequest)
@@ -449,11 +481,73 @@ public class DodoPaymentGateway implements PaymentGateway {
     }
 
     private String buildReturnUrl() {
-        String base = returnUrl != null ? returnUrl.trim() : "/payment/success";
+        String base = paymentSuccessUrl != null && !paymentSuccessUrl.isBlank()
+                ? paymentSuccessUrl.trim()
+                : (returnUrl != null && returnUrl.trim().startsWith("http")
+                        ? returnUrl.trim()
+                        : frontendBaseUrl.replaceAll("/$", "")
+                                + (returnUrl != null && returnUrl.startsWith("/")
+                                        ? returnUrl.trim()
+                                        : "/en/payment/success"));
         if (!base.contains("gateway=")) {
             base += base.contains("?") ? "&gateway=dodo" : "?gateway=dodo";
         }
         return base;
+    }
+
+    private Optional<CustomerRequest> buildCustomer(Map<String, Object> metadata) {
+        if (metadata == null) {
+            return Optional.empty();
+        }
+        String email = stringValue(metadata.get("email"));
+        if (email == null || email.isBlank()) {
+            return Optional.empty();
+        }
+        String firstName = stringValue(metadata.get("firstName"));
+        String lastName = stringValue(metadata.get("lastName"));
+        String name = null;
+        if (firstName != null || lastName != null) {
+            name = ((firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "")).trim();
+        }
+        NewCustomer.Builder customerBuilder = NewCustomer.builder().email(email);
+        if (name != null && !name.isBlank()) {
+            customerBuilder.name(name);
+        }
+        String phone = stringValue(metadata.get("phone"));
+        if (phone != null && !phone.isBlank()) {
+            customerBuilder.phoneNumber(normalizePhone(phone));
+        }
+        return Optional.of(CustomerRequest.ofNewCustomer(customerBuilder.build()));
+    }
+
+    private Integer resolveAmountCents(Map<String, Object> metadata, TransactionType type) {
+        if (metadata == null || !metadata.containsKey("amountCents")) {
+            return null;
+        }
+        Object raw = metadata.get("amountCents");
+        if (raw instanceof Number) {
+            return ((Number) raw).intValue();
+        }
+        try {
+            return Integer.parseInt(raw.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private String normalizePhone(String phone) {
+        String trimmed = phone.trim();
+        if (trimmed.startsWith("+")) {
+            return trimmed;
+        }
+        if (trimmed.startsWith("0")) {
+            return "+20" + trimmed.substring(1);
+        }
+        return "+" + trimmed;
+    }
+
+    private String stringValue(Object value) {
+        return value != null ? value.toString() : null;
     }
 
     private String extractCivifyReference(JsonNode dataNode) {

@@ -397,8 +397,14 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             metadata.put("phone", phoneToUse);
             metadata.put("subscriptionId", subscription.getId());
         }
+        if (promoCode != null && !promoCode.isEmpty()) {
+            metadata.put("promoCode", promoCode);
+        }
+        metadata.put("finalAmount", priceCalc.getTotalPrice().doubleValue());
 
         BigDecimal amountToCharge = currencyService.convertForGateway(priceCalc.getTotalPrice(), gateway);
+        metadata.put("amountCents", amountToCharge.multiply(BigDecimal.valueOf(100))
+                .setScale(0, java.math.RoundingMode.HALF_UP).intValue());
         String currencyCode = currencyService.getGatewayCurrency(gateway);
 
         PaymentCreationResult paymentResult = paymentService.createPayment(userId, amountToCharge.doubleValue(), gateway, method, TransactionType.SUBSCRIPTION, metadata);
