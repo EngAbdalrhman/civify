@@ -12,6 +12,9 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -39,6 +42,9 @@ public class GatewayRegionResolver {
 
     @Value("${payment.gateway.default:paymob}")
     private String defaultGateway;
+
+    @Value("${payment.gateway.region-strict:true}")
+    private boolean regionStrict;
 
     private DatabaseReader geoReader;
 
@@ -112,10 +118,84 @@ public class GatewayRegionResolver {
         return "dodo";
     }
 
-    private String extractClientIp(HttpServletRequest request) {
+    /**
+     * Resolves the country code for the request's client IP.
+     * Returns null if undetectable (proxy, local, or MaxMind missing).
+     */
+    public String resolveCountryCode(HttpServletRequest request) {
+        String ip = extractClientIp(request);
+        if (ip == null || ip.isBlank() || isLocalIp(ip)) {
+            return null;
+        }
+        return lookupCountry(ip);
+    }
+
+    /**
+     * Returns the gateways permitted for this request's region.
+     * - MENA region or undetectable → MENA gateways (paymob, fawaterak)
+     * - Non-MENA region → global gateway (dodo)
+     * If region-strict mode is OFF, returns all enabled gateways.
+     */
+    public List<String> filterGatewaysForRegion(HttpServletRequest request, List<String> enabledGateways) {
+        if (enabledGateways == null || enabledGateways.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (!regionStrict) {
+            return enabledGateways;
+        }
+        if (!dodoEnabled) {
+            // Dodo off: just expose MENA gateways that are enabled
+            return enabledGateways.stream()
+                    .filter(g -> !"dodo".equalsIgnoreCase(g))
+                    .toList();
+        }
+
+        String country = resolveCountryCode(request);
+        boolean isMena = country != null && MENA_COUNTRY_CODES.contains(country.toUpperCase());
+        boolean isNonMena = country != null && !isMena;
+
+        List<String> filtered = new ArrayList<>();
+        for (String g : enabledGateways) {
+            String gLower = g.toLowerCase();
+            if ("dodo".equals(gLower)) {
+                if (isNonMena) {
+                    filtered.add(g);
+                }
+            } else {
+                // paymob, fawaterak: show to MENA or when country is unknown (safe default)
+                if (!isNonMena) {
+                    filtered.add(g);
+                }
+            }
+        }
+        // Safety: never return an empty list if we have gateways enabled
+        if (filtered.isEmpty()) {
+            log.warn("Region filter produced empty gateway list for country {}. Returning all enabled gateways.", country);
+            return enabledGateways;
+        }
+        return filtered;
+    }
+
+    public String extractClientIp(HttpServletRequest request) {
         if (request == null) {
             return null;
         }
+        // Cloudflare
+        String cf = request.getHeader("CF-Connecting-IP");
+        if (cf != null && !cf.isBlank()) {
+            return cf.trim();
+        }
+        // Generic / nginx style
+        String realIp = request.getHeader("X-Real-IP");
+        if (realIp != null && !realIp.isBlank()) {
+            return realIp.trim();
+        }
+        // Stainless / dodo style
+        String trueClient = request.getHeader("True-Client-IP");
+        if (trueClient != null && !trueClient.isBlank()) {
+            return trueClient.trim();
+        }
+        // Standard XFF: first IP is the original client
         String xff = request.getHeader("X-Forwarded-For");
         if (xff != null && !xff.isBlank()) {
             String[] ips = xff.split(",");

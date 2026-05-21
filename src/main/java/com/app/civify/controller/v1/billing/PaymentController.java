@@ -175,12 +175,22 @@ public class PaymentController {
     @GetMapping("/config")
     public ResponseEntity<Map<String, Object>> getPaymentConfig(HttpServletRequest request) {
         String resolvedGateway = regionResolver.resolveGateway(request);
+        java.util.List<String> allEnabled = paymentUseCase.getEnabledGateways();
+        java.util.List<String> regionAllowed = regionResolver.filterGatewaysForRegion(request, allEnabled);
+
         Map<String, Object> config = new HashMap<>();
-        config.put("enabledGateways", paymentUseCase.getEnabledGateways());
+        config.put("enabledGateways", regionAllowed);
         config.put("resolvedGateway", resolvedGateway != null ? resolvedGateway : "default");
         config.put("currency", currencyService.getGatewayCurrency(resolvedGateway));
         config.put("conversionRate", currencyService.getUsdToEgpRate());
         config.put("baseCurrency", currencyService.getPricingBaseCurrency());
+
+        // Diagnostic fields — useful for verifying geo routing in staging/prod
+        String detectedCountry = regionResolver.resolveCountryCode(request);
+        config.put("detectedCountry", detectedCountry != null ? detectedCountry : "unknown");
+        log.info("Payment config request: ip={}, country={}, resolvedGateway={}, regionAllowed={}",
+                regionResolver.extractClientIp(request), detectedCountry, resolvedGateway, regionAllowed);
+
         return ResponseEntity.ok(config);
     }
 
