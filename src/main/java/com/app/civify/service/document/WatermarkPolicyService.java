@@ -88,7 +88,7 @@ public class WatermarkPolicyService {
             return true;
         }
         return userRepository.findById(userId)
-                .map(this::hasPermission)
+                .map(user -> hasPermission(user, "CV.NO_WATERMARK"))
                 .orElse(false);
     }
 
@@ -134,7 +134,9 @@ public class WatermarkPolicyService {
 
         double opacity = settings != null ? settings.getOpacity() : defaultOpacity;
         double scale = settings != null ? settings.getScale() : defaultScale;
-        String position = settings != null ? settings.getPosition() : defaultPosition;
+        String position = settings != null && settings.getPosition() != null
+                ? settings.getPosition().getValue()
+                : defaultPosition;
         Double rotation = settings != null ? settings.getRotation() : 0.0;
 
         return WatermarkConfigDto.builder()
@@ -157,7 +159,7 @@ public class WatermarkPolicyService {
                 .imageUrl(imageUrl)
                 .opacity(settings.getOpacity())
                 .scale(settings.getScale())
-                .position(settings.getPosition())
+                .position(settings.getPosition() != null ? settings.getPosition().getValue() : defaultPosition)
                 .rotation(settings.getRotation())
                 .build();
     }
@@ -167,11 +169,7 @@ public class WatermarkPolicyService {
         if (key == null) {
             return null;
         }
-        String publicUrl = bucketService.buildPublicLogoUrl(key);
-        if (publicUrl != null) {
-            return publicUrl;
-        }
-        return null;
+        return bucketService.resolveLogoUrlForPdf(key);
     }
 
     private String fallbackLogoUrl() {

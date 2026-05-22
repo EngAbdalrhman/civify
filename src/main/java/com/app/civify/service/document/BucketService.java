@@ -9,7 +9,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
+
+import java.time.Duration;
 
 import java.security.MessageDigest;
 import java.time.LocalDate;
@@ -20,10 +26,15 @@ import java.util.Optional;
 public class BucketService {
 
     private final S3Client s3Client;
+    private final S3Presigner s3Presigner;
     private final StoredFileRepository storedFileRepository;
 
-    public BucketService(@Autowired(required = false) S3Client s3Client, StoredFileRepository storedFileRepository) {
+    public BucketService(
+            @Autowired(required = false) S3Client s3Client,
+            @Autowired(required = false) S3Presigner s3Presigner,
+            StoredFileRepository storedFileRepository) {
         this.s3Client = s3Client;
+        this.s3Presigner = s3Presigner;
         this.storedFileRepository = storedFileRepository;
     }
 
@@ -38,6 +49,9 @@ public class BucketService {
 
     @Value("${civify.r2.public-base-url:}")
     private String publicBaseUrl;
+
+    @Value("${civify.r2.presign-ttl-minutes:15}")
+    private int presignTtlMinutes;
 
     public static final String PLATFORM_WATERMARK_KEY = "Watermark/platform/logo.png";
     public static final String USER_WATERMARK_KEY_PREFIX = "Watermark/";
@@ -118,6 +132,9 @@ public class BucketService {
         }
     }
 
+    /**
+     * Public CDN/custom-domain URL (optional). Only works if the bucket or prefix is publicly readable.
+     */
     public String buildPublicLogoUrl(String storageKey) {
         if (storageKey == null || storageKey.isBlank()) {
             return null;
@@ -127,6 +144,44 @@ public class BucketService {
             return base + "/" + storageKey;
         }
         return null;
+    }
+
+    /**
+     * Temporary signed GET URL for private R2 objects. Generated at PDF export time so Puppeteer can load the logo.
+     */
+    public String generatePresignedGetUrl(String storageKey) {
+        if (!r2Enabled || s3Presigner == null || storageKey == null || storageKey.isBlank()) {
+            return null;
+        }
+        try {
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(r2Bucket)
+                    .key(storageKey)
+                    .build();
+            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(Duration.ofMinutes(Math.max(1, presignTtlMinutes)))
+                    .getObjectRequest(getObjectRequest)
+                    .build();
+            PresignedGetObjectRequest presigned = s3Presigner.presignGetObject(presignRequest);
+            return presigned.url().toString();
+        } catch (Exception e) {
+            log.error("Failed to presign R2 URL for key {}: {}", storageKey, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Resolve logo URL for PDF rendering: public CDN if configured, otherwise presigned R2 URL.
+     */
+    public String resolveLogoUrlForPdf(String storageKey) {
+        if (storageKey == null || storageKey.isBlank()) {
+            return null;
+        }
+        String publicUrl = buildPublicLogoUrl(storageKey);
+        if (publicUrl != null) {
+            return publicUrl;
+        }
+        return generatePresignedGetUrl(storageKey);
     }
 
     private String storeWatermarkAtKey(String key, MultipartFile file) {

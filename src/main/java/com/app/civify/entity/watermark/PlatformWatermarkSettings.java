@@ -1,5 +1,6 @@
 package com.app.civify.entity.watermark;
 
+import com.app.civify.entity.enums.WatermarkPosition;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -23,7 +24,7 @@ public class PlatformWatermarkSettings {
     private Double scale = 0.35;
 
     @Column(nullable = false, length = 32)
-    private String position = "center";
+    private WatermarkPosition position = WatermarkPosition.CENTER;
 
     private Double rotation = 0.0;
 
