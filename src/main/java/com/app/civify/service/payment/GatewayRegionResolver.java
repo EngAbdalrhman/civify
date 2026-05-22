@@ -1,5 +1,6 @@
 package com.app.civify.service.payment;
 
+import com.maxmind.db.CHMCache;
 import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.model.CountryResponse;
 import jakarta.annotation.PostConstruct;
@@ -62,8 +63,13 @@ public class GatewayRegionResolver {
         }
 
         try {
-            this.geoReader = new DatabaseReader.Builder(dbFile).build();
-            log.info("Successfully loaded MaxMind GeoIP2 database from {}.", dbPath);
+            // CHMCache adds an in-memory cache for decoded nodes (~2 MB), recommended by MaxMind
+            // for any reader that handles repeated lookups. The reader itself is reused as a
+            // Spring singleton, so this gives constant-time hits for common IPs.
+            this.geoReader = new DatabaseReader.Builder(dbFile)
+                    .withCache(new CHMCache())
+                    .build();
+            log.info("Successfully loaded MaxMind GeoIP2 database from {} (with CHMCache).", dbPath);
         } catch (IOException e) {
             log.error("Failed to initialize MaxMind GeoIP2 DatabaseReader from path: {}", dbPath, e);
         }
@@ -225,8 +231,9 @@ public class GatewayRegionResolver {
         try {
             InetAddress ipAddress = InetAddress.getByName(ip);
             CountryResponse response = geoReader.country(ipAddress);
-            if (response != null && response.getCountry() != null) {
-                return response.getCountry().getIsoCode();
+            // geoip2 5.x: model classes are Java records; use record-style accessors.
+            if (response != null && response.country() != null) {
+                return response.country().isoCode();
             }
         } catch (Exception e) {
             log.warn("MaxMind lookup failed for IP: {}. Message: {}", ip, e.getMessage());
