@@ -20,7 +20,13 @@ import java.time.Duration;
 
 import java.security.MessageDigest;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
+
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 
 @Service
 @Slf4j
@@ -54,8 +60,8 @@ public class BucketService {
     @Value("${civify.r2.presign-ttl-minutes:15}")
     private int presignTtlMinutes;
 
-    /** R2 object key prefix (bucket is {@code civify.r2.bucket}, typically {@code civify}). */
-    public static final String WATERMARKS_ROOT = "civify/watermarks/";
+    /** R2 object key prefix inside bucket {@code civify.r2.bucket} (bucket name is already {@code civify}). */
+    public static final String WATERMARKS_ROOT = "watermarks/";
     public static final String PLATFORM_WATERMARK_KEY = WATERMARKS_ROOT + "platform/logo.png";
     private static final long MAX_WATERMARK_BYTES = 512_000;
 
@@ -64,6 +70,41 @@ public class BucketService {
             throw new IllegalArgumentException("userId is required");
         }
         return WATERMARKS_ROOT + userId + "/logo.png";
+    }
+
+    /**
+     * Normalize legacy DB/R2 keys. Bucket name is already {@code civify}; object keys must not repeat it.
+     */
+    public static String normalizeWatermarkKey(String storageKey) {
+        if (storageKey == null || storageKey.isBlank()) {
+            return storageKey;
+        }
+        String key = storageKey.trim().replace('\\', '/');
+        while (key.startsWith("civify/civify/")) {
+            key = key.substring("civify/".length());
+        }
+        if (key.startsWith("civify/watermarks/")) {
+            return "watermarks/" + key.substring("civify/watermarks/".length());
+        }
+        if (key.startsWith("Watermark/")) {
+            return "watermarks/" + key.substring("Watermark/".length());
+        }
+        return key;
+    }
+
+    /** Try canonical key first, then legacy variants still in R2 or DB. */
+    public static List<String> watermarkKeyCandidates(String storageKey) {
+        LinkedHashSet<String> keys = new LinkedHashSet<>();
+        if (storageKey == null || storageKey.isBlank()) {
+            return List.of();
+        }
+        String raw = storageKey.trim();
+        keys.add(normalizeWatermarkKey(raw));
+        keys.add(raw);
+        if (!raw.startsWith("civify/")) {
+            keys.add("civify/" + raw);
+        }
+        return new ArrayList<>(keys);
     }
 
     /**
@@ -132,11 +173,13 @@ public class BucketService {
         if (!r2Enabled || s3Client == null || key == null || key.isBlank()) {
             return;
         }
-        try {
-            s3Client.deleteObject(b -> b.bucket(r2Bucket).key(key));
-            log.info("Deleted R2 object: {}/{}", r2Bucket, key);
-        } catch (Exception e) {
-            log.error("Failed to delete R2 object {}: {}", key, e.getMessage());
+        for (String candidate : watermarkKeyCandidates(key)) {
+            try {
+                s3Client.deleteObject(b -> b.bucket(r2Bucket).key(candidate));
+                log.info("Deleted R2 object: {}/{}", r2Bucket, candidate);
+            } catch (Exception e) {
+                log.debug("Could not delete R2 object {}: {}", candidate, e.getMessage());
+            }
         }
     }
 
@@ -149,7 +192,7 @@ public class BucketService {
         }
         if (publicBaseUrl != null && !publicBaseUrl.isBlank()) {
             String base = publicBaseUrl.endsWith("/") ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1) : publicBaseUrl;
-            return base + "/" + storageKey;
+            return base + "/" + normalizeWatermarkKey(storageKey);
         }
         return null;
     }
@@ -180,16 +223,47 @@ public class BucketService {
 
     /**
      * Resolve logo URL for PDF rendering: public CDN if configured, otherwise presigned R2 URL.
+     * Tries normalized and legacy key paths so older uploads keep working.
      */
     public String resolveLogoUrlForPdf(String storageKey) {
         if (storageKey == null || storageKey.isBlank()) {
             return null;
         }
-        String publicUrl = buildPublicLogoUrl(storageKey);
-        if (publicUrl != null) {
-            return publicUrl;
+        for (String candidate : watermarkKeyCandidates(storageKey)) {
+            if (!objectExists(candidate)) {
+                continue;
+            }
+            if (publicBaseUrl != null && !publicBaseUrl.isBlank()) {
+                String base = publicBaseUrl.endsWith("/")
+                        ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1)
+                        : publicBaseUrl;
+                return base + "/" + candidate;
+            }
+            String presigned = generatePresignedGetUrl(candidate);
+            if (presigned != null) {
+                return presigned;
+            }
         }
-        return generatePresignedGetUrl(storageKey);
+        log.warn("Watermark object not found in R2 for storageKey={}", storageKey);
+        return null;
+    }
+
+    private boolean objectExists(String key) {
+        if (!r2Enabled || s3Client == null || key == null || key.isBlank()) {
+            return false;
+        }
+        try {
+            s3Client.headObject(HeadObjectRequest.builder()
+                    .bucket(r2Bucket)
+                    .key(key)
+                    .build());
+            return true;
+        } catch (NoSuchKeyException e) {
+            return false;
+        } catch (Exception e) {
+            log.debug("headObject failed for {}/{}: {}", r2Bucket, key, e.getMessage());
+            return false;
+        }
     }
 
     private String storeWatermarkAtKey(String key, MultipartFile file) {
@@ -199,17 +273,18 @@ public class BucketService {
             throw new BadRequestException("storage.r2.unavailable");
         }
         validateWatermarkPng(file);
+        String normalizedKey = normalizeWatermarkKey(key);
         try {
             byte[] fileBytes = file.getBytes();
             PutObjectRequest putRequest = PutObjectRequest.builder()
                     .bucket(r2Bucket)
-                    .key(key)
+                    .key(normalizedKey)
                     .contentType("image/png")
                     .contentLength((long) fileBytes.length)
                     .build();
             s3Client.putObject(putRequest, RequestBody.fromBytes(fileBytes));
-            log.info("Stored watermark in R2 at: {}/{}", r2Bucket, key);
-            return key;
+            log.info("Stored watermark in R2 at: {}/{}", r2Bucket, normalizedKey);
+            return normalizedKey;
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {

@@ -53,17 +53,22 @@ public class WatermarkPolicyService {
             return resolvePlatformWatermark();
         }
 
-        if (canExportWithoutWatermark(userId)) {
-            return disabled();
-        }
-
+        // Custom branding first — paid "no platform watermark" plans still use the user's own logo.
         Optional<UserWatermarkSettings> userSettings = userSettingsRepository.findByUserId(userId);
         if (userSettings.isPresent()
                 && Boolean.TRUE.equals(userSettings.get().getEnabled())
                 && !Boolean.TRUE.equals(userSettings.get().getUsePlatformWatermark())
-                && hasCustomBranding(userId)
-                && userSettings.get().getLogoStorageKey() != null) {
-            return fromUserSettings(userSettings.get());
+                && userSettings.get().getLogoStorageKey() != null
+                && !userSettings.get().getLogoStorageKey().isBlank()
+                && hasCustomBranding(userId, userSettings.get())) {
+            WatermarkConfigDto custom = fromUserSettings(userId, userSettings.get());
+            if (custom.isEnabled()) {
+                return custom;
+            }
+        }
+
+        if (canExportWithoutPlatformWatermark(userId)) {
+            return disabled();
         }
 
         if (shouldApplyPlatformWatermark(userId)) {
@@ -94,7 +99,8 @@ public class WatermarkPolicyService {
         return !Boolean.FALSE.equals(plan.getWatermark());
     }
 
-    private boolean canExportWithoutWatermark(Long userId) {
+    /** Paid plan: no Civify platform watermark (custom branding logo may still apply). */
+    private boolean canExportWithoutPlatformWatermark(Long userId) {
         if (subscriptionService.canUserUseFeature(userId, "WATERMARK")) {
             return true;
         }
@@ -111,7 +117,14 @@ public class WatermarkPolicyService {
                 .anyMatch(a -> permission.equals(a.getAuthority()));
     }
 
-    private boolean hasCustomBranding(Long userId) {
+    private boolean hasCustomBranding(Long userId, UserWatermarkSettings settings) {
+        if (settings != null
+                && Boolean.TRUE.equals(settings.getEnabled())
+                && settings.getLogoStorageKey() != null
+                && !settings.getLogoStorageKey().isBlank()) {
+            // User already configured a custom logo — honor it even if plan/permission sync lags.
+            return true;
+        }
         Optional<User> user = userRepository.findById(userId);
         if (user.isPresent() && hasPermission(user.get(), "CV.CUSTOM_WATERMARK")) {
             return true;
@@ -160,9 +173,18 @@ public class WatermarkPolicyService {
                 .build();
     }
 
-    private WatermarkConfigDto fromUserSettings(UserWatermarkSettings settings) {
+    private WatermarkConfigDto fromUserSettings(Long userId, UserWatermarkSettings settings) {
         String imageUrl = resolveImageUrl(settings.getLogoStorageKey(), null);
         if (imageUrl == null) {
+            log.warn(
+                    "Custom watermark enabled for userId={} but R2 logo not found at key={} (normalized={})",
+                    userId,
+                    settings.getLogoStorageKey(),
+                    BucketService.normalizeWatermarkKey(settings.getLogoStorageKey()));
+            // Do not fall back to platform watermark on paid branding plans.
+            if (canExportWithoutPlatformWatermark(userId)) {
+                return disabled();
+            }
             return resolvePlatformWatermark();
         }
         return WatermarkConfigDto.builder()
