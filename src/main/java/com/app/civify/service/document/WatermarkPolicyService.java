@@ -79,8 +79,19 @@ public class WatermarkPolicyService {
 
     private boolean shouldApplyPlatformWatermark(Long userId) {
         return subscriptionService.getActiveSubscription(userId)
-                .map(sub -> Boolean.TRUE.equals(sub.getPlan().getWatermark()))
+                .map(sub -> planHasPlatformWatermark(sub.getPlan()))
                 .orElse(true);
+    }
+
+    /**
+     * {@code watermark=true} or unset/null on plan → apply platform watermark (free / legacy plans).
+     * Only {@code watermark=false} explicitly disables it (paid).
+     */
+    private boolean planHasPlatformWatermark(SubscriptionPlan plan) {
+        if (plan == null) {
+            return true;
+        }
+        return !Boolean.FALSE.equals(plan.getWatermark());
     }
 
     private boolean canExportWithoutWatermark(Long userId) {
