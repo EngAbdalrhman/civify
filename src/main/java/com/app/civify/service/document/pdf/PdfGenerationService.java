@@ -17,4 +17,13 @@ public interface PdfGenerationService {
      * @return Byte array containing the generated PDF
      */
     byte[] generatePdf(ResumeData resumeData, String templateName, WatermarkConfigDto watermark);
+
+    /** @param pdfUserId optional; forwarded to HICv for server-side PDF watermark fallback */
+    default byte[] generatePdf(
+            ResumeData resumeData,
+            String templateName,
+            WatermarkConfigDto watermark,
+            Long pdfUserId) {
+        return generatePdf(resumeData, templateName, watermark);
+    }
 }
