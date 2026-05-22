@@ -1,14 +1,14 @@
 package com.app.civify.service.document;
 
 import com.app.civify.dto.document.WatermarkConfigDto;
-import com.app.civify.entity.User;
 import com.app.civify.entity.enums.FeatureType;
 import com.app.civify.entity.plans.PlanFeatureLimit;
 import com.app.civify.entity.plans.SubscriptionPlan;
-import com.app.civify.entity.plans.UserSubscription;
+import com.app.civify.entity.security.Permission;
 import com.app.civify.entity.watermark.PlatformWatermarkSettings;
 import com.app.civify.entity.watermark.UserWatermarkSettings;
 import com.app.civify.repository.UserRepository;
+import com.app.civify.repository.security.GroupRepository;
 import com.app.civify.repository.watermark.PlatformWatermarkSettingsRepository;
 import com.app.civify.repository.watermark.UserWatermarkSettingsRepository;
 import com.app.civify.service.subscription.SubscriptionService;
@@ -26,6 +26,7 @@ public class WatermarkPolicyService {
 
     private final SubscriptionService subscriptionService;
     private final UserRepository userRepository;
+    private final GroupRepository groupRepository;
     private final PlatformWatermarkSettingsRepository platformSettingsRepository;
     private final UserWatermarkSettingsRepository userSettingsRepository;
     private final BucketService bucketService;
@@ -53,17 +54,22 @@ public class WatermarkPolicyService {
             return resolvePlatformWatermark();
         }
 
-        if (canExportWithoutWatermark(userId)) {
-            return disabled();
-        }
-
+        // Custom branding first — paid "no platform watermark" plans still use the user's own logo.
         Optional<UserWatermarkSettings> userSettings = userSettingsRepository.findByUserId(userId);
         if (userSettings.isPresent()
                 && Boolean.TRUE.equals(userSettings.get().getEnabled())
                 && !Boolean.TRUE.equals(userSettings.get().getUsePlatformWatermark())
-                && hasCustomBranding(userId)
-                && userSettings.get().getLogoStorageKey() != null) {
-            return fromUserSettings(userSettings.get());
+                && userSettings.get().getLogoStorageKey() != null
+                && !userSettings.get().getLogoStorageKey().isBlank()
+                && hasCustomBranding(userId)) {
+            WatermarkConfigDto custom = fromUserSettings(userId, userSettings.get());
+            if (custom.isEnabled()) {
+                return custom;
+            }
+        }
+
+        if (canExportWithoutPlatformWatermark(userId)) {
+            return disabled();
         }
 
         if (shouldApplyPlatformWatermark(userId)) {
@@ -94,26 +100,29 @@ public class WatermarkPolicyService {
         return !Boolean.FALSE.equals(plan.getWatermark());
     }
 
-    private boolean canExportWithoutWatermark(Long userId) {
+    /** Paid plan: no Civify platform watermark (custom branding logo may still apply). */
+    private boolean canExportWithoutPlatformWatermark(Long userId) {
         if (subscriptionService.canUserUseFeature(userId, "WATERMARK")) {
             return true;
         }
+        return userHasPermission(userId, "CV.NO_WATERMARK");
+    }
+
+    /**
+     * Permissions from DB — API-key auth does not load {@code User#getAuthorities()}.
+     */
+    private boolean userHasPermission(Long userId, String permission) {
         return userRepository.findById(userId)
-                .map(user -> hasPermission(user, "CV.NO_WATERMARK"))
+                .filter(user -> user.getGroup() != null)
+                .flatMap(user -> groupRepository.findByIdWithPermissions(user.getGroup().getId()))
+                .map(group -> group.getPermissions().stream()
+                        .map(Permission::getName)
+                        .anyMatch(permission::equalsIgnoreCase))
                 .orElse(false);
     }
 
-    private boolean hasPermission(User user, String permission) {
-        if (user == null) {
-            return false;
-        }
-        return user.getAuthorities().stream()
-                .anyMatch(a -> permission.equals(a.getAuthority()));
-    }
-
     private boolean hasCustomBranding(Long userId) {
-        Optional<User> user = userRepository.findById(userId);
-        if (user.isPresent() && hasPermission(user.get(), "CV.CUSTOM_WATERMARK")) {
+        if (userHasPermission(userId, "CV.CUSTOM_WATERMARK")) {
             return true;
         }
         return subscriptionService.getActiveSubscription(userId)
@@ -160,9 +169,17 @@ public class WatermarkPolicyService {
                 .build();
     }
 
-    private WatermarkConfigDto fromUserSettings(UserWatermarkSettings settings) {
+    private WatermarkConfigDto fromUserSettings(Long userId, UserWatermarkSettings settings) {
         String imageUrl = resolveImageUrl(settings.getLogoStorageKey(), null);
         if (imageUrl == null) {
+            log.warn(
+                    "Custom watermark enabled for userId={} but logo URL could not be resolved for key={}",
+                    userId,
+                    settings.getLogoStorageKey());
+            // Do not fall back to platform watermark on paid branding plans.
+            if (canExportWithoutPlatformWatermark(userId)) {
+                return disabled();
+            }
             return resolvePlatformWatermark();
         }
         return WatermarkConfigDto.builder()
