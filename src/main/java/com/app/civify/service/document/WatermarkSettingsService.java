@@ -37,6 +37,7 @@ public class WatermarkSettingsService {
 
     @Transactional
     public PlatformWatermarkSettingsDto uploadPlatformLogo(MultipartFile file) {
+        bucketService.validateWatermarkUpload(file);
         String key = bucketService.storePlatformWatermark(file);
         PlatformWatermarkSettings settings = platformRepository.findById(1L).orElseGet(this::defaultPlatformSettings);
         settings.setLogoStorageKey(key);
@@ -62,12 +63,14 @@ public class WatermarkSettingsService {
     public UserWatermarkSettingsDto updateUserSettings(Long userId, WatermarkSettingsUpdateRequest request) {
         UserWatermarkSettings settings = userRepository.findByUserId(userId).orElseGet(() -> newUserSettings(userId));
         applyUpdate(settings, request);
+        assertCustomBrandingHasLogo(settings);
         userRepository.save(settings);
         return toUserDto(settings);
     }
 
     @Transactional
     public UserWatermarkSettingsDto uploadUserLogo(Long userId, MultipartFile file) {
+        bucketService.validateWatermarkUpload(file);
         String key = bucketService.storeUserWatermark(userId, file);
         UserWatermarkSettings settings = userRepository.findByUserId(userId).orElseGet(() -> newUserSettings(userId));
         settings.setLogoStorageKey(key);
@@ -120,6 +123,16 @@ public class WatermarkSettingsService {
         if (request.getRotation() != null) settings.setRotation(request.getRotation());
         if (request.getEnabled() != null) settings.setEnabled(request.getEnabled());
         if (request.getUsePlatformWatermark() != null) settings.setUsePlatformWatermark(request.getUsePlatformWatermark());
+    }
+
+    /** Custom branding on without a stored logo would export with no watermark or confuse users. */
+    private void assertCustomBrandingHasLogo(UserWatermarkSettings settings) {
+        if (Boolean.TRUE.equals(settings.getEnabled())
+                && !Boolean.TRUE.equals(settings.getUsePlatformWatermark())
+                && (settings.getLogoStorageKey() == null || settings.getLogoStorageKey().isBlank())) {
+            throw new IllegalArgumentException(
+                    "Upload a PNG logo (max 500KB) before enabling custom watermark");
+        }
     }
 
     private PlatformWatermarkSettingsDto toPlatformDto(PlatformWatermarkSettings settings) {

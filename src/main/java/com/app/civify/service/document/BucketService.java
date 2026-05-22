@@ -72,6 +72,20 @@ public class BucketService {
     }
 
     /**
+     * Normalize DB/R2 keys: legacy rows may use {@code watermarks/1/logo.png} while the
+     * watermark bucket stores {@code 1/logo.png}.
+     */
+    public static String resolveWatermarkStorageKey(String storageKey) {
+        if (storageKey == null || storageKey.isBlank()) {
+            return storageKey;
+        }
+        if (storageKey.startsWith("watermarks/")) {
+            return storageKey.substring("watermarks/".length());
+        }
+        return storageKey;
+    }
+
+    /**
      * Store CV in Cloudflare R2 bucket.
      * Path: cvs/YYYY-MM-DD/timestamp_filename
      */
@@ -133,12 +147,26 @@ public class BucketService {
         return storeWatermarkAtKey(userWatermarkKey(userId), file);
     }
 
+    /**
+     * PNG watermark rules (max 500KB, valid PNG header). Call before any DB update on upload.
+     */
+    public void validateWatermarkUpload(MultipartFile file) {
+        validateWatermarkPng(file);
+    }
+
     public void deleteObject(String key) {
         deleteFromBucket(r2Bucket, key);
     }
 
     public void deleteWatermarkObject(String key) {
-        deleteFromBucket(watermarkBucket, key);
+        if (key == null || key.isBlank()) {
+            return;
+        }
+        String normalized = resolveWatermarkStorageKey(key);
+        deleteFromBucket(watermarkBucket, normalized);
+        if (!normalized.equals(key)) {
+            deleteFromBucket(watermarkBucket, key);
+        }
     }
 
     private void deleteFromBucket(String bucket, String key) {
@@ -165,7 +193,7 @@ public class BucketService {
                 : publicBaseUrl;
         if (baseUrl != null && !baseUrl.isBlank()) {
             String base = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
-            return base + "/" + storageKey;
+            return base + "/" + resolveWatermarkStorageKey(storageKey);
         }
         return null;
     }
@@ -174,7 +202,7 @@ public class BucketService {
      * Presigned GET for watermark objects in the watermark bucket.
      */
     public String generatePresignedGetUrl(String storageKey) {
-        return generatePresignedGetUrl(watermarkBucket, storageKey);
+        return generatePresignedGetUrl(watermarkBucket, resolveWatermarkStorageKey(storageKey));
     }
 
     private String generatePresignedGetUrl(String bucket, String storageKey) {
@@ -205,11 +233,20 @@ public class BucketService {
         if (storageKey == null || storageKey.isBlank()) {
             return null;
         }
-        String publicUrl = buildPublicLogoUrl(storageKey);
+        String normalized = resolveWatermarkStorageKey(storageKey);
+        String url = resolveLogoUrlForKey(normalized);
+        if (url == null && !normalized.equals(storageKey)) {
+            url = resolveLogoUrlForKey(storageKey);
+        }
+        return url;
+    }
+
+    private String resolveLogoUrlForKey(String key) {
+        String publicUrl = buildPublicLogoUrl(key);
         if (publicUrl != null) {
             return publicUrl;
         }
-        return generatePresignedGetUrl(storageKey);
+        return generatePresignedGetUrl(key);
     }
 
     private String storeWatermarkAtKey(String key, MultipartFile file) {

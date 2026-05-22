@@ -17,7 +17,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -48,35 +51,51 @@ public class WatermarkPolicyService {
 
     /**
      * Resolve watermark for PDF export. {@code userId} null = guest (always platform watermark).
+     * <p>Order:
+     * <ol>
+     *   <li>Custom branding (enabled + own logo + permission/plan) → user logo</li>
+     *   <li>Paid ({@code plan.watermark=false} or {@code CV.NO_WATERMARK}) → no watermark</li>
+     *   <li>Free / no active plan / plan still has platform watermark → Civify logo</li>
+     *   <li>Otherwise → no watermark (safety net; normally unreachable)</li>
+     * </ol>
      */
     public WatermarkConfigDto resolveForUser(Long userId) {
         if (userId == null) {
             return resolvePlatformWatermark();
         }
 
-        // Custom branding first — paid "no platform watermark" plans still use the user's own logo.
+        Set<String> permissions = loadPermissionNames(userId);
         Optional<UserWatermarkSettings> userSettings = userSettingsRepository.findByUserId(userId);
-        if (userSettings.isPresent()
-                && Boolean.TRUE.equals(userSettings.get().getEnabled())
-                && !Boolean.TRUE.equals(userSettings.get().getUsePlatformWatermark())
-                && userSettings.get().getLogoStorageKey() != null
-                && !userSettings.get().getLogoStorageKey().isBlank()
-                && hasCustomBranding(userId)) {
-            WatermarkConfigDto custom = fromUserSettings(userId, userSettings.get());
-            if (custom.isEnabled()) {
-                return custom;
-            }
+
+        // 1. Custom branding — never fall through to platform if branding is on but logo is missing.
+        if (wantsCustomBranding(userSettings, userId, permissions)) {
+            return fromUserSettings(userId, userSettings.get());
         }
 
-        if (canExportWithoutPlatformWatermark(userId)) {
+        // 2. Paid without platform watermark.
+        if (canExportWithoutPlatformWatermark(userId, permissions)) {
             return disabled();
         }
 
+        // 3. Free tier, no subscription, or plan still requires platform watermark.
         if (shouldApplyPlatformWatermark(userId)) {
             return resolvePlatformWatermark();
         }
 
+        // 4. Safety net (e.g. active paid plan with watermark=false already handled in step 2).
         return disabled();
+    }
+
+    private boolean wantsCustomBranding(
+            Optional<UserWatermarkSettings> userSettings,
+            Long userId,
+            Set<String> permissions) {
+        return userSettings.isPresent()
+                && Boolean.TRUE.equals(userSettings.get().getEnabled())
+                && !Boolean.TRUE.equals(userSettings.get().getUsePlatformWatermark())
+                && userSettings.get().getLogoStorageKey() != null
+                && !userSettings.get().getLogoStorageKey().isBlank()
+                && hasCustomBranding(userId, permissions);
     }
 
     public WatermarkConfigDto resolveForGuest() {
@@ -101,28 +120,27 @@ public class WatermarkPolicyService {
     }
 
     /** Paid plan: no Civify platform watermark (custom branding logo may still apply). */
-    private boolean canExportWithoutPlatformWatermark(Long userId) {
+    private boolean canExportWithoutPlatformWatermark(Long userId, Set<String> permissions) {
         if (subscriptionService.canUserUseFeature(userId, "WATERMARK")) {
             return true;
         }
-        return userHasPermission(userId, "CV.NO_WATERMARK");
+        return permissions.contains("CV.NO_WATERMARK");
     }
 
-    /**
-     * Permissions from DB — API-key auth does not load {@code User#getAuthorities()}.
-     */
-    private boolean userHasPermission(Long userId, String permission) {
+    private Set<String> loadPermissionNames(Long userId) {
         return userRepository.findById(userId)
                 .filter(user -> user.getGroup() != null)
                 .flatMap(user -> groupRepository.findByIdWithPermissions(user.getGroup().getId()))
                 .map(group -> group.getPermissions().stream()
                         .map(Permission::getName)
-                        .anyMatch(permission::equalsIgnoreCase))
-                .orElse(false);
+                        .filter(name -> name != null && !name.isBlank())
+                        .map(name -> name.toUpperCase(Locale.ROOT))
+                        .collect(Collectors.toSet()))
+                .orElse(Set.of());
     }
 
-    private boolean hasCustomBranding(Long userId) {
-        if (userHasPermission(userId, "CV.CUSTOM_WATERMARK")) {
+    private boolean hasCustomBranding(Long userId, Set<String> permissions) {
+        if (permissions.contains("CV.CUSTOM_WATERMARK")) {
             return true;
         }
         return subscriptionService.getActiveSubscription(userId)
@@ -141,6 +159,7 @@ public class WatermarkPolicyService {
 
     public WatermarkConfigDto resolvePlatformWatermark() {
         PlatformWatermarkSettings settings = platformSettingsRepository.findById(1L).orElse(null);
+        // Only explicit false disables; null/true keep platform watermark enabled.
         if (settings != null && Boolean.FALSE.equals(settings.getEnabled())) {
             return disabled();
         }
