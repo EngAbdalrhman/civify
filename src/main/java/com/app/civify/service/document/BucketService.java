@@ -36,6 +36,13 @@ public class BucketService {
     @Value("${civify.r2.dedup-enabled:true}")
     private boolean dedupEnabled;
 
+    @Value("${civify.r2.public-base-url:}")
+    private String publicBaseUrl;
+
+    public static final String PLATFORM_WATERMARK_KEY = "Watermark/platform/logo.png";
+    public static final String USER_WATERMARK_KEY_PREFIX = "Watermark/";
+    public static final String USER_WATERMARK_KEY_SUFFIX = "/logo.png";
+    private static final long MAX_WATERMARK_BYTES = 512_000;
 
     /**
      * Store CV in Cloudflare R2 bucket.
@@ -85,6 +92,87 @@ public class BucketService {
         } catch (Exception e) {
             log.error("Failed to store CV in R2: {}", e.getMessage(), e);
             // We do not throw exception here to avoid failing the whole parsing process if storage fails
+        }
+    }
+
+    public String storePlatformWatermark(MultipartFile file) {
+        return storeWatermarkAtKey(PLATFORM_WATERMARK_KEY, file);
+    }
+
+    public String storeUserWatermark(Long userId, MultipartFile file) {
+        if (userId == null) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        return storeWatermarkAtKey(USER_WATERMARK_KEY_PREFIX + userId + USER_WATERMARK_KEY_SUFFIX, file);
+    }
+
+    public void deleteObject(String key) {
+        if (!r2Enabled || s3Client == null || key == null || key.isBlank()) {
+            return;
+        }
+        try {
+            s3Client.deleteObject(b -> b.bucket(r2Bucket).key(key));
+            log.info("Deleted R2 object: {}/{}", r2Bucket, key);
+        } catch (Exception e) {
+            log.error("Failed to delete R2 object {}: {}", key, e.getMessage());
+        }
+    }
+
+    public String buildPublicLogoUrl(String storageKey) {
+        if (storageKey == null || storageKey.isBlank()) {
+            return null;
+        }
+        if (publicBaseUrl != null && !publicBaseUrl.isBlank()) {
+            String base = publicBaseUrl.endsWith("/") ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1) : publicBaseUrl;
+            return base + "/" + storageKey;
+        }
+        return null;
+    }
+
+    private String storeWatermarkAtKey(String key, MultipartFile file) {
+        if (!r2Enabled || s3Client == null) {
+            log.info("R2 storage is disabled, skipping watermark upload.");
+            return key;
+        }
+        validateWatermarkPng(file);
+        try {
+            byte[] fileBytes = file.getBytes();
+            s3Client.putObject(PutObjectRequest.builder()
+                    .bucket(r2Bucket)
+                    .key(key)
+                    .contentType("image/png")
+                    .build(), RequestBody.fromBytes(fileBytes));
+            log.info("Stored watermark in R2 at: {}/{}", r2Bucket, key);
+            return key;
+        } catch (Exception e) {
+            log.error("Failed to store watermark in R2: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to store watermark", e);
+        }
+    }
+
+    private void validateWatermarkPng(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Watermark file is required");
+        }
+        if (file.getSize() > MAX_WATERMARK_BYTES) {
+            throw new IllegalArgumentException("Watermark file must be 500KB or smaller");
+        }
+        String contentType = file.getContentType();
+        String filename = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase() : "";
+        if (!"image/png".equalsIgnoreCase(contentType) && !filename.endsWith(".png")) {
+            throw new IllegalArgumentException("Watermark must be a PNG image");
+        }
+        try (var in = file.getInputStream()) {
+            byte[] header = in.readNBytes(8);
+            if (header.length < 8
+                    || header[0] != (byte) 0x89
+                    || header[1] != 0x50
+                    || header[2] != 0x4E
+                    || header[3] != 0x47) {
+                throw new IllegalArgumentException("Invalid PNG file");
+            }
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("Failed to read watermark file", e);
         }
     }
 

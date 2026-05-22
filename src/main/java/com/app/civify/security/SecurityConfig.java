@@ -197,6 +197,7 @@ public class SecurityConfig {
                         .requestMatchers("/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/blogs/**", "/v1/blogs").permitAll()
                         .requestMatchers("/v1/subscriptions/**", "/subscriptions/**").permitAll() // Allow public access to plans
+                        .requestMatchers(HttpMethod.GET, "/v1/pdf/watermark-config").permitAll() // PDF watermark policy for guests + browser export
                         .requestMatchers("/v1/payments/config", "/payments/config").permitAll() // Allow public access to payment config
                         .requestMatchers("/v1/payments/webhook/**", "/payments/webhook/**").permitAll() // Allow payment webhooks
                         // Newsletter (Public)

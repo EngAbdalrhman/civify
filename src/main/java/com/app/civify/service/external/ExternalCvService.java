@@ -12,6 +12,7 @@ import com.app.civify.service.cv.CvEnhancementService;
 import com.app.civify.service.cvlog.CvOperationLogService;
 import com.app.civify.service.document.CvParsingService;
 import com.app.civify.service.document.masking.MaskingService;
+import com.app.civify.service.document.WatermarkPolicyService;
 import com.app.civify.service.document.pdf.PdfGenerationService;
 import com.app.civify.service.subscription.SubscriptionService;
 import com.app.civify.dto.external.ExternalUserProfileResponse;
@@ -35,6 +36,7 @@ public class ExternalCvService {
     private final CvEnhancementService cvEnhancementService;
     private final MaskingService maskingService;
     private final PdfGenerationService pdfGenerationService;
+    private final WatermarkPolicyService watermarkPolicyService;
     private final CvOperationLogService cvOperationLogService;
     private final SubscriptionService subscriptionService;
     private final ObjectMapper objectMapper;
@@ -79,7 +81,8 @@ public class ExternalCvService {
 
             // 3. Generate PDF
             long pdfStart = System.currentTimeMillis();
-            byte[] pdfBytes = pdfGenerationService.generatePdf(maskedData, "modern");
+            var watermark = watermarkPolicyService.resolveForUser(user.getId());
+            byte[] pdfBytes = pdfGenerationService.generatePdf(maskedData, "modern", watermark);
             long pdfTime = System.currentTimeMillis() - pdfStart;
 
             long totalTime = System.currentTimeMillis() - startTime;
