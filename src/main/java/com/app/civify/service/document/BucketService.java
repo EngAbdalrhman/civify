@@ -133,6 +133,13 @@ public class BucketService {
         return storeWatermarkAtKey(userWatermarkKey(userId), file);
     }
 
+    /**
+     * PNG watermark rules (max 500KB, valid PNG header). Call before any DB update on upload.
+     */
+    public void validateWatermarkUpload(MultipartFile file) {
+        validateWatermarkPng(file);
+    }
+
     public void deleteObject(String key) {
         deleteFromBucket(r2Bucket, key);
     }
