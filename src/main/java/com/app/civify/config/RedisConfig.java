@@ -4,7 +4,9 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.springframework.cache.annotation.CachingConfigurer;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -22,7 +24,12 @@ import java.util.Map;
 @Configuration
 @EnableCaching
 @ConditionalOnProperty(value = "cache.redis.enabled", havingValue = "true", matchIfMissing = true)
-public class RedisConfig {
+public class RedisConfig implements CachingConfigurer {
+
+    @Override
+    public CacheErrorHandler errorHandler() {
+        return new BlogCacheErrorHandler();
+    }
 
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
@@ -66,8 +73,8 @@ public class RedisConfig {
         cacheConfigurations.put("ai_responses",
                 defaultConfig.entryTtl(Duration.ofHours(24)));
 
-        // Public blog listings: 15 minutes (SSR + SEO; versioned cache name)
-        cacheConfigurations.put("publicBlogs-v2",
+        // Public blog listings: 15 minutes (SSR + SEO; bump version when serializer changes)
+        cacheConfigurations.put("publicBlogs-v3",
                 defaultConfig.entryTtl(Duration.ofMinutes(15)));
 
         return RedisCacheManager.builder(connectionFactory)

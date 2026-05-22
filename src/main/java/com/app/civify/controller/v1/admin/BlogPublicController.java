@@ -27,7 +27,7 @@ import java.util.List;
 @Tag(name = "Blog", description = "Public blog endpoints for SEO-friendly content delivery")
 public class BlogPublicController {
 
-    private static final String PUBLIC_BLOGS_CACHE = "publicBlogs-v2";
+    private static final String PUBLIC_BLOGS_CACHE = "publicBlogs-v3";
 
     private final BlogService blogService;
 
