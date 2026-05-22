@@ -81,7 +81,7 @@ public class WatermarkSettingsService {
     public void deleteUserLogo(Long userId) {
         userRepository.findByUserId(userId).ifPresent(settings -> {
             if (settings.getLogoStorageKey() != null) {
-                bucketService.deleteObject(settings.getLogoStorageKey());
+                bucketService.deleteWatermarkObject(settings.getLogoStorageKey());
             }
             settings.setLogoStorageKey(null);
             settings.setEnabled(false);

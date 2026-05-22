@@ -45,25 +45,30 @@ public class BucketService {
     @Value("${civify.r2.bucket:civify}")
     private String r2Bucket;
 
+    @Value("${civify.r2.watermark-bucket:watermarks}")
+    private String watermarkBucket;
+
     @Value("${civify.r2.dedup-enabled:true}")
     private boolean dedupEnabled;
 
     @Value("${civify.r2.public-base-url:}")
     private String publicBaseUrl;
 
+    @Value("${civify.r2.watermark-public-base-url:}")
+    private String watermarkPublicBaseUrl;
+
     @Value("${civify.r2.presign-ttl-minutes:15}")
     private int presignTtlMinutes;
 
-    /** R2 object key prefix inside bucket {@code civify.r2.bucket} (bucket name is already {@code civify}). */
-    public static final String WATERMARKS_ROOT = "watermarks/";
-    public static final String PLATFORM_WATERMARK_KEY = WATERMARKS_ROOT + "platform/logo.png";
+    /** Object keys in {@code civify.r2.watermark-bucket} (default bucket name {@code watermarks}). */
+    public static final String PLATFORM_WATERMARK_KEY = "platform/logo.png";
     private static final long MAX_WATERMARK_BYTES = 512_000;
 
     public static String userWatermarkKey(Long userId) {
         if (userId == null) {
             throw new IllegalArgumentException("userId is required");
         }
-        return WATERMARKS_ROOT + userId + "/logo.png";
+        return userId + "/logo.png";
     }
 
     /**
@@ -129,41 +134,56 @@ public class BucketService {
     }
 
     public void deleteObject(String key) {
+        deleteFromBucket(r2Bucket, key);
+    }
+
+    public void deleteWatermarkObject(String key) {
+        deleteFromBucket(watermarkBucket, key);
+    }
+
+    private void deleteFromBucket(String bucket, String key) {
         if (!r2Enabled || s3Client == null || key == null || key.isBlank()) {
             return;
         }
         try {
-            s3Client.deleteObject(b -> b.bucket(r2Bucket).key(key));
-            log.info("Deleted R2 object: {}/{}", r2Bucket, key);
+            s3Client.deleteObject(b -> b.bucket(bucket).key(key));
+            log.info("Deleted R2 object: {}/{}", bucket, key);
         } catch (Exception e) {
-            log.error("Failed to delete R2 object {}: {}", key, e.getMessage());
+            log.error("Failed to delete R2 object {}/{}: {}", bucket, key, e.getMessage());
         }
     }
 
     /**
-     * Public CDN/custom-domain URL (optional). Only works if the bucket or prefix is publicly readable.
+     * Public CDN/custom-domain URL for watermark bucket (optional).
      */
     public String buildPublicLogoUrl(String storageKey) {
         if (storageKey == null || storageKey.isBlank()) {
             return null;
         }
-        if (publicBaseUrl != null && !publicBaseUrl.isBlank()) {
-            String base = publicBaseUrl.endsWith("/") ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1) : publicBaseUrl;
+        String baseUrl = watermarkPublicBaseUrl != null && !watermarkPublicBaseUrl.isBlank()
+                ? watermarkPublicBaseUrl
+                : publicBaseUrl;
+        if (baseUrl != null && !baseUrl.isBlank()) {
+            String base = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
             return base + "/" + storageKey;
         }
         return null;
     }
 
     /**
-     * Temporary signed GET URL for private R2 objects. Generated at PDF export time so Puppeteer can load the logo.
+     * Presigned GET for watermark objects in the watermark bucket.
      */
     public String generatePresignedGetUrl(String storageKey) {
+        return generatePresignedGetUrl(watermarkBucket, storageKey);
+    }
+
+    private String generatePresignedGetUrl(String bucket, String storageKey) {
         if (!r2Enabled || s3Presigner == null || storageKey == null || storageKey.isBlank()) {
             return null;
         }
         try {
             GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                    .bucket(r2Bucket)
+                    .bucket(bucket)
                     .key(storageKey)
                     .build();
             GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
@@ -173,7 +193,7 @@ public class BucketService {
             PresignedGetObjectRequest presigned = s3Presigner.presignGetObject(presignRequest);
             return presigned.url().toString();
         } catch (Exception e) {
-            log.error("Failed to presign R2 URL for key {}: {}", storageKey, e.getMessage());
+            log.error("Failed to presign R2 URL for {}/{}: {}", bucket, storageKey, e.getMessage());
             return null;
         }
     }
@@ -202,18 +222,18 @@ public class BucketService {
         try {
             byte[] fileBytes = file.getBytes();
             PutObjectRequest putRequest = PutObjectRequest.builder()
-                    .bucket(r2Bucket)
+                    .bucket(watermarkBucket)
                     .key(key)
                     .contentType("image/png")
                     .contentLength((long) fileBytes.length)
                     .build();
             s3Client.putObject(putRequest, RequestBody.fromBytes(fileBytes));
-            log.info("Stored watermark in R2 at: {}/{}", r2Bucket, key);
+            log.info("Stored watermark in R2 at: {}/{}", watermarkBucket, key);
             return key;
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Failed to store watermark in R2 at {}/{}: {}", r2Bucket, key, e.getMessage(), e);
+            log.error("Failed to store watermark in R2 at {}/{}: {}", watermarkBucket, key, e.getMessage(), e);
             throw new BadRequestException("storage.r2.upload.failed");
         }
     }
