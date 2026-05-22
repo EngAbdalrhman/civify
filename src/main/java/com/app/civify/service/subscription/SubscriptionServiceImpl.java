@@ -23,6 +23,7 @@ import com.app.civify.service.logs.TokenUsageService;
 import com.app.civify.service.logs.SubscriptionAuditService;
 import com.app.civify.entity.enums.SubscriptionAuditType;
 import com.app.civify.service.payment.PaymentService;
+import com.app.civify.service.payment.CurrencyService;
 import com.app.civify.util.filter.InputDataModel;
 import com.app.civify.util.filter.PagedResponse;
 import com.app.civify.util.persistence.CommonService;
@@ -60,6 +61,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     private final UserPromoUsageRepository userPromoUsageRepository;
     private final UserRepository userRepository;
     private final PaymentService paymentService;
+    private final CurrencyService currencyService;
     private final MessageService messageService;
     private final BillingTransactionRepository paymentRepository;
     private final InvoiceService invoiceService;
@@ -346,7 +348,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                 .promoCode(appliedPromoCode)
                 .isAnnual(isAnnual)
                 .billingCycle(isAnnual ? "ANNUAL" : "MONTHLY")
-                .currency("EGP")
+                .currency("USD")
                 .build();
     }
 
@@ -395,8 +397,17 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             metadata.put("phone", phoneToUse);
             metadata.put("subscriptionId", subscription.getId());
         }
+        if (promoCode != null && !promoCode.isEmpty()) {
+            metadata.put("promoCode", promoCode);
+        }
+        metadata.put("finalAmount", priceCalc.getTotalPrice().doubleValue());
 
-        PaymentCreationResult paymentResult = paymentService.createPayment(userId, priceCalc.getTotalPrice().doubleValue(), gateway, method, TransactionType.SUBSCRIPTION, metadata);
+        BigDecimal amountToCharge = currencyService.convertForGateway(priceCalc.getTotalPrice(), gateway);
+        metadata.put("amountCents", amountToCharge.multiply(BigDecimal.valueOf(100))
+                .setScale(0, java.math.RoundingMode.HALF_UP).intValue());
+        String currencyCode = currencyService.getGatewayCurrency(gateway);
+
+        PaymentCreationResult paymentResult = paymentService.createPayment(userId, amountToCharge.doubleValue(), gateway, method, TransactionType.SUBSCRIPTION, metadata);
 
         // Link payment to subscription using orderId (same ID used for lookup in activateSubscription)
         subscription.setPaymentTransactionId(paymentResult.getOrderId());
@@ -405,6 +416,8 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         // Link BillingTransaction → Subscription (needed for token extraction in webhook)
         paymentRepository.findByOrderId(paymentResult.getOrderId()).ifPresent(tx -> {
             tx.setSubscriptionId(subscription.getId());
+            tx.setAmount(amountToCharge);
+            tx.setCurrency(currencyCode);
             paymentRepository.save(tx);
         });
 
@@ -415,8 +428,8 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                 .paymentUrl(paymentResult.getPaymentUrl())
                 .orderId(paymentResult.getOrderId())
                 .subscriptionId(subscription.getId())
-                .amount(priceCalc.getTotalPrice())
-                .currency("EGP") 
+                .amount(amountToCharge)
+                .currency(currencyCode) 
                 .message(messageService.getMessage("payment.initiated"))
                 .build();
     }
@@ -572,7 +585,13 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         UserSubscription subscription = subscriptionRepository.findByPaymentTransactionId(paymentTransactionId)
                 .orElseThrow(() -> new ResourceNotFoundException("subscription.notfound"));
 
+        if (subscription.getStatus() == SubscriptionStatus.ACTIVE) {
+            log.info("Subscription {} is already ACTIVE. Skipping activation.", subscription.getId());
+            return;
+        }
+
         User user = subscription.getUser();
+
         SubscriptionPlan plan = subscription.getPlan();
 
         // OPTION A FLOW: Deactivate other subscriptions (including free plan)

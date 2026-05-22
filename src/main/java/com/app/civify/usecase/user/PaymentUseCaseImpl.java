@@ -78,13 +78,9 @@ public class PaymentUseCaseImpl implements PaymentUseCase {
         boolean isVerified = paymentService.verifyPayment(gateway, paymentId);
 
         if (isVerified) {
-            // Delegate to PaymentFulfillmentService which correctly routes:
-            //   1. TOKEN_TOPUP → tokenPackageService.fulfillTokenPurchase()
-            //   2. Invoice payments → invoiceService.handleSuccessfulPayment()
-            //   3. New subscriptions → subscriptionService.activateSubscription()
-            boolean fulfilled = fulfillmentService.fulfillPayment(paymentId);
+            String fulfillOrderId = paymentService.resolveFulfillmentOrderId(gateway, paymentId);
+            boolean fulfilled = fulfillmentService.fulfillPayment(fulfillOrderId);
             if (!fulfilled) {
-                // Fallback: try by payment key (frontend may send either orderId or paymentKey)
                 fulfilled = fulfillmentService.fulfillPaymentByKey(paymentId);
             }
 
@@ -105,10 +101,19 @@ public class PaymentUseCaseImpl implements PaymentUseCase {
             }
         }
 
-        log.warn("Payment {} verification failed", paymentId);
+        // Race condition guard: if a transaction row exists for this payment, the user actually
+        // initiated checkout — the gateway may simply not have flipped to terminal state yet.
+        // Tell the client to retry so the webhook has time to land.
+        boolean transactionExists = paymentRepository.findByOrderId(paymentId).isPresent()
+                || paymentRepository.findByPaymentKey(paymentId).isPresent();
+        log.warn("Payment {} verification failed (gateway={}, transactionExists={})",
+                paymentId, gateway, transactionExists);
         return PaymentVerificationResponse.builder()
                 .verified(false)
-                .message("Payment verification failed")
+                .retryable(transactionExists)
+                .message(transactionExists
+                        ? "Payment is still being processed. Please retry in a moment."
+                        : "Payment verification failed")
                 .build();
     }
 

@@ -141,4 +141,8 @@ public class PaymentGatewayManager {
     public List<String> getEnabledGateways() {
         return gatewayFactory.getEnabledGateways();
     }
+
+    public String resolveFulfillmentOrderId(String gatewayName, String clientPaymentId) {
+        return gatewayFactory.get(gatewayName).resolveFulfillmentOrderId(clientPaymentId);
+    }
 }

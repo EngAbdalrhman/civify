@@ -40,6 +40,11 @@ public interface PaymentService {
     boolean verifyPayment(String gateway, String paymentId);
 
     /**
+     * Resolves gateway-specific client payment id to internal orderId for fulfillment.
+     */
+    String resolveFulfillmentOrderId(String gateway, String clientPaymentId);
+
+    /**
      * Handle payment callback/webhook
      *
      * @param gateway Gateway name

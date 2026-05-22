@@ -13,6 +13,7 @@ import com.app.civify.service.slug.SlugService;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -26,7 +27,11 @@ public class BlogService {
     private final SlugService slugService;
 
     @Transactional
-    @CacheEvict(value = "publicBlogs", allEntries = true)
+    @Caching(evict = {
+            @CacheEvict(value = "publicBlogs-v3", allEntries = true),
+            @CacheEvict(value = "publicBlogs-v2", allEntries = true),
+            @CacheEvict(value = "publicBlogs", allEntries = true)
+    })
     public BlogDetailsDto create(CreateBlogRequest req, UserPrincipal author) {
         String base = slugService.slugify(req.title());
         String slug;
@@ -60,7 +65,11 @@ public class BlogService {
     }
 
     @Transactional
-    @CacheEvict(value = "publicBlogs", allEntries = true)
+    @Caching(evict = {
+            @CacheEvict(value = "publicBlogs-v3", allEntries = true),
+            @CacheEvict(value = "publicBlogs-v2", allEntries = true),
+            @CacheEvict(value = "publicBlogs", allEntries = true)
+    })
     public BlogDetailsDto update(Long id, UpdateBlogRequest req) {
         Blog blog = blogRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Blog not found"));
@@ -97,7 +106,11 @@ public class BlogService {
     }
 
     @Transactional
-    @CacheEvict(value = "publicBlogs", allEntries = true)
+    @Caching(evict = {
+            @CacheEvict(value = "publicBlogs-v3", allEntries = true),
+            @CacheEvict(value = "publicBlogs-v2", allEntries = true),
+            @CacheEvict(value = "publicBlogs", allEntries = true)
+    })
     public void delete(Long id) {
         if (!blogRepository.existsById(id))
             throw new ResourceNotFoundException("Blog not found");

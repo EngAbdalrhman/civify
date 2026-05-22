@@ -37,4 +37,10 @@ public class TokenPackage extends BaseEntity {
     private Boolean active = true;
 
     private String description;
+
+    /**
+     * Dodo Payments product ID (e.g. pdt_xxx). Null = not purchasable via Dodo.
+     */
+    @Column(name = "dodo_product_id")
+    private String dodoProductId;
 }

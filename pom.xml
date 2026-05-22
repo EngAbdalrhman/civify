@@ -20,6 +20,8 @@
 		<java.version>21</java.version>
 		<spring-ai.version>1.0.3</spring-ai.version>
 		<spring-cloud.version>2025.0.0</spring-cloud.version>
+		<!-- Spring Boot 3.4 defaults to 2.18.1; Dodo SDK rejects it (jackson-databind #4639) and expects 2.18.2+ -->
+		<jackson-bom.version>2.18.2</jackson-bom.version>
 	</properties>
 
 	<dependencies>
@@ -297,6 +299,24 @@
         <dependency>
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
+        </dependency>
+
+        <!-- =========================
+             PAYMENT GATEWAYS
+             ========================= -->
+
+        <!-- Dodo Payments Java SDK for global payment processing -->
+        <dependency>
+            <groupId>com.dodopayments.api</groupId>
+            <artifactId>dodo-payments-java</artifactId>
+            <version>1.97.1</version>
+        </dependency>
+
+        <!-- MaxMind GeoIP2 for IP-based gateway routing (MENA vs Global) -->
+        <dependency>
+            <groupId>com.maxmind.geoip2</groupId>
+            <artifactId>geoip2</artifactId>
+            <version>5.1.0</version>
         </dependency>
 
         <!-- =========================
