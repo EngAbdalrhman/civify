@@ -33,6 +33,15 @@ public class FrontendPdfGenerationService implements PdfGenerationService {
 
     @Override
     public byte[] generatePdf(ResumeData resumeData, String templateName, WatermarkConfigDto watermark) {
+        return generatePdf(resumeData, templateName, watermark, null);
+    }
+
+    @Override
+    public byte[] generatePdf(
+            ResumeData resumeData,
+            String templateName,
+            WatermarkConfigDto watermark,
+            Long pdfUserId) {
         log.info("Requesting High-Fidelity PDF from Frontend: {} using template: {}", frontendUrl, templateName);
 
         try {
@@ -44,6 +53,10 @@ public class FrontendPdfGenerationService implements PdfGenerationService {
             body.put("filename", "resume");
             if (watermark != null) {
                 body.put("watermark", watermark);
+                log.info(
+                        "PDF watermark payload for frontend: enabled={} imageUrl={}",
+                        watermark.isEnabled(),
+                        watermark.getImageUrl() != null ? "set" : "none");
             }
 
             var request = restClient.post()
@@ -54,12 +67,15 @@ public class FrontendPdfGenerationService implements PdfGenerationService {
             if (pdfInternalSecret != null && !pdfInternalSecret.isBlank()) {
                 request = request.header("X-Pdf-Internal-Token", pdfInternalSecret);
             }
+            if (pdfUserId != null) {
+                request = request.header("X-Pdf-User-Id", String.valueOf(pdfUserId));
+            }
 
             return request.retrieve().body(byte[].class);
 
         } catch (Exception e) {
             log.error("Frontend PDF generation failed: {}. Falling back to legacy renderer.", e.getMessage());
-            return fallbackService.generatePdf(resumeData, templateName, watermark);
+            return fallbackService.generatePdf(resumeData, templateName, watermark, pdfUserId);
         }
     }
 }

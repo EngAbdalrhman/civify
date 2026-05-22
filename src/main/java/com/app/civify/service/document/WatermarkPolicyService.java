@@ -176,11 +176,8 @@ public class WatermarkPolicyService {
                     "Custom watermark enabled for userId={} but logo URL could not be resolved for key={}",
                     userId,
                     settings.getLogoStorageKey());
-            // Do not fall back to platform watermark on paid branding plans.
-            if (canExportWithoutPlatformWatermark(userId)) {
-                return disabled();
-            }
-            return resolvePlatformWatermark();
+            // Custom branding was requested — never substitute the Civify platform logo here.
+            return disabled();
         }
         return WatermarkConfigDto.builder()
                 .enabled(true)
