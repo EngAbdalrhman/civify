@@ -1,5 +1,6 @@
 package com.app.civify.service.document.pdf;
 
+import com.app.civify.dto.document.WatermarkConfigDto;
 import com.app.civify.dto.resume.ResumeData;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,24 +23,21 @@ public class ThymeleafPdfGenerationService implements PdfGenerationService {
     private final TemplateEngine templateEngine;
 
     @Override
-    public byte[] generatePdf(ResumeData resumeData, String templateName) {
+    public byte[] generatePdf(ResumeData resumeData, String templateName, WatermarkConfigDto watermark) {
         log.info("Generating PDF using template: {}", templateName);
         
         try {
-            // 1. Create Thymeleaf context and add data
             Context context = new Context();
             context.setVariable("resume", resumeData);
+            if (watermark != null && watermark.isEnabled()) {
+                context.setVariable("watermark", watermark);
+            }
             
-            // 2. Process HTML template
-            // Assumes templates are in src/main/resources/templates/cv/{templateName}.html
             String htmlContent = templateEngine.process("cv/" + templateName, context);
             
-            // 3. Convert HTML to PDF
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             ITextRenderer renderer = new ITextRenderer();
             
-            // Set base URL for images/css if needed
-            // renderer.setDocumentFromString(htmlContent, baseUrl);
             renderer.setDocumentFromString(htmlContent);
             renderer.layout();
             renderer.createPDF(outputStream);

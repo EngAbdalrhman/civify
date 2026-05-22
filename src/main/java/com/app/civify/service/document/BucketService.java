@@ -1,6 +1,7 @@
 package com.app.civify.service.document;
 
 import com.app.civify.entity.document.StoredFile;
+import com.app.civify.exception.BadRequestException;
 import com.app.civify.repository.document.StoredFileRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,7 +10,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
+
+import java.time.Duration;
 
 import java.security.MessageDigest;
 import java.time.LocalDate;
@@ -20,10 +27,15 @@ import java.util.Optional;
 public class BucketService {
 
     private final S3Client s3Client;
+    private final S3Presigner s3Presigner;
     private final StoredFileRepository storedFileRepository;
 
-    public BucketService(@Autowired(required = false) S3Client s3Client, StoredFileRepository storedFileRepository) {
+    public BucketService(
+            @Autowired(required = false) S3Client s3Client,
+            @Autowired(required = false) S3Presigner s3Presigner,
+            StoredFileRepository storedFileRepository) {
         this.s3Client = s3Client;
+        this.s3Presigner = s3Presigner;
         this.storedFileRepository = storedFileRepository;
     }
 
@@ -36,6 +48,23 @@ public class BucketService {
     @Value("${civify.r2.dedup-enabled:true}")
     private boolean dedupEnabled;
 
+    @Value("${civify.r2.public-base-url:}")
+    private String publicBaseUrl;
+
+    @Value("${civify.r2.presign-ttl-minutes:15}")
+    private int presignTtlMinutes;
+
+    /** R2 object key prefix (bucket is {@code civify.r2.bucket}, typically {@code civify}). */
+    public static final String WATERMARKS_ROOT = "civify/watermarks/";
+    public static final String PLATFORM_WATERMARK_KEY = WATERMARKS_ROOT + "platform/logo.png";
+    private static final long MAX_WATERMARK_BYTES = 512_000;
+
+    public static String userWatermarkKey(Long userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        return WATERMARKS_ROOT + userId + "/logo.png";
+    }
 
     /**
      * Store CV in Cloudflare R2 bucket.
@@ -85,6 +114,133 @@ public class BucketService {
         } catch (Exception e) {
             log.error("Failed to store CV in R2: {}", e.getMessage(), e);
             // We do not throw exception here to avoid failing the whole parsing process if storage fails
+        }
+    }
+
+    public String storePlatformWatermark(MultipartFile file) {
+        return storeWatermarkAtKey(PLATFORM_WATERMARK_KEY, file);
+    }
+
+    public String storeUserWatermark(Long userId, MultipartFile file) {
+        if (userId == null) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        return storeWatermarkAtKey(userWatermarkKey(userId), file);
+    }
+
+    public void deleteObject(String key) {
+        if (!r2Enabled || s3Client == null || key == null || key.isBlank()) {
+            return;
+        }
+        try {
+            s3Client.deleteObject(b -> b.bucket(r2Bucket).key(key));
+            log.info("Deleted R2 object: {}/{}", r2Bucket, key);
+        } catch (Exception e) {
+            log.error("Failed to delete R2 object {}: {}", key, e.getMessage());
+        }
+    }
+
+    /**
+     * Public CDN/custom-domain URL (optional). Only works if the bucket or prefix is publicly readable.
+     */
+    public String buildPublicLogoUrl(String storageKey) {
+        if (storageKey == null || storageKey.isBlank()) {
+            return null;
+        }
+        if (publicBaseUrl != null && !publicBaseUrl.isBlank()) {
+            String base = publicBaseUrl.endsWith("/") ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1) : publicBaseUrl;
+            return base + "/" + storageKey;
+        }
+        return null;
+    }
+
+    /**
+     * Temporary signed GET URL for private R2 objects. Generated at PDF export time so Puppeteer can load the logo.
+     */
+    public String generatePresignedGetUrl(String storageKey) {
+        if (!r2Enabled || s3Presigner == null || storageKey == null || storageKey.isBlank()) {
+            return null;
+        }
+        try {
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(r2Bucket)
+                    .key(storageKey)
+                    .build();
+            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(Duration.ofMinutes(Math.max(1, presignTtlMinutes)))
+                    .getObjectRequest(getObjectRequest)
+                    .build();
+            PresignedGetObjectRequest presigned = s3Presigner.presignGetObject(presignRequest);
+            return presigned.url().toString();
+        } catch (Exception e) {
+            log.error("Failed to presign R2 URL for key {}: {}", storageKey, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Resolve logo URL for PDF rendering: public CDN if configured, otherwise presigned R2 URL.
+     */
+    public String resolveLogoUrlForPdf(String storageKey) {
+        if (storageKey == null || storageKey.isBlank()) {
+            return null;
+        }
+        String publicUrl = buildPublicLogoUrl(storageKey);
+        if (publicUrl != null) {
+            return publicUrl;
+        }
+        return generatePresignedGetUrl(storageKey);
+    }
+
+    private String storeWatermarkAtKey(String key, MultipartFile file) {
+        if (!r2Enabled || s3Client == null) {
+            log.error("R2 is not configured (enabled={}, client={}); cannot store watermark at {}",
+                    r2Enabled, s3Client != null, key);
+            throw new BadRequestException("storage.r2.unavailable");
+        }
+        validateWatermarkPng(file);
+        try {
+            byte[] fileBytes = file.getBytes();
+            PutObjectRequest putRequest = PutObjectRequest.builder()
+                    .bucket(r2Bucket)
+                    .key(key)
+                    .contentType("image/png")
+                    .contentLength((long) fileBytes.length)
+                    .build();
+            s3Client.putObject(putRequest, RequestBody.fromBytes(fileBytes));
+            log.info("Stored watermark in R2 at: {}/{}", r2Bucket, key);
+            return key;
+        } catch (BadRequestException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to store watermark in R2 at {}/{}: {}", r2Bucket, key, e.getMessage(), e);
+            throw new BadRequestException("storage.r2.upload.failed");
+        }
+    }
+
+    private void validateWatermarkPng(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Watermark file is required");
+        }
+        if (file.getSize() > MAX_WATERMARK_BYTES) {
+            throw new IllegalArgumentException("Watermark file must be 500KB or smaller");
+        }
+        String contentType = file.getContentType();
+        String filename = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase() : "";
+        if (!"image/png".equalsIgnoreCase(contentType) && !filename.endsWith(".png")) {
+            throw new IllegalArgumentException("Watermark must be a PNG image");
+        }
+        try (var in = file.getInputStream()) {
+            byte[] header = in.readNBytes(8);
+            if (header.length < 8
+                    || header[0] != (byte) 0x89
+                    || header[1] != 0x50
+                    || header[2] != 0x4E
+                    || header[3] != 0x47) {
+                throw new IllegalArgumentException("Invalid PNG file");
+            }
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("Failed to read watermark file", e);
         }
     }
 

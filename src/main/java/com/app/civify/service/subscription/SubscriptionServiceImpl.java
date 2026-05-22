@@ -275,7 +275,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
         return subscriptionRepository.findByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE)
                 .stream()
                 .filter(UserSubscription::isActive)
-                .findFirst();
+                .max(java.util.Comparator.comparing(UserSubscription::getId));
     }
 
     @Override
@@ -461,7 +461,7 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
                 yield sub.canUseJobMatch();
             }
             case "WATERMARK" ->
-                !Boolean.TRUE.equals(plan.getWatermark()); // false = no watermark
+                Boolean.FALSE.equals(plan.getWatermark()); // explicit false only = may export without watermark
             default ->
                 false;
         };
