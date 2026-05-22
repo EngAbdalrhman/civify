@@ -60,7 +60,7 @@ public class WatermarkPolicyService {
                 && !Boolean.TRUE.equals(userSettings.get().getUsePlatformWatermark())
                 && userSettings.get().getLogoStorageKey() != null
                 && !userSettings.get().getLogoStorageKey().isBlank()
-                && hasCustomBranding(userId, userSettings.get())) {
+                && hasCustomBranding(userId)) {
             WatermarkConfigDto custom = fromUserSettings(userId, userSettings.get());
             if (custom.isEnabled()) {
                 return custom;
@@ -117,14 +117,7 @@ public class WatermarkPolicyService {
                 .anyMatch(a -> permission.equals(a.getAuthority()));
     }
 
-    private boolean hasCustomBranding(Long userId, UserWatermarkSettings settings) {
-        if (settings != null
-                && Boolean.TRUE.equals(settings.getEnabled())
-                && settings.getLogoStorageKey() != null
-                && !settings.getLogoStorageKey().isBlank()) {
-            // User already configured a custom logo — honor it even if plan/permission sync lags.
-            return true;
-        }
+    private boolean hasCustomBranding(Long userId) {
         Optional<User> user = userRepository.findById(userId);
         if (user.isPresent() && hasPermission(user.get(), "CV.CUSTOM_WATERMARK")) {
             return true;
@@ -177,10 +170,9 @@ public class WatermarkPolicyService {
         String imageUrl = resolveImageUrl(settings.getLogoStorageKey(), null);
         if (imageUrl == null) {
             log.warn(
-                    "Custom watermark enabled for userId={} but R2 logo not found at key={} (normalized={})",
+                    "Custom watermark enabled for userId={} but logo URL could not be resolved for key={}",
                     userId,
-                    settings.getLogoStorageKey(),
-                    BucketService.normalizeWatermarkKey(settings.getLogoStorageKey()));
+                    settings.getLogoStorageKey());
             // Do not fall back to platform watermark on paid branding plans.
             if (canExportWithoutPlatformWatermark(userId)) {
                 return disabled();
