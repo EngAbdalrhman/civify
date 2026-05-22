@@ -152,7 +152,7 @@ public class WatermarkPolicyService {
 
         return WatermarkConfigDto.builder()
                 .enabled(true)
-                .imageUrl(imageUrl)
+                .imageUrl(normalizeWatermarkAssetUrl(imageUrl))
                 .opacity(opacity)
                 .scale(scale)
                 .position(position)
@@ -167,7 +167,7 @@ public class WatermarkPolicyService {
         }
         return WatermarkConfigDto.builder()
                 .enabled(true)
-                .imageUrl(imageUrl)
+                .imageUrl(normalizeWatermarkAssetUrl(imageUrl))
                 .opacity(settings.getOpacity())
                 .scale(settings.getScale())
                 .position(settings.getPosition() != null ? settings.getPosition().getValue() : defaultPosition)
@@ -185,10 +185,17 @@ public class WatermarkPolicyService {
 
     private String fallbackLogoUrl() {
         if (defaultLogoUrl != null && !defaultLogoUrl.isBlank()) {
-            return defaultLogoUrl;
+            return normalizeWatermarkAssetUrl(defaultLogoUrl);
         }
         String base = frontendBaseUrl.endsWith("/") ? frontendBaseUrl.substring(0, frontendBaseUrl.length() - 1) : frontendBaseUrl;
-        return base + "/brand/watermark.svg";
+        return base + "/brand/watermark.png";
+    }
+
+    private String normalizeWatermarkAssetUrl(String url) {
+        if (url != null && url.endsWith("/brand/watermark.svg")) {
+            return url.replace("/brand/watermark.svg", "/brand/watermark.png");
+        }
+        return url;
     }
 
     private WatermarkConfigDto disabled() {
