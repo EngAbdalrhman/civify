@@ -37,6 +37,7 @@ public class WatermarkSettingsService {
 
     @Transactional
     public PlatformWatermarkSettingsDto uploadPlatformLogo(MultipartFile file) {
+        bucketService.validateWatermarkUpload(file);
         String key = bucketService.storePlatformWatermark(file);
         PlatformWatermarkSettings settings = platformRepository.findById(1L).orElseGet(this::defaultPlatformSettings);
         settings.setLogoStorageKey(key);
