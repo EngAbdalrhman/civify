@@ -1,6 +1,7 @@
 package com.app.civify.service.document;
 
 import com.app.civify.entity.document.StoredFile;
+import com.app.civify.exception.BadRequestException;
 import com.app.civify.repository.document.StoredFileRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,10 +54,17 @@ public class BucketService {
     @Value("${civify.r2.presign-ttl-minutes:15}")
     private int presignTtlMinutes;
 
-    public static final String PLATFORM_WATERMARK_KEY = "Watermark/platform/logo.png";
-    public static final String USER_WATERMARK_KEY_PREFIX = "Watermark/";
-    public static final String USER_WATERMARK_KEY_SUFFIX = "/logo.png";
+    /** R2 object key prefix (bucket is {@code civify.r2.bucket}, typically {@code civify}). */
+    public static final String WATERMARKS_ROOT = "civify/watermarks/";
+    public static final String PLATFORM_WATERMARK_KEY = WATERMARKS_ROOT + "platform/logo.png";
     private static final long MAX_WATERMARK_BYTES = 512_000;
+
+    public static String userWatermarkKey(Long userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        return WATERMARKS_ROOT + userId + "/logo.png";
+    }
 
     /**
      * Store CV in Cloudflare R2 bucket.
@@ -117,7 +125,7 @@ public class BucketService {
         if (userId == null) {
             throw new IllegalArgumentException("userId is required");
         }
-        return storeWatermarkAtKey(USER_WATERMARK_KEY_PREFIX + userId + USER_WATERMARK_KEY_SUFFIX, file);
+        return storeWatermarkAtKey(userWatermarkKey(userId), file);
     }
 
     public void deleteObject(String key) {
@@ -186,22 +194,27 @@ public class BucketService {
 
     private String storeWatermarkAtKey(String key, MultipartFile file) {
         if (!r2Enabled || s3Client == null) {
-            log.info("R2 storage is disabled, skipping watermark upload.");
-            return key;
+            log.error("R2 is not configured (enabled={}, client={}); cannot store watermark at {}",
+                    r2Enabled, s3Client != null, key);
+            throw new BadRequestException("storage.r2.unavailable");
         }
         validateWatermarkPng(file);
         try {
             byte[] fileBytes = file.getBytes();
-            s3Client.putObject(PutObjectRequest.builder()
+            PutObjectRequest putRequest = PutObjectRequest.builder()
                     .bucket(r2Bucket)
                     .key(key)
                     .contentType("image/png")
-                    .build(), RequestBody.fromBytes(fileBytes));
+                    .contentLength((long) fileBytes.length)
+                    .build();
+            s3Client.putObject(putRequest, RequestBody.fromBytes(fileBytes));
             log.info("Stored watermark in R2 at: {}/{}", r2Bucket, key);
             return key;
+        } catch (BadRequestException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("Failed to store watermark in R2: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to store watermark", e);
+            log.error("Failed to store watermark in R2 at {}/{}: {}", r2Bucket, key, e.getMessage(), e);
+            throw new BadRequestException("storage.r2.upload.failed");
         }
     }
 
