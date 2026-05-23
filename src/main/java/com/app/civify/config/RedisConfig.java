@@ -81,15 +81,17 @@ public class RedisConfig implements CachingConfigurer {
 
         // Public blog caches: typed Jackson serializers without default typing (avoids @class mismatch)
         ObjectMapper blogMapper = blogObjectMapper();
-        JavaType blogListType = TypeFactory.defaultInstance()
-                .constructCollectionType(java.util.List.class, BlogListItemDto.class);
-        JavaType slugListType = TypeFactory.defaultInstance()
-                .constructCollectionType(java.util.List.class, String.class);
+        TypeFactory typeFactory = TypeFactory.defaultInstance();
+        JavaType blogListType =
+                typeFactory.constructCollectionType(java.util.List.class, BlogListItemDto.class);
+        JavaType blogDetailType = typeFactory.constructType(BlogDetailsDto.class);
+        JavaType slugListType =
+                typeFactory.constructCollectionType(java.util.List.class, String.class);
 
         RedisSerializer<Object> blogListSerializer =
                 new Jackson2JsonRedisSerializer<>(blogMapper, blogListType);
         RedisSerializer<Object> blogDetailSerializer =
-                new Jackson2JsonRedisSerializer<>(blogMapper, BlogDetailsDto.class);
+                new Jackson2JsonRedisSerializer<>(blogMapper, blogDetailType);
         RedisSerializer<Object> blogSlugsSerializer =
                 new Jackson2JsonRedisSerializer<>(blogMapper, slugListType);
 
