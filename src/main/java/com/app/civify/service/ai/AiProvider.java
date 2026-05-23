@@ -19,6 +19,17 @@ public interface AiProvider {
     AiModelResponse callModel(String prompt, String model);
 
     /**
+     * Call using a user-supplied API key (BYOK). Default impl delegates to platform call.
+     */
+    default AiModelResponse callModelWithApiKey(String prompt, String model, String apiKeyOverride) {
+        if (apiKeyOverride != null && !apiKeyOverride.isBlank()) {
+            throw new UnsupportedOperationException(
+                    "BYOK not supported for provider: " + getProviderName());
+        }
+        return callModel(prompt, model);
+    }
+
+    /**
      * Get provider name
      */
     default String getProviderName() {

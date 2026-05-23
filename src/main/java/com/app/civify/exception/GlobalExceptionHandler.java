@@ -66,6 +66,26 @@ public class GlobalExceptionHandler {
         request.setAttribute("API_ERROR_MESSAGE", message, RequestAttributes.SCOPE_REQUEST);
     }
 
+    @ExceptionHandler(AiByokExhaustedException.class)
+    public ResponseEntity<CommonResponse<Map<String, Object>>> handleAiByokExhausted(
+            AiByokExhaustedException ex, WebRequest request) {
+        String requestId = getRequestId(request);
+        setErrorMessageAttribute(request, ex.getMessage());
+        log.warn("AI_BYOK_EXHAUSTED | requestId={} | attempts={}", requestId, ex.getAttempts().size());
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("error_code", "AI_BYOK_EXHAUSTED");
+        payload.put("message", ex.getMessage());
+        payload.put("mode", ex.getMode().name());
+        payload.put("attempts", ex.getAttempts());
+        payload.put("platform_fallback_available", ex.isPlatformFallbackAvailable());
+
+        CommonResponse<Map<String, Object>> body = CommonResponse.error(ex.getMessage(), payload);
+        body.setErrorCode("AI_BYOK_EXHAUSTED");
+        body.setRequestId(requestId);
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).header("X-Request-ID", requestId).body(body);
+    }
+
     /**
      * Handle service exceptions
      */

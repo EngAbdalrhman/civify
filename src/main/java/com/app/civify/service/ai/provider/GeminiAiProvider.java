@@ -2,6 +2,7 @@ package com.app.civify.service.ai.provider;
 
 import com.app.civify.dto.ai.AiModelResponse;
 import com.app.civify.service.ai.AiProvider;
+import com.app.civify.service.ai.client.ByokGeminiClient;
 import com.app.civify.service.ai.client.GeminiAiClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -18,6 +19,7 @@ import java.util.Map;
 public class GeminiAiProvider implements AiProvider {
 
     private final GeminiAiClient client;
+    private final ByokGeminiClient byokGeminiClient;
     private final ObjectMapper objectMapper;
 
     @Value("${gemini.api.key:}")
@@ -29,9 +31,18 @@ public class GeminiAiProvider implements AiProvider {
     @Value("${ai.model.thinkingBudget:1024}")
     private int thinkingBudget;
 
-    public GeminiAiProvider(GeminiAiClient client, ObjectMapper objectMapper) {
+    public GeminiAiProvider(GeminiAiClient client, ByokGeminiClient byokGeminiClient, ObjectMapper objectMapper) {
         this.client = client;
+        this.byokGeminiClient = byokGeminiClient;
         this.objectMapper = objectMapper;
+    }
+
+    @Override
+    public AiModelResponse callModelWithApiKey(String prompt, String model, String apiKeyOverride) {
+        if (apiKeyOverride != null && !apiKeyOverride.isBlank()) {
+            return byokGeminiClient.complete(apiKeyOverride, model, prompt);
+        }
+        return callModel(prompt, model);
     }
 
     @Override

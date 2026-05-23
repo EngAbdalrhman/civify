@@ -534,13 +534,18 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     @Override
     @Transactional
     public void chargeTokens(Long userId, int tokensUsed, TokenUsageType usageType, String description) {
-        // Optimized charge logic using projections and direct updates
-        var tokenInfoOpt = subscriptionRepository.findTokenInfoByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE);
-        
-        int fromSubscription = 0;
-        int fromWallet = 0;
-        
-        if (tokenInfoOpt.isEmpty()) {
+        try {
+            if (com.app.civify.service.ai.context.AiInvocationContextHolder.usedByok()) {
+                log.debug("Skipping Civify token charge for user {} — BYOK credential was used", userId);
+                return;
+            }
+            // Optimized charge logic using projections and direct updates
+            var tokenInfoOpt = subscriptionRepository.findTokenInfoByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE);
+
+            int fromSubscription = 0;
+            int fromWallet = 0;
+
+            if (tokenInfoOpt.isEmpty()) {
             // No active subscription - charge from wallet only
             int walletTokens = userRepository.findExtraTokensByUserId(userId).orElse(0);
             
@@ -572,8 +577,11 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
             }
         }
         
-        // Log the token usage
-        tokenUsageService.logUsage(userId, usageType, tokensUsed, fromSubscription, fromWallet, description);
+            // Log the token usage
+            tokenUsageService.logUsage(userId, usageType, tokensUsed, fromSubscription, fromWallet, description);
+        } finally {
+            com.app.civify.service.ai.context.AiInvocationContextHolder.clear();
+        }
     }
 
     @Override
