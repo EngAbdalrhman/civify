@@ -20,8 +20,8 @@ public class ByokProbeService {
             AiProviderType.OPENAI, "gpt-4o-mini",
             AiProviderType.ANTHROPIC, "claude-3-5-haiku-20241022",
             AiProviderType.OPENROUTER, "openai/gpt-4o-mini",
-            AiProviderType.GEMINI, "gemini-2.0-flash",
-            AiProviderType.VERTEX, "gemini-2.0-flash"
+            AiProviderType.GEMINI, "gemini-2.5-flash",
+            AiProviderType.VERTEX, "gemini-2.5-flash"
     );
 
     private final Map<String, AiProvider> providers;

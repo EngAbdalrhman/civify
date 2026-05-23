@@ -9,8 +9,8 @@ import com.app.civify.exception.AiByokExhaustedException;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.ai.context.AiInvocationContextHolder;
 import com.app.civify.service.ai.credential.AiCredentialResolver;
-import com.app.civify.service.ai.credential.AiCredentialService;
 import com.app.civify.service.ai.credential.ResolvedAiCall;
+import com.app.civify.service.ai.credential.ResolvedCredentialChain;
 import com.app.civify.service.ai.usage.AiCredentialUsageRecorder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,7 +37,6 @@ public class AiServiceImpl implements AiService {
     private final AiByokProperties byokProperties;
     private final AiCredentialResolver credentialResolver;
     private final AiCredentialUsageRecorder usageRecorder;
-    private final AiCredentialService credentialService;
 
     @Value("${ai.fallback.provider:gemini}")
     private String fallbackProviderName;
@@ -49,8 +48,7 @@ public class AiServiceImpl implements AiService {
             List<AiProvider> aiProviders,
             AiByokProperties byokProperties,
             AiCredentialResolver credentialResolver,
-            AiCredentialUsageRecorder usageRecorder,
-            AiCredentialService credentialService) {
+            AiCredentialUsageRecorder usageRecorder) {
         this.providers = aiProviders.stream()
                 .collect(Collectors.toMap(
                         p -> p.getProviderName().toLowerCase(),
@@ -60,12 +58,12 @@ public class AiServiceImpl implements AiService {
         this.byokProperties = byokProperties;
         this.credentialResolver = credentialResolver;
         this.usageRecorder = usageRecorder;
-        this.credentialService = credentialService;
         log.info("AI Service initialized with providers: {}", providers.keySet());
     }
 
     @Override
     public AiModelResponse callModel(String prompt, String provider, String model) {
+        AiInvocationContextHolder.clear();
         if (!byokProperties.isEnabled()) {
             return callPlatformPath(prompt, provider, model);
         }
@@ -84,60 +82,55 @@ public class AiServiceImpl implements AiService {
             String model,
             Long organizationId) {
 
-        List<ResolvedAiCall> chain = credentialResolver.resolve(userId, usageType, provider, model);
-        ByokMode mode = credentialService.getOrCreateSettings(userId).getByokMode();
+        ResolvedCredentialChain chain = credentialResolver.resolve(userId, usageType, provider, model);
 
-        if (chain.isEmpty() && mode == ByokMode.STRICT) {
-            throw new AiByokExhaustedException(mode, List.of(), false);
+        if (chain.getCalls().isEmpty() && chain.isStrict()) {
+            throw new AiByokExhaustedException(chain.getByokMode(), List.of(), false);
         }
 
         List<AiByokExhaustedException.ByokAttemptFailure> failures = new ArrayList<>();
         RuntimeException lastError = null;
 
-        try {
-            for (ResolvedAiCall call : chain) {
-                long start = System.currentTimeMillis();
-                try {
-                    AiModelResponse response = executeResolvedCall(prompt, call);
-                    int latency = (int) (System.currentTimeMillis() - start);
-                    recordUsage(userId, organizationId, call, usageType, response, latency, true, null, null);
-                    AiInvocationContextHolder.set(new AiInvocationContextHolder.InvocationMeta(
-                            call.getSource(),
-                            call.isPlatformPath() && !failures.isEmpty()));
-                    if (!call.isPlatformPath() && !failures.isEmpty()) {
-                        log.info("BYOK chain succeeded after {} failed attempt(s) on provider {}",
-                                failures.size(), call.getProviderName());
-                    }
-                    return response;
-                } catch (RuntimeException ex) {
-                    lastError = ex;
-                    int latency = (int) (System.currentTimeMillis() - start);
-                    String errorCode = classifyError(ex);
-                    recordUsage(userId, organizationId, call, usageType, null, latency, false, errorCode, ex.getMessage());
-                    if (!call.isPlatformPath()) {
-                        failures.add(new AiByokExhaustedException.ByokAttemptFailure(
-                                call.getCredentialId() != null ? call.getCredentialId().toString() : null,
-                                call.getProviderName(),
-                                call.getModel(),
-                                errorCode));
-                        log.warn("BYOK attempt failed provider={} model={}: {}",
-                                call.getProviderName(), call.getModel(), ex.getMessage());
-                        continue;
-                    }
-                    throw ex;
+        for (ResolvedAiCall call : chain.getCalls()) {
+            long start = System.currentTimeMillis();
+            try {
+                AiModelResponse response = withCredentialSource(executeResolvedCall(prompt, call), call.getSource());
+                int latency = (int) (System.currentTimeMillis() - start);
+                recordUsage(userId, organizationId, call, usageType, response, latency, true, null, null);
+                AiInvocationContextHolder.set(new AiInvocationContextHolder.InvocationMeta(
+                        call.getSource(),
+                        call.isPlatformPath() && !failures.isEmpty()));
+                if (!call.isPlatformPath() && !failures.isEmpty()) {
+                    log.info("BYOK chain succeeded after {} failed attempt(s) on provider {}",
+                            failures.size(), call.getProviderName());
                 }
+                return response;
+            } catch (RuntimeException ex) {
+                lastError = ex;
+                int latency = (int) (System.currentTimeMillis() - start);
+                String errorCode = classifyError(ex);
+                recordUsage(userId, organizationId, call, usageType, null, latency, false, errorCode, ex.getMessage());
+                if (!call.isPlatformPath()) {
+                    failures.add(new AiByokExhaustedException.ByokAttemptFailure(
+                            call.getCredentialId() != null ? call.getCredentialId().toString() : null,
+                            call.getProviderName(),
+                            call.getModel(),
+                            errorCode));
+                    log.warn("BYOK attempt failed provider={} model={}: {}",
+                            call.getProviderName(), call.getModel(), ex.getMessage());
+                    continue;
+                }
+                throw ex;
             }
-
-            if (mode == ByokMode.STRICT && !failures.isEmpty()) {
-                throw new AiByokExhaustedException(mode, failures, false);
-            }
-            if (lastError != null) {
-                throw lastError;
-            }
-            throw new RuntimeException("AI service unavailable — no providers in resolution chain");
-        } finally {
-            // Context cleared by caller after billing if needed; set remains until next call overwrites
         }
+
+        if (chain.isStrict() && !failures.isEmpty()) {
+            throw new AiByokExhaustedException(chain.getByokMode(), failures, false);
+        }
+        if (lastError != null) {
+            throw lastError;
+        }
+        throw new RuntimeException("AI service unavailable — no providers in resolution chain");
     }
 
     /**
@@ -147,7 +140,8 @@ public class AiServiceImpl implements AiService {
         try {
             AiInvocationContextHolder.set(new AiInvocationContextHolder.InvocationMeta(
                     AiCredentialSource.PLATFORM, false));
-            return callProvider(provider, model, prompt, null);
+            return withCredentialSource(
+                    callProvider(provider, model, prompt, null), AiCredentialSource.PLATFORM);
         } catch (Exception primaryEx) {
             log.warn("Primary provider '{}' failed: {}. Attempting fallback to '{}'...",
                     provider, primaryEx.getMessage(), fallbackProviderName);
@@ -159,7 +153,9 @@ public class AiServiceImpl implements AiService {
             }
 
             try {
-                AiModelResponse fallbackResponse = callProvider(fallbackProviderName, fallbackModel, prompt, null);
+                AiModelResponse fallbackResponse = withCredentialSource(
+                        callProvider(fallbackProviderName, fallbackModel, prompt, null),
+                        AiCredentialSource.PLATFORM);
                 AiInvocationContextHolder.set(new AiInvocationContextHolder.InvocationMeta(
                         AiCredentialSource.PLATFORM, true));
                 return fallbackResponse;
@@ -202,6 +198,19 @@ public class AiServiceImpl implements AiService {
             log.error("Error calling AI model (Provider: {}, Model: {}): {}", providerName, model, e.getMessage());
             throw new RuntimeException("Failed to call AI model: " + e.getMessage(), e);
         }
+    }
+
+    private static AiModelResponse withCredentialSource(AiModelResponse response, AiCredentialSource source) {
+        if (response == null) {
+            return null;
+        }
+        return AiModelResponse.builder()
+                .content(response.getContent())
+                .promptTokens(response.getPromptTokens())
+                .completionTokens(response.getCompletionTokens())
+                .totalTokens(response.getTotalTokens())
+                .credentialSource(source)
+                .build();
     }
 
     private void recordUsage(

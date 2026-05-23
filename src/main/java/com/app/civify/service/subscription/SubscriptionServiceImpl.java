@@ -534,54 +534,47 @@ public class SubscriptionServiceImpl extends CommonService implements Subscripti
     @Override
     @Transactional
     public void chargeTokens(Long userId, int tokensUsed, TokenUsageType usageType, String description) {
-        try {
-            if (com.app.civify.service.ai.context.AiInvocationContextHolder.usedByok()) {
-                log.debug("Skipping Civify token charge for user {} — BYOK credential was used", userId);
-                return;
-            }
-            // Optimized charge logic using projections and direct updates
-            var tokenInfoOpt = subscriptionRepository.findTokenInfoByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE);
+        if (com.app.civify.service.ai.context.AiInvocationContextHolder.usedByok()) {
+            log.debug("Skipping Civify token charge for user {} — BYOK credential was used", userId);
+            return;
+        }
+        if (tokensUsed <= 0) {
+            return;
+        }
 
-            int fromSubscription = 0;
-            int fromWallet = 0;
+        var tokenInfoOpt = subscriptionRepository.findTokenInfoByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE);
 
-            if (tokenInfoOpt.isEmpty()) {
-            // No active subscription - charge from wallet only
+        int fromSubscription = 0;
+        int fromWallet = 0;
+
+        if (tokenInfoOpt.isEmpty()) {
             int walletTokens = userRepository.findExtraTokensByUserId(userId).orElse(0);
-            
             userRepository.updateExtraTokens(userId, Math.max(0, walletTokens - tokensUsed));
             fromWallet = tokensUsed;
-            log.info("Charged {} tokens from wallet for user {} (no active subscription). Balance floored at 0.", tokensUsed, userId);
+            log.info("Charged {} tokens from wallet for user {} (no active subscription). Balance floored at 0.",
+                    tokensUsed, userId);
         } else {
             var info = tokenInfoOpt.get();
             int currentUsage = info.getCurrentTokenUsage() != null ? info.getCurrentTokenUsage() : 0;
             int limit = info.getTokenLimit() != null ? info.getTokenLimit() : Integer.MAX_VALUE;
             int monthlyRemaining = Math.max(0, limit - currentUsage);
-            
+
             int deductFromMonthly = Math.min(tokensUsed, monthlyRemaining);
             int remainingToCharge = tokensUsed - deductFromMonthly;
-            
-            // 1. Deduct from monthly allowance (subscription usage)
+
             if (deductFromMonthly > 0) {
                 subscriptionRepository.updateTokenUsage(info.getId(), currentUsage + deductFromMonthly);
                 fromSubscription = deductFromMonthly;
             }
-            
-            // 2. Deduct remaining from user's wallet (extra tokens)
+
             if (remainingToCharge > 0) {
                 int walletTokens = userRepository.findExtraTokensByUserId(userId).orElse(0);
-                
-                // Allow negative balance (deficit) -> Requested change: min 0
                 userRepository.updateExtraTokens(userId, Math.max(0, walletTokens - remainingToCharge));
                 fromWallet = remainingToCharge;
             }
         }
-        
-            // Log the token usage
-            tokenUsageService.logUsage(userId, usageType, tokensUsed, fromSubscription, fromWallet, description);
-        } finally {
-            com.app.civify.service.ai.context.AiInvocationContextHolder.clear();
-        }
+
+        tokenUsageService.logUsage(userId, usageType, tokensUsed, fromSubscription, fromWallet, description);
     }
 
     @Override

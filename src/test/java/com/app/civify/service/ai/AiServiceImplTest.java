@@ -2,10 +2,11 @@ package com.app.civify.service.ai;
 
 import com.app.civify.config.AiByokProperties;
 import com.app.civify.dto.ai.AiModelResponse;
-import com.app.civify.service.ai.credential.AiCredentialResolver;
-import com.app.civify.service.ai.credential.AiCredentialService;
-import com.app.civify.service.ai.credential.ResolvedAiCall;
 import com.app.civify.entity.enums.AiCredentialSource;
+import com.app.civify.entity.enums.ByokMode;
+import com.app.civify.service.ai.credential.AiCredentialResolver;
+import com.app.civify.service.ai.credential.ResolvedAiCall;
+import com.app.civify.service.ai.credential.ResolvedCredentialChain;
 import com.app.civify.service.ai.usage.AiCredentialUsageRecorder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,9 +37,6 @@ class AiServiceImplTest {
     @Mock
     private AiCredentialUsageRecorder usageRecorder;
 
-    @Mock
-    private AiCredentialService credentialService;
-
     private AiByokProperties byokProperties;
     private AiServiceImpl aiService;
 
@@ -55,8 +53,7 @@ class AiServiceImplTest {
                 List.of(geminiProvider, vertexProvider),
                 byokProperties,
                 credentialResolver,
-                usageRecorder,
-                credentialService);
+                usageRecorder);
         ReflectionTestUtils.setField(aiService, "fallbackProviderName", "gemini");
         ReflectionTestUtils.setField(aiService, "fallbackModel", "gemini-2.5-flash");
     }
@@ -79,6 +76,7 @@ class AiServiceImplTest {
 
         assertNotNull(result);
         assertEquals("AI Response Content", result.getContent());
+        assertEquals(AiCredentialSource.PLATFORM, result.getCredentialSource());
         verify(geminiProvider).callModel(eq(prompt), eq(model));
         verify(credentialResolver, never()).resolve(any(), any(), any(), any());
     }
@@ -93,6 +91,7 @@ class AiServiceImplTest {
 
         AiModelResponse result = aiService.callModel("p", "vertex", "gemini-3-flash-preview");
         assertEquals("ok", result.getContent());
+        assertEquals(AiCredentialSource.PLATFORM, result.getCredentialSource());
         verify(credentialResolver, never()).resolve(any(), any(), any(), any());
     }
 
@@ -108,5 +107,6 @@ class AiServiceImplTest {
 
         AiModelResponse result = aiService.callModel(prompt, "vertex", "gemini-3-flash-preview");
         assertEquals("fallback", result.getContent());
+        assertEquals(AiCredentialSource.PLATFORM, result.getCredentialSource());
     }
 }

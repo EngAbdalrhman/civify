@@ -9,6 +9,7 @@ import com.app.civify.entity.enums.AiCredentialStatus;
 import com.app.civify.entity.enums.ByokMode;
 import com.app.civify.entity.enums.TokenUsageType;
 import com.app.civify.repository.ai.UserAiCredentialRepository;
+import com.app.civify.repository.ai.UserAiSettingsRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,11 +27,12 @@ public class AiCredentialResolver {
     private final AiByokProperties byokProperties;
     private final AiCredentialService credentialService;
     private final UserAiCredentialRepository credentialRepository;
+    private final UserAiSettingsRepository settingsRepository;
 
     /**
      * Ordered call chain for this request. Last entry may be platform path when mode is OPPORTUNISTIC.
      */
-    public List<ResolvedAiCall> resolve(
+    public ResolvedCredentialChain resolve(
             Long userId,
             TokenUsageType usageType,
             String platformProvider,
@@ -46,12 +48,14 @@ public class AiCredentialResolver {
                 .build();
 
         if (!byokProperties.isEnabled() || userId == null) {
-            return List.of(platform);
+            return new ResolvedCredentialChain(List.of(platform), ByokMode.DISABLED);
         }
 
-        UserAiSettings settings = credentialService.getOrCreateSettings(userId);
-        if (settings.getByokMode() == ByokMode.DISABLED) {
-            return List.of(platform);
+        UserAiSettings settings = findSettings(userId);
+        ByokMode mode = settings.getByokMode();
+
+        if (mode == ByokMode.DISABLED) {
+            return new ResolvedCredentialChain(List.of(platform), mode);
         }
 
         List<ResolvedAiCall> chain = new ArrayList<>();
@@ -63,7 +67,7 @@ public class AiCredentialResolver {
             buildByokCall(userId, entry).ifPresent(chain::add);
         }
 
-        if (settings.getByokMode() == ByokMode.OPPORTUNISTIC) {
+        if (mode == ByokMode.OPPORTUNISTIC) {
             if (isPlatformProviderAllowed(platformProvider)) {
                 chain.add(platform);
             } else {
@@ -72,13 +76,28 @@ public class AiCredentialResolver {
         }
 
         if (chain.isEmpty()) {
-            if (settings.getByokMode() == ByokMode.STRICT) {
-                return List.of();
+            if (mode == ByokMode.STRICT) {
+                return new ResolvedCredentialChain(List.of(), mode);
             }
-            return List.of(platform);
+            return new ResolvedCredentialChain(List.of(platform), mode);
         }
 
-        return chain;
+        return new ResolvedCredentialChain(chain, mode);
+    }
+
+    private UserAiSettings findSettings(Long userId) {
+        if (userId == null) {
+            return defaultSettings(null);
+        }
+        return settingsRepository.findById(userId).orElseGet(() -> defaultSettings(userId));
+    }
+
+    private static UserAiSettings defaultSettings(Long userId) {
+        UserAiSettings settings = new UserAiSettings();
+        settings.setUserId(userId);
+        settings.setByokMode(ByokMode.DISABLED);
+        settings.setFallbackChain(new ArrayList<>());
+        return settings;
     }
 
     private Optional<ResolvedAiCall> buildByokCall(Long userId, ByokFallbackEntry entry) {

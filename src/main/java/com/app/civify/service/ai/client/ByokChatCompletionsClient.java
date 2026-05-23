@@ -19,6 +19,7 @@ import java.util.Map;
 public class ByokChatCompletionsClient {
 
     private final ObjectMapper objectMapper;
+    private final ByokRestClientFactory restClientFactory;
 
     public AiModelResponse complete(String baseUrl, String apiKey, String model, String prompt) {
         try {
@@ -30,14 +31,12 @@ public class ByokChatCompletionsClient {
             );
             String jsonBody = objectMapper.writeValueAsString(body);
 
-            RestClient client = RestClient.builder()
-                    .baseUrl(baseUrl)
-                    .defaultHeader("Authorization", "Bearer " + apiKey)
-                    .defaultHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
-                    .build();
+            RestClient client = restClientFactory.forBaseUrl(baseUrl);
 
             String raw = client.post()
                     .uri("/chat/completions")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .contentType(MediaType.APPLICATION_JSON)
                     .body(jsonBody)
                     .retrieve()
                     .body(String.class);

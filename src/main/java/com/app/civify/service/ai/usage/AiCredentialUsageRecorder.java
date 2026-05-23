@@ -4,6 +4,7 @@ import com.app.civify.entity.ai.AiCredentialUsageLog;
 import com.app.civify.entity.enums.AiCredentialSource;
 import com.app.civify.entity.enums.TokenUsageType;
 import com.app.civify.repository.ai.AiCredentialUsageLogRepository;
+import com.app.civify.util.SensitiveMessageScrubber;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -48,12 +49,18 @@ public class AiCredentialUsageRecorder {
                     .latencyMs(latencyMs)
                     .success(success)
                     .errorCode(errorCode)
-                    .errorMessage(errorMessage != null && errorMessage.length() > 500
-                            ? errorMessage.substring(0, 500) : errorMessage)
+                    .errorMessage(truncate(SensitiveMessageScrubber.scrub(errorMessage), 500))
                     .build();
             repository.save(entry);
         } catch (Exception e) {
             log.warn("Failed to record AI credential usage: {}", e.getMessage());
         }
+    }
+
+    private static String truncate(String msg, int max) {
+        if (msg == null) {
+            return null;
+        }
+        return msg.length() <= max ? msg : msg.substring(0, max);
     }
 }

@@ -11,9 +11,10 @@ import com.app.civify.exception.BadRequestException;
 import com.app.civify.exception.ResourceNotFoundException;
 import com.app.civify.repository.ai.UserAiCredentialRepository;
 import com.app.civify.repository.ai.UserAiSettingsRepository;
-import com.app.civify.service.user.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +35,6 @@ public class AiCredentialService {
     private final AesGcmCipherService cipherService;
     private final ByokProbeService probeService;
     private final AiByokProperties byokProperties;
-    private final UserService userService;
 
     @Transactional(readOnly = true)
     public UserAiSettingsResponse getSettings(Long userId) {
@@ -185,7 +185,11 @@ public class AiCredentialService {
     }
 
     private boolean canUseStrictMode() {
-        return userService.getCurrentUser().getAuthorities().stream()
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return false;
+        }
+        return auth.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .anyMatch(PERM_BYOK_STRICT::equals);
     }

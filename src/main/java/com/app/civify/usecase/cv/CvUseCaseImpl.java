@@ -87,45 +87,60 @@ public class CvUseCaseImpl implements CvUseCase {
                 jobTitle
         );
 
-        // Charge tokens for each AI operation used
-        // Charge tokens for each AI operation used based on ACTUAL usage
         if (userId != null) {
             try {
                 int totalUsed = response.getTotalTokensUsed();
+                if (totalUsed <= 0) {
+                    return response;
+                }
+
+                int byokUsed = response.getByokTokensUsed();
+                int billableTotal = Math.max(0, totalUsed - byokUsed);
+                if (billableTotal == 0) {
+                    log.info("Skipping Civify token charge for tailor — all {} tokens were BYOK (userId={})",
+                            totalUsed, userId);
+                    return response;
+                }
+
+                double billableRatio = (double) billableTotal / totalUsed;
+
                 int interviewTokens = response.getInterviewPrep() != null ? response.getInterviewPrep().getTokensUsed() : 0;
                 int roadmapTokens = response.getRoadmap() != null ? response.getRoadmap().getTokensUsed() : 0;
-                
-                // Original + Tailored ATS scores
-                int atsTokens = 0;
-                if (response.getAtsScore() != null) atsTokens += response.getAtsScore().getTokensUsed();
-                if (response.getOriginalAtsScore() != null) atsTokens += response.getOriginalAtsScore().getTokensUsed();
 
-                // 1. Interview Prep
-                if (interviewTokens > 0) {
-                    subscriptionService.chargeTokens(userId, interviewTokens, TokenUsageType.INTERVIEW_PREP,
+                int atsTokens = 0;
+                if (response.getAtsScore() != null) {
+                    atsTokens += response.getAtsScore().getTokensUsed();
+                }
+                if (response.getOriginalAtsScore() != null) {
+                    atsTokens += response.getOriginalAtsScore().getTokensUsed();
+                }
+
+                int interviewBillable = scaleBillable(interviewTokens, billableRatio);
+                int roadmapBillable = scaleBillable(roadmapTokens, billableRatio);
+                int atsBillable = scaleBillable(atsTokens, billableRatio);
+                int coreTokens = totalUsed - interviewTokens - roadmapTokens - atsTokens;
+                int coreBillable = Math.max(0, billableTotal - interviewBillable - roadmapBillable - atsBillable);
+
+                if (interviewBillable > 0) {
+                    subscriptionService.chargeTokens(userId, interviewBillable, TokenUsageType.INTERVIEW_PREP,
                             "Interview Prep for: " + jobTitle);
                 }
-
-                // 2. Roadmap
-                if (roadmapTokens > 0) {
-                    subscriptionService.chargeTokens(userId, roadmapTokens, TokenUsageType.ROADMAP,
+                if (roadmapBillable > 0) {
+                    subscriptionService.chargeTokens(userId, roadmapBillable, TokenUsageType.ROADMAP,
                             "Career Roadmap for: " + jobTitle);
                 }
-
-                // 3. ATS Score (Combined)
-                if (atsTokens > 0) {
-                    subscriptionService.chargeTokens(userId, atsTokens, TokenUsageType.ATS_SCORE,
+                if (atsBillable > 0) {
+                    subscriptionService.chargeTokens(userId, atsBillable, TokenUsageType.ATS_SCORE,
                             "ATS Score Analysis for: " + jobTitle);
                 }
-                
-                // 4. Core Tailoring + Cover Letter (Remainder)
-                int coreTokens = totalUsed - interviewTokens - roadmapTokens - atsTokens;
-                if (coreTokens > 0) {
-                     String desc = "CV Tailor" + (request.isGenerateCoverLetter() ? " + Cover Letter" : "") + " for: " + jobTitle;
-                     subscriptionService.chargeTokens(userId, coreTokens, TokenUsageType.CV_TAILOR, desc);
+                if (coreBillable > 0) {
+                    String desc = "CV Tailor" + (request.isGenerateCoverLetter() ? " + Cover Letter" : "")
+                            + " for: " + jobTitle;
+                    subscriptionService.chargeTokens(userId, coreBillable, TokenUsageType.CV_TAILOR, desc);
                 }
-                
-                log.info("Logged actual token usage for CV tailor: userId={}, total={}, job={}", userId, totalUsed, jobTitle);
+
+                log.info("Logged token usage for CV tailor: userId={}, total={}, billable={}, byok={}, job={}",
+                        userId, totalUsed, billableTotal, byokUsed, jobTitle);
             } catch (Exception e) {
                 log.error("Failed to log token usage for tailor operation: {}", e.getMessage());
                 // Don't fail the request if token logging fails
@@ -230,5 +245,12 @@ public class CvUseCaseImpl implements CvUseCase {
                 .missingKeywords(contentScore.getMissingKeywords())
                 .suggestions(suggestions)
                 .build();
+    }
+
+    private static int scaleBillable(int tokens, double billableRatio) {
+        if (tokens <= 0 || billableRatio <= 0) {
+            return 0;
+        }
+        return (int) Math.round(tokens * billableRatio);
     }
 }

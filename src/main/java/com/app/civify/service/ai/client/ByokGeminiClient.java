@@ -18,6 +18,7 @@ public class ByokGeminiClient {
     private static final String BASE_URL = "https://generativelanguage.googleapis.com";
 
     private final ObjectMapper objectMapper;
+    private final ByokRestClientFactory restClientFactory;
 
     public AiModelResponse complete(String apiKey, String model, String prompt) {
         try {
@@ -27,9 +28,9 @@ public class ByokGeminiClient {
             );
             String jsonBody = objectMapper.writeValueAsString(requestMap);
 
-            RestClient client = RestClient.create();
+            RestClient client = restClientFactory.forBaseUrl(BASE_URL);
             String raw = client.post()
-                    .uri(BASE_URL + "/v1beta/models/{model}:generateContent?key={key}", model, apiKey)
+                    .uri("/v1beta/models/{model}:generateContent?key={key}", model, apiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(jsonBody)
                     .retrieve()

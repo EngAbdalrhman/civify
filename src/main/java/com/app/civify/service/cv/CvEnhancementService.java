@@ -6,6 +6,7 @@ import com.app.civify.dto.cv.CvTailorResponse.*;
 import com.app.civify.dto.cv.CvTranslateResponse;
 import com.app.civify.dto.resume.ResumeData;
 import com.app.civify.service.ai.AiService;
+import com.app.civify.service.ai.AiTokenUsageTracker;
 import com.app.civify.service.ai.JsonSanitizer;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,7 +31,6 @@ import java.util.stream.Stream;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -286,7 +286,7 @@ public class CvEnhancementService {
                 request.getJobTitle() != null ? request.getJobTitle() : "unspecified");
 
         // Thread-safe token accumulator for parallel tasks
-        AtomicInteger tokenTracker = new AtomicInteger(0);
+        AiTokenUsageTracker tokenTracker = new AiTokenUsageTracker();
 
         // Capture MDC context so async threads inherit the requestId for logging
         Map<String, String> mdcContext = MDC.getCopyOfContextMap() != null
@@ -361,8 +361,9 @@ public class CvEnhancementService {
             // Generate Change Diffs using Robust Service
             List<String> changes = resumeDiffService.calculateDiff(request.getResumeData(), refinedCv);
 
-            int totalTokens = tokenTracker.get();
-            log.info("CV Tailoring complete. Total tokens used: {}", totalTokens);
+            int totalTokens = tokenTracker.getTotalTokens();
+            log.info("CV Tailoring complete. Total tokens used: {} (BYOK: {})",
+                    totalTokens, tokenTracker.getByokTokens());
 
             return CvTailorResponse.builder()
                     .tailoredCv(refinedCv)
@@ -375,6 +376,7 @@ public class CvEnhancementService {
                     .validationWarnings(validationWarnings)
                     .processingTimeMs(System.currentTimeMillis() - startTime)
                     .totalTokensUsed(totalTokens)
+                    .byokTokensUsed(tokenTracker.getByokTokens())
                     .build();
 
         } catch (Exception e) {
@@ -387,7 +389,8 @@ public class CvEnhancementService {
                             .suggestions(List.of("Error processing: " + e.getMessage()))
                             .build())
                     .processingTimeMs(System.currentTimeMillis() - startTime)
-                    .totalTokensUsed(tokenTracker.get()) // Return what we counted so far
+                    .totalTokensUsed(tokenTracker.getTotalTokens())
+                    .byokTokensUsed(tokenTracker.getByokTokens())
                     .build();
         }
     }
@@ -435,7 +438,7 @@ public class CvEnhancementService {
         }
     }
 
-    private ResumeData tailorCvContent(ResumeData resumeData, String jobDescription, AtomicInteger tokenTracker) {
+    private ResumeData tailorCvContent(ResumeData resumeData, String jobDescription, AiTokenUsageTracker tokenTracker) {
         try {
             // 0. Check Relevance First
             String cvTextForMatching = extractFullText(resumeData);
@@ -460,7 +463,7 @@ public class CvEnhancementService {
 
             AiModelResponse response = aiService.callModel(promptBody, defaultProvider, defaultModel);
             if (tokenTracker != null) {
-                tokenTracker.addAndGet(response.getTotalTokens());
+                tokenTracker.add(response);
             }
 
             // 1. Clean AI response (remove markdown blocks, extract content)
@@ -483,7 +486,7 @@ public class CvEnhancementService {
         }
     }
 
-    private AtsScore calculateAtsScore(ResumeData resumeData, String jobDescription, AtomicInteger tokenTracker) {
+    private AtsScore calculateAtsScore(ResumeData resumeData, String jobDescription, AiTokenUsageTracker tokenTracker) {
         // 1. Calculate deterministic keyword match score
         String cvText = extractFullText(resumeData);
         KeywordMatcher.MatchResult keywordResult = keywordMatcher.match(cvText, jobDescription);
@@ -496,7 +499,7 @@ public class CvEnhancementService {
 
             AiModelResponse response = aiService.callModel(promptBody, defaultProvider, defaultModel);
             if (tokenTracker != null) {
-                tokenTracker.addAndGet(response.getTotalTokens());
+                tokenTracker.add(response);
             }
 
             String cleanedResponse = jsonSanitizer.cleanAiResponse(response.getContent());
@@ -729,7 +732,7 @@ public class CvEnhancementService {
         return tailored;
     }
 
-    private InterviewPrep generateInterviewQuestions(CvTailorRequest request, AtomicInteger tokenTracker) {
+    private InterviewPrep generateInterviewQuestions(CvTailorRequest request, AiTokenUsageTracker tokenTracker) {
         try {
             String skills = extractSkills(request.getResumeData());
             String promptBody = INTERVIEW_QUESTIONS_PROMPT
@@ -741,7 +744,7 @@ public class CvEnhancementService {
             log.debug("Interview questions prompt length: {}", promptBody.length());
             AiModelResponse response = aiService.callModel(promptBody, defaultProvider, defaultModel);
             if (tokenTracker != null) {
-                tokenTracker.addAndGet(response.getTotalTokens());
+                tokenTracker.add(response);
             }
 
             log.debug("Interview questions AI response (first 300 chars): {}",
@@ -766,7 +769,7 @@ public class CvEnhancementService {
         }
     }
 
-    private Roadmap generateRoadmap(CvTailorRequest request, AtomicInteger tokenTracker) {
+    private Roadmap generateRoadmap(CvTailorRequest request, AiTokenUsageTracker tokenTracker) {
         try {
             String skills = extractSkills(request.getResumeData());
             String promptBody = ROADMAP_PROMPT
@@ -777,7 +780,7 @@ public class CvEnhancementService {
             log.debug("Roadmap prompt length: {}", promptBody.length());
             AiModelResponse response = aiService.callModel(promptBody, defaultProvider, defaultModel);
             if (tokenTracker != null) {
-                tokenTracker.addAndGet(response.getTotalTokens());
+                tokenTracker.add(response);
             }
 
             log.debug("Roadmap AI response (first 300 chars): {}",
@@ -802,7 +805,7 @@ public class CvEnhancementService {
         }
     }
 
-    private String generateCoverLetter(CvTailorRequest request, AtomicInteger tokenTracker) {
+    private String generateCoverLetter(CvTailorRequest request, AiTokenUsageTracker tokenTracker) {
         try {
             ResumeData.PersonalInfo info = request.getResumeData().getPersonalInfo();
             String skills = extractSkills(request.getResumeData());
@@ -833,7 +836,7 @@ public class CvEnhancementService {
             log.debug("Cover letter prompt length: {}", promptBody.length());
             AiModelResponse response = aiService.callModel(promptBody, defaultProvider, defaultModel);
             if (tokenTracker != null) {
-                tokenTracker.addAndGet(response.getTotalTokens());
+                tokenTracker.add(response);
             }
 
             log.debug("Cover letter AI response (first 300 chars): {}",

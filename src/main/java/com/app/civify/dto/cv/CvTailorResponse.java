@@ -69,6 +69,11 @@ public class CvTailorResponse {
      */
     private int totalTokensUsed;
 
+    /**
+     * Subset of {@link #totalTokensUsed} billed to the user's own API keys (BYOK).
+     */
+    private int byokTokensUsed;
+
     // ==================== Nested DTOs ====================
 
     @Data

@@ -18,6 +18,7 @@ public class ByokAnthropicClient {
     private static final String BASE_URL = "https://api.anthropic.com";
 
     private final ObjectMapper objectMapper;
+    private final ByokRestClientFactory restClientFactory;
 
     public AiModelResponse complete(String apiKey, String model, String prompt) {
         try {
@@ -28,15 +29,13 @@ public class ByokAnthropicClient {
             );
             String jsonBody = objectMapper.writeValueAsString(body);
 
-            RestClient client = RestClient.builder()
-                    .baseUrl(BASE_URL)
-                    .defaultHeader("x-api-key", apiKey)
-                    .defaultHeader("anthropic-version", "2023-06-01")
-                    .defaultHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
-                    .build();
+            RestClient client = restClientFactory.forBaseUrl(BASE_URL);
 
             String raw = client.post()
                     .uri("/v1/messages")
+                    .header("x-api-key", apiKey)
+                    .header("anthropic-version", "2023-06-01")
+                    .contentType(MediaType.APPLICATION_JSON)
                     .body(jsonBody)
                     .retrieve()
                     .body(String.class);

@@ -1,5 +1,6 @@
 package com.app.civify.dto.ai;
 
+import com.app.civify.entity.enums.AiCredentialSource;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,6 +21,9 @@ public class AiModelResponse {
     private int promptTokens;
     private int completionTokens;
     private int totalTokens;
+
+    /** How this call was billed; null when unset (legacy callers). */
+    private AiCredentialSource credentialSource;
     
     /**
      * Create a response with just content (legacy/fallback support)
