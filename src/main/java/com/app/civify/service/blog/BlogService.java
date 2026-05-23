@@ -28,6 +28,9 @@ public class BlogService {
 
     @Transactional
     @Caching(evict = {
+            @CacheEvict(value = "publicBlogs-v4", allEntries = true),
+            @CacheEvict(value = "publicBlogs-detail-v4", allEntries = true),
+            @CacheEvict(value = "publicBlogs-slugs-v4", allEntries = true),
             @CacheEvict(value = "publicBlogs-v3", allEntries = true),
             @CacheEvict(value = "publicBlogs-v2", allEntries = true),
             @CacheEvict(value = "publicBlogs", allEntries = true)
@@ -66,6 +69,9 @@ public class BlogService {
 
     @Transactional
     @Caching(evict = {
+            @CacheEvict(value = "publicBlogs-v4", allEntries = true),
+            @CacheEvict(value = "publicBlogs-detail-v4", allEntries = true),
+            @CacheEvict(value = "publicBlogs-slugs-v4", allEntries = true),
             @CacheEvict(value = "publicBlogs-v3", allEntries = true),
             @CacheEvict(value = "publicBlogs-v2", allEntries = true),
             @CacheEvict(value = "publicBlogs", allEntries = true)
@@ -107,6 +113,9 @@ public class BlogService {
 
     @Transactional
     @Caching(evict = {
+            @CacheEvict(value = "publicBlogs-v4", allEntries = true),
+            @CacheEvict(value = "publicBlogs-detail-v4", allEntries = true),
+            @CacheEvict(value = "publicBlogs-slugs-v4", allEntries = true),
             @CacheEvict(value = "publicBlogs-v3", allEntries = true),
             @CacheEvict(value = "publicBlogs-v2", allEntries = true),
             @CacheEvict(value = "publicBlogs", allEntries = true)
