@@ -2,9 +2,11 @@ package com.app.civify.service.notification;
 
 import com.app.civify.service.notification.dto.NotificationMessage;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -117,7 +119,7 @@ public class SseNotificationDeliveryService {
         // Close any existing connections for this user (prevent stale accumulation)
         CopyOnWriteArrayList<SseEmitter> existing = userConnections.get(userId);
         if (existing != null && !existing.isEmpty()) {
-            log.info("🔄 Closing {} existing SSE connection(s) for user {}", existing.size(), userId);
+            log.debug("Closing {} existing SSE connection(s) for user {}", existing.size(), userId);
             for (SseEmitter old : existing) {
                 try {
                     old.complete(); // gracefully close
@@ -154,9 +156,31 @@ public class SseNotificationDeliveryService {
             emitters.remove(emitter);
             if (emitters.isEmpty()) {
                 userConnections.remove(userId);
+                log.info("Removed last SSE connection for user {}", userId);
             }
         }
-        log.info("🔌 Removed SSE connection for user {}", userId);
+    }
+
+    /** Keep idle connections alive through proxies (Cloudflare/nginx). */
+    @Scheduled(fixedRate = 25_000)
+    public void sendKeepAlive() {
+        userConnections.forEach((userId, emitters) -> {
+            emitters.removeIf(emitter -> {
+                try {
+                    emitter.send(SseEmitter.event().comment("keepalive"));
+                    return false;
+                } catch (IOException e) {
+                    log.debug("SSE keepalive failed for user {}, removing emitter", userId);
+                    return true;
+                } catch (Exception e) {
+                    log.debug("SSE keepalive error for user {}: {}", userId, e.getMessage());
+                    return true;
+                }
+            });
+            if (emitters.isEmpty()) {
+                userConnections.remove(userId);
+            }
+        });
     }
 
     /**

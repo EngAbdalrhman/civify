@@ -1,8 +1,12 @@
 package com.app.civify.config;
 
+import com.app.civify.dto.blog.BlogDetailsDto;
+import com.app.civify.dto.blog.BlogListItemDto;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.cache.annotation.CachingConfigurer;
 import org.springframework.cache.annotation.EnableCaching;
@@ -14,7 +18,9 @@ import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import java.time.Duration;
@@ -73,13 +79,49 @@ public class RedisConfig implements CachingConfigurer {
         cacheConfigurations.put("ai_responses",
                 defaultConfig.entryTtl(Duration.ofHours(24)));
 
-        // Public blog listings: 15 minutes (SSR + SEO; bump version when serializer changes)
-        cacheConfigurations.put("publicBlogs-v3",
-                defaultConfig.entryTtl(Duration.ofMinutes(15)));
+        // Public blog caches: typed Jackson serializers without default typing (avoids @class mismatch)
+        ObjectMapper blogMapper = blogObjectMapper();
+        TypeFactory typeFactory = TypeFactory.defaultInstance();
+        JavaType blogListType =
+                typeFactory.constructCollectionType(java.util.List.class, BlogListItemDto.class);
+        JavaType blogDetailType = typeFactory.constructType(BlogDetailsDto.class);
+        JavaType slugListType =
+                typeFactory.constructCollectionType(java.util.List.class, String.class);
+
+        RedisSerializer<Object> blogListSerializer =
+                new Jackson2JsonRedisSerializer<>(blogMapper, blogListType);
+        RedisSerializer<Object> blogDetailSerializer =
+                new Jackson2JsonRedisSerializer<>(blogMapper, blogDetailType);
+        RedisSerializer<Object> blogSlugsSerializer =
+                new Jackson2JsonRedisSerializer<>(blogMapper, slugListType);
+
+        RedisCacheConfiguration blogListConfig = RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl(Duration.ofMinutes(15))
+                .serializeKeysWith(
+                        RedisSerializationContext.SerializationPair
+                                .fromSerializer(new StringRedisSerializer()))
+                .serializeValuesWith(
+                        RedisSerializationContext.SerializationPair.fromSerializer(blogListSerializer));
+
+        cacheConfigurations.put("publicBlogs-v4", blogListConfig);
+        cacheConfigurations.put("publicBlogs-detail-v4",
+                blogListConfig.serializeValuesWith(
+                        RedisSerializationContext.SerializationPair.fromSerializer(blogDetailSerializer)));
+        cacheConfigurations.put("publicBlogs-slugs-v4",
+                blogListConfig.serializeValuesWith(
+                        RedisSerializationContext.SerializationPair.fromSerializer(blogSlugsSerializer)));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)
                 .withInitialCacheConfigurations(cacheConfigurations)
                 .build();
+    }
+
+    /** Plain ObjectMapper for blog caches — no polymorphic @class typing. */
+    private static ObjectMapper blogObjectMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return mapper;
     }
 }

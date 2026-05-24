@@ -27,7 +27,9 @@ import java.util.List;
 @Tag(name = "Blog", description = "Public blog endpoints for SEO-friendly content delivery")
 public class BlogPublicController {
 
-    private static final String PUBLIC_BLOGS_CACHE = "publicBlogs-v3";
+    private static final String PUBLIC_BLOGS_LIST_CACHE = "publicBlogs-v4";
+    private static final String PUBLIC_BLOGS_SLUGS_CACHE = "publicBlogs-slugs-v4";
+    private static final String PUBLIC_BLOGS_DETAIL_CACHE = "publicBlogs-detail-v4";
 
     private final BlogService blogService;
 
@@ -40,7 +42,7 @@ public class BlogPublicController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = BlogListItemDto.class)))
     })
     @GetMapping("")
-    @Cacheable(value = PUBLIC_BLOGS_CACHE, key = "'all'")
+    @Cacheable(value = PUBLIC_BLOGS_LIST_CACHE, key = "'all'")
     public List<BlogListItemDto> list() {
         return blogService.listPublished();
     }
@@ -54,7 +56,7 @@ public class BlogPublicController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = BlogListItemDto.class)))
     })
     @GetMapping("/featured")
-    @Cacheable(value = PUBLIC_BLOGS_CACHE, key = "'featured'")
+    @Cacheable(value = PUBLIC_BLOGS_LIST_CACHE, key = "'featured'")
     public List<BlogListItemDto> listFeatured() {
         return blogService.listFeatured();
     }
@@ -67,7 +69,7 @@ public class BlogPublicController {
             @ApiResponse(responseCode = "200", description = "Slugs retrieved successfully")
     })
     @GetMapping("/slugs")
-    @Cacheable(value = PUBLIC_BLOGS_CACHE, key = "'slugs'")
+    @Cacheable(value = PUBLIC_BLOGS_SLUGS_CACHE, key = "'slugs'")
     public List<String> getSlugs() {
         return blogService.getAllPublishedSlugs();
     }
@@ -83,7 +85,7 @@ public class BlogPublicController {
                     content = @Content(mediaType = "application/json"))
     })
     @GetMapping("/{slug}")
-    @Cacheable(value = PUBLIC_BLOGS_CACHE, key = "#slug")
+    @Cacheable(value = PUBLIC_BLOGS_DETAIL_CACHE, key = "#slug")
     public BlogDetailsDto getBySlug(
             @Parameter(description = "SEO-friendly slug of the blog post", example = "how-to-build-a-great-cv", required = true)
             @PathVariable String slug) {

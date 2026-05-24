@@ -17,12 +17,16 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PreDestroy;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -215,9 +219,13 @@ public class CvEnhancementService {
             """;
 
     private static final String COVER_LETTER_PROMPT = """
-            You are an expert career coach. Write a compelling, high-converting cover letter for the following candidate.
+            You are an expert career coach. Write a compelling cover letter BODY for the following candidate.
 
-            Target Role: {JOB_DESCRIPTION}
+            Target Job Title: {JOB_TITLE}
+            Target Company: {COMPANY_NAME}
+
+            Job Description:
+            {JOB_DESCRIPTION}
 
             Candidate:
             Name: {CV_NAME}
@@ -233,16 +241,17 @@ public class CvEnhancementService {
             {JOB_PAIN_POINTS}
 
             Instructions:
-            1.  **Structure**: Use the "Hook-Story-Offer" framework.
-                *   **Hook**: Start with a strong opening that captures attention and shows understanding of the company's needs (Pain Points).
-                *   **Story**: Connect specific achievements from the candidate's profile to solving those pain points. prove value with metrics.
-                *   **Offer**: Close with a confident call to action.
-            2.  **Tone**: Professional, confident, yet authentic. Avoid generic fluff.
-            3.  **Formatting**: Standard business letter format.
-            4.  **No Placeholders**: Do not use [Insert Company Name] placeholders; use the provided data.
+            1. Use the "Hook-Story-Offer" framework in 3-4 short paragraphs.
+            2. Open with "Dear Hiring Manager," (or "Dear {COMPANY_NAME} Hiring Team," when company is known).
+            3. Reference {COMPANY_NAME} and {JOB_TITLE} naturally when provided.
+            4. Tone: professional, confident, authentic. Use metrics from the profile where possible.
+            5. Do NOT include a letterhead, sender address block, date line, or signature block — those are added separately.
+            6. NEVER use bracket placeholders such as [Your Name], [Date], [Company Name], or similar.
 
-            Output ONLY the cover letter body texts (or with header if appropriate).
+            Output ONLY the letter body (salutation through closing paragraph before signature). Plain text, no markdown.
             """;
+
+    private static final Pattern BRACKET_PLACEHOLDER = Pattern.compile("\\[[^\\]]+\\]");
 
     private static final String TRANSLATE_CV_PROMPT = """
             You are an expert professional translator. Translate this CV into the target language.
@@ -800,9 +809,18 @@ public class CvEnhancementService {
             String experience = buildExperienceSummary(request.getResumeData());
 
             // The Cover Letter prompt needs to format correctly with .replace
+            String companyName = request.getCompanyName() != null && !request.getCompanyName().isBlank()
+                    ? request.getCompanyName()
+                    : "the company";
+            String jobTitle = request.getJobTitle() != null && !request.getJobTitle().isBlank()
+                    ? request.getJobTitle()
+                    : "the position";
+
             String promptBody = COVER_LETTER_PROMPT
                     .replace("{JOB_DESCRIPTION}",
                             request.getJobDescription() != null ? request.getJobDescription() : "unspecified")
+                    .replace("{JOB_TITLE}", jobTitle)
+                    .replace("{COMPANY_NAME}", companyName)
                     .replace("{CV_NAME}", info.getFullName() != null ? info.getFullName() : "Candidate")
                     .replace("{CV_EMAIL}", info.getEmail() != null ? info.getEmail() : "")
                     .replace("{CV_PHONE}", info.getPhone() != null ? info.getPhone() : "")
@@ -823,16 +841,64 @@ public class CvEnhancementService {
                             ? response.getContent().substring(0, Math.min(300, response.getContent().length()))
                             : "null");
 
-            String result = jsonSanitizer.cleanAiResponse(response.getContent());
-            if (result == null || result.isBlank()) {
+            String body = jsonSanitizer.cleanAiResponse(response.getContent());
+            if (body == null || body.isBlank()) {
                 log.warn("Cover letter generation returned empty result");
                 return "";
             }
-            return result;
+            body = stripBracketPlaceholders(body);
+            return buildCoverLetterWithHeader(info, body);
         } catch (Exception e) {
             log.error("Error generating cover letter: {}", e.getMessage(), e);
             return "";
         }
+    }
+
+    private String buildCoverLetterWithHeader(ResumeData.PersonalInfo info, String body) {
+        String header = formatCoverLetterHeader(info);
+        String trimmedBody = body.strip();
+        if (trimmedBody.isEmpty()) {
+            return header;
+        }
+        return header + "\n\n" + trimmedBody;
+    }
+
+    private String formatCoverLetterHeader(ResumeData.PersonalInfo info) {
+        String name = info.getFullName() != null && !info.getFullName().isBlank()
+                ? info.getFullName()
+                : "Candidate";
+
+        List<String> contactParts = new ArrayList<>();
+        if (info.getEmail() != null && !info.getEmail().isBlank()) {
+            contactParts.add(info.getEmail());
+        }
+        if (info.getPhone() != null && !info.getPhone().isBlank()) {
+            contactParts.add(info.getPhone());
+        }
+
+        String location = Stream.of(info.getAddress(), info.getCity(), info.getCountry())
+                .filter(s -> s != null && !s.isBlank())
+                .collect(Collectors.joining(", "));
+        if (!location.isBlank()) {
+            contactParts.add(location);
+        }
+
+        String date = LocalDate.now().format(DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH));
+
+        StringBuilder header = new StringBuilder(name);
+        if (!contactParts.isEmpty()) {
+            header.append("\n").append(String.join(" | ", contactParts));
+        }
+        header.append("\n\n").append(date);
+        return header.toString();
+    }
+
+    private String stripBracketPlaceholders(String text) {
+        if (text == null || text.isBlank()) {
+            return text;
+        }
+        String cleaned = BRACKET_PLACEHOLDER.matcher(text).replaceAll("").trim();
+        return cleaned.replaceAll("(?m)^\\s*\\n", "").replaceAll("\n{3,}", "\n\n");
     }
 
     private String buildExperienceSummary(ResumeData resumeData) {

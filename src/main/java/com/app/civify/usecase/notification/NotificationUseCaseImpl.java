@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -39,7 +40,7 @@ public class NotificationUseCaseImpl implements NotificationUseCase {
 
     @Override
     public SseEmitter subscribe(UserPrincipal userPrincipal) {
-        SseEmitter emitter = new SseEmitter(Long.MAX_VALUE); // No timeout
+        SseEmitter emitter = new SseEmitter(Duration.ofMinutes(30).toMillis());
 
         // Safely extract user from principal
         User user = userPrincipal != null ? userPrincipal.getUser() : null;
