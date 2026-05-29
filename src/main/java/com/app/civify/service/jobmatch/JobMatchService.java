@@ -103,8 +103,7 @@ public class JobMatchService {
 
         // 3. Call existing CV Enhancement Service to get the ATS Base Score & Missing Keywords list
         // Since we already parsed the JD, we can just pass the raw text to ATS calculator
-        CvTailorResponse.AtsScore atsScore = cvEnhancementService.calculateGeneralAtsScore(resumeData);
-        // Better yet: we could calculate specific ATS score if `calculateAtsScore` was public
+        CvTailorResponse.AtsScore atsScore = cvEnhancementService.scoreResumeForJob(resumeData, rawJobDescription);
         
         // Calculate sub-scores (simplified logic for now)
         int totalRequired = parsedJd.getRequiredSkills() != null ? parsedJd.getRequiredSkills().size() : 0;
