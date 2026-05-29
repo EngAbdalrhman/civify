@@ -54,6 +54,7 @@ public class CvEnhancementService {
     private final ContentCleaner contentCleaner;
     private final ResumeDiffService resumeDiffService;
     private final JsonSanitizer jsonSanitizer;
+    private final AtsCompatibilityService atsCompatibilityService;
 
     @Value("${ai.default.provider:gemini}")
     private String defaultProvider;
@@ -89,6 +90,11 @@ public class CvEnhancementService {
             3. KEEP ORIGINAL dates, locations, company names, job titles.
             4. YOU MAY rephrase descriptions to align with JD terminology ONLY IF the underlying work supports it.
             5. DO NOT add "implied" skills unless you are 100%% certain the candidate has them based on the text.
+
+            ATS-FRIENDLY WRITING:
+            - Use standard section titles where possible (Experience, Education, Skills)
+            - Prefer bullet lines: action + scope + measurable result
+            - Plain text only in descriptions; no HTML or markdown
 
             CRITICAL OUTPUT RULES:
             1. Output ONLY valid YAML. No conversational text before or after.
@@ -131,7 +137,18 @@ public class CvEnhancementService {
             """;
 
     private static final String ATS_SCORE_PROMPT = """
-            Analyze this CV against the job description. Score ATS compatibility.
+            You are a senior recruiter evaluating this CV against a job description for ATS screening.
+            Recruiters use systems like Workday, Greenhouse, Lever, and Taleo that extract plain text from PDFs.
+
+            Score honestly (0-100):
+            - keywordMatch: how many JD keywords/skills appear in the CV (searchable text only)
+            - skillsMatch: relevance and clarity of skills and experience to the role
+            - overall: combined fit for passing automated screening AND human review
+
+            FORMAT AWARENESS (if metadata.templateId is creative, or skills use dots/bar, note in suggestions):
+            - Prefer standard headings: Experience, Education, Skills, Summary
+            - Bullets: action verb + scope + measurable outcome
+            - Do not reward keyword stuffing or invented experience
 
             Job Description:
             {JOB_DESCRIPTION}
@@ -145,42 +162,37 @@ public class CvEnhancementService {
             skillsMatch: 0-100
             missingKeywords:
               - keyword1
-              - keyword2
             suggestions:
-              - suggestion1
-              - suggestion2
+              - specific professional improvement
             """;
 
     private static final String GENERAL_ATS_SCORE_PROMPT = """
-            You are an expert ATS (Applicant Tracking System) analyzer. Analyze this CV for general ATS compatibility based on industry best practices.
+            You are an expert recruiter and ATS analyst. Evaluate this CV as it would be read after PDF text extraction
+            (Workday, Greenhouse, Lever, Taleo-style parsers). Be realistic and professional, not generous.
 
             CV Content:
             {CV_YAML}
 
-            Evaluation Criteria (score each 0-100):
-            1. CONTENT QUALITY:
-               - Strong action verbs (Led, Developed, Managed, etc.)
-               - Quantifiable achievements (numbers, percentages, metrics)
-               - Professional tone and clarity
-            2. STRUCTURE:
-               - Standard section headings (Experience, Education, Skills)
-               - Contact information completeness (name, email, phone)
-               - Logical flow and organization
-            3. SKILLS PRESENTATION:
-               - Relevant technical skills listed
-               - Soft skills mentioned appropriately
-               - Skills match typical industry requirements
+            CONTENT QUALITY (reflect in overall and keywordMatch):
+            - Strong action verbs (Led, Built, Delivered) with quantified results where present
+            - Professional tone; no hype (rockstar, ninja, unparalleled)
+            - Complete contact block: name, email, phone
+
+            STRUCTURE (reflect in skillsMatch):
+            - Standard section headings recruiters expect: Experience, Education, Skills, Summary
+            - Reverse-chronological experience; bullet points over dense paragraphs
+            - Skills as plain text lists, not graphics
 
             Output YAML only:
-            overall: 0-100
-            keywordMatch: 0-100 (general industry keywords)
-            skillsMatch: 0-100 (skills presentation quality)
+            overall: 0-100 (content quality for ATS + recruiters)
+            keywordMatch: 0-100 (action verbs, metrics, clarity)
+            skillsMatch: 0-100 (structure and skills presentation)
             missingKeywords:
-              - common missing elements (e.g., "quantifiable metrics", "action verbs")
+              - specific gaps (e.g., "quantifiable metrics in experience bullets")
             suggestions:
-              - specific improvement suggestions
+              - concrete, professional improvements (max 6)
 
-            CRITICAL: DO NOT use any markdown formatting, bold (**), or asterisks in your YAML output. Return plain text only for all values.
+            CRITICAL: Plain text only in YAML values. No markdown bold (**).
             """;
 
     private static final String INTERVIEW_QUESTIONS_PROMPT = """
@@ -349,8 +361,16 @@ public class CvEnhancementService {
                         .overall(originalAtsScore.getOverall())
                         .keywordMatch(Math.max(tailoredAtsScore.getKeywordMatch(), originalAtsScore.getKeywordMatch()))
                         .skillsMatch(Math.max(tailoredAtsScore.getSkillsMatch(), originalAtsScore.getSkillsMatch()))
+                        .contentScore(tailoredAtsScore.getContentScore())
+                        .formatScore(Math.max(
+                                tailoredAtsScore.getFormatScore() != null ? tailoredAtsScore.getFormatScore() : 0,
+                                originalAtsScore.getFormatScore() != null ? originalAtsScore.getFormatScore() : 0))
+                        .parseabilityScore(tailoredAtsScore.getParseabilityScore())
                         .missingKeywords(tailoredAtsScore.getMissingKeywords())
                         .suggestions(tailoredAtsScore.getSuggestions())
+                        .formatIssues(tailoredAtsScore.getFormatIssues())
+                        .atsReadiness(tailoredAtsScore.getAtsReadiness())
+                        .recommendedTemplateId(tailoredAtsScore.getRecommendedTemplateId())
                         .tokensUsed(tailoredAtsScore.getTokensUsed())
                         .build();
             }
@@ -526,7 +546,7 @@ public class CvEnhancementService {
                 }
             }
 
-            return AtsScore.builder()
+            AtsScore hybrid = AtsScore.builder()
                     .overall(hybridOverall)
                     .keywordMatch(keywordResult.score())
                     .skillsMatch(Math.max(aiScore.getSkillsMatch(), 0))
@@ -534,11 +554,11 @@ public class CvEnhancementService {
                     .suggestions(aiScore.getSuggestions())
                     .tokensUsed(response.getTotalTokens())
                     .build();
+            return atsCompatibilityService.enrichScore(hybrid, resumeData);
 
         } catch (Exception e) {
             log.error("Error calculating ATS score (AI failed), falling back to keyword score: {}", e.getMessage());
-            // Fallback to purely deterministic score if AI fails
-            return AtsScore.builder()
+            AtsScore fallback = AtsScore.builder()
                     .overall(keywordResult.score())
                     .keywordMatch(keywordResult.score())
                     .skillsMatch(0)
@@ -546,7 +566,15 @@ public class CvEnhancementService {
                     .suggestions(List.of("AI analysis failed. Score based on keyword matching only."))
                     .tokensUsed(0)
                     .build();
+            return atsCompatibilityService.enrichScore(fallback, resumeData);
         }
+    }
+
+    /**
+     * JD-specific ATS score for job match and external callers.
+     */
+    public AtsScore scoreResumeForJob(ResumeData resumeData, String jobDescription) {
+        return calculateAtsScore(resumeData, jobDescription, null);
     }
 
     /**

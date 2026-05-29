@@ -82,7 +82,7 @@ public class ExternalCvService {
             // 3. Generate PDF
             long pdfStart = System.currentTimeMillis();
             var watermark = watermarkPolicyService.resolveForUser(user.getId());
-            byte[] pdfBytes = pdfGenerationService.generatePdf(maskedData, "modern", watermark, user.getId());
+            byte[] pdfBytes = pdfGenerationService.generatePdf(maskedData, "ats", watermark, user.getId());
             long pdfTime = System.currentTimeMillis() - pdfStart;
 
             long totalTime = System.currentTimeMillis() - startTime;
