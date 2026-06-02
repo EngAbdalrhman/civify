@@ -100,6 +100,36 @@ public class CvTailorResponse {
          * Improvement suggestions.
          */
         private List<String> suggestions;
+
+        /**
+         * AI-derived content quality score before format weighting (0-100).
+         */
+        private Integer contentScore;
+
+        /**
+         * Layout/template compatibility score (0-100).
+         */
+        private Integer formatScore;
+
+        /**
+         * Text extraction / reading-order score (0-100).
+         */
+        private Integer parseabilityScore;
+
+        /**
+         * Structured format issues (template, visual skills, etc.).
+         */
+        private List<AtsFormatIssue> formatIssues;
+
+        /**
+         * Overall format readiness: excellent, good, caution, poor.
+         */
+        private String atsReadiness;
+
+        /**
+         * Suggested template id for best ATS parsing (e.g. ats, classic).
+         */
+        private String recommendedTemplateId;
         
         /**
          * Tokens used for this ATS analysis.
