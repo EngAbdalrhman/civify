@@ -5,6 +5,7 @@ import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.entity.billing.BillingTransaction;
 import com.app.civify.entity.enums.BillingAuditType;
+import com.app.civify.entity.enums.PaymentLedgerStatus;
 import com.app.civify.entity.enums.PaymentStatus;
 import com.app.civify.entity.enums.TransactionType;
 import com.app.civify.entity.plans.SubscriptionPlan;
@@ -57,6 +58,7 @@ public class DodoPaymentGateway implements PaymentGateway {
     private final PaymentFulfillmentService fulfillmentService;
     private final NotificationService notificationService;
     private final BillingAuditService billingAuditService;
+    private final PaymentLedgerService paymentLedgerService;
 
     @Value("${payment.gateway.dodo.enabled:false}")
     private boolean enabled;
@@ -173,7 +175,7 @@ public class DodoPaymentGateway implements PaymentGateway {
             transaction.setAmount(BigDecimal.valueOf(amount));
             transaction.setOrderId(civifyReference);
             transaction.setPaymentKey(sessionId);
-            transaction.setStatus(PaymentStatus.PENDING);
+            transaction.setStatus(PaymentStatus.INITIATED);
             transaction.setType(type);
             transaction.setGateway(getGatewayName());
             transaction.setCurrency("USD");
@@ -189,6 +191,7 @@ public class DodoPaymentGateway implements PaymentGateway {
             transaction.setMetadata(objectMapper.writeValueAsString(txMeta));
 
             paymentRepository.save(transaction);
+            paymentLedgerService.recordInitiated(transaction, "dodo.create");
 
             return PaymentCreationResult.builder()
                     .paymentKey(sessionId)
@@ -384,8 +387,7 @@ public class DodoPaymentGateway implements PaymentGateway {
             }
 
             if ("payment.succeeded".equalsIgnoreCase(type)) {
-                transaction.setStatus(PaymentStatus.COMPLETED);
-                transaction.setCompletedAt(LocalDateTime.now());
+                paymentLedgerService.recordCompleted(transaction, type, "dodo.webhook");
                 mergeTransactionMetadata(transaction, paymentId, null);
                 paymentRepository.save(transaction);
 
@@ -403,12 +405,19 @@ public class DodoPaymentGateway implements PaymentGateway {
                 logWebhookAudit(transaction, civifyReference, true, result.getMessage(), rawPayload);
 
             } else if ("payment.failed".equalsIgnoreCase(type)) {
-                transaction.setStatus(PaymentStatus.FAILED);
+                paymentLedgerService.recordFailed(transaction, type, "dodo.webhook", "Dodo payment failed");
                 mergeTransactionMetadata(transaction, paymentId, null);
                 paymentRepository.save(transaction);
                 result.setSuccess(false);
                 result.setMessage("PAYMENT_FAILED");
                 logWebhookAudit(transaction, civifyReference, false, result.getMessage(), rawPayload);
+            } else if (type != null && type.toLowerCase().contains("authorized")) {
+                paymentLedgerService.recordAuthorized(transaction, type, "dodo.webhook");
+                mergeTransactionMetadata(transaction, paymentId, null);
+                paymentRepository.save(transaction);
+                result.setSuccess(true);
+                result.setMessage("PAYMENT_AUTHORIZED");
+                logWebhookAudit(transaction, civifyReference, true, result.getMessage(), rawPayload);
             } else {
                 result.setSuccess(false);
                 result.setMessage("EVENT_IGNORED");
@@ -466,8 +475,7 @@ public class DodoPaymentGateway implements PaymentGateway {
             if (isRedirectSuccess(params)) {
                 boolean verified = verifyPayment(dodoPaymentId);
                 if (verified) {
-                    transaction.setStatus(PaymentStatus.COMPLETED);
-                    transaction.setCompletedAt(LocalDateTime.now());
+                    paymentLedgerService.recordCompleted(transaction, status, "dodo.redirect");
                     mergeTransactionMetadata(transaction, dodoPaymentId, null);
                     paymentRepository.save(transaction);
 
@@ -475,10 +483,20 @@ public class DodoPaymentGateway implements PaymentGateway {
                     result.setMessage("PAYMENT_COMPLETED");
                     fulfillmentService.fulfillPayment(civifyReference);
                 } else {
+                    PaymentLedgerStatus ledgerStatus = paymentLedgerService.resolveGatewayStatus(status);
+                    if (ledgerStatus == PaymentLedgerStatus.AUTHORIZED) {
+                        paymentLedgerService.recordAuthorized(transaction, status, "dodo.redirect");
+                    } else {
+                        paymentLedgerService.transition(transaction, ledgerStatus, status, "dodo.redirect",
+                                "Dodo redirect pending");
+                    }
+                    paymentRepository.save(transaction);
                     result.setSuccess(false);
                     result.setMessage("PAYMENT_PENDING");
                 }
             } else {
+                paymentLedgerService.recordFailed(transaction, status, "dodo.redirect", "Dodo redirect failed");
+                paymentRepository.save(transaction);
                 result.setSuccess(false);
                 result.setMessage("PAYMENT_FAILED");
             }

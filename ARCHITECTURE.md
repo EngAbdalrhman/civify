@@ -50,7 +50,7 @@ erDiagram
         Long userId FK
         String orderId "Gateway order ID"
         String paymentKey
-        PaymentStatus status "PENDING|COMPLETED|FAILED|REFUNDED"
+        PaymentStatus status "INITIATED|AUTHORIZED|PENDING|COMPLETED|FAILED|REFUNDED|CANCELLED"
         BigDecimal amount
         String currency
         String gateway "paymob|fawaterak"

@@ -35,7 +35,7 @@ public class BillingTransaction extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private PaymentStatus status = PaymentStatus.PENDING;
+    private PaymentStatus status = PaymentStatus.INITIATED;
 
     @Column(nullable = false)
     private BigDecimal amount;

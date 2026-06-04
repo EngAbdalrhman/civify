@@ -6,6 +6,7 @@ import com.app.civify.dto.payment.PaymentCallbackResult;
 import com.app.civify.dto.payment.PaymentCreationResult;
 import com.app.civify.dto.payment.PaymentMethods;
 import com.app.civify.entity.enums.BillingAuditType;
+import com.app.civify.entity.enums.PaymentLedgerStatus;
 import com.app.civify.entity.enums.PaymentStatus;
 import com.app.civify.entity.billing.BillingTransaction;
 import com.app.civify.repository.billing.BillingTransactionRepository;
@@ -44,6 +45,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
     private final ObjectMapper objectMapper;
     private final NotificationService notificationService;
     private final BillingAuditService billingAuditService;
+    private final PaymentLedgerService paymentLedgerService;
 
     @Lazy
     @Autowired
@@ -131,7 +133,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                 transaction.setAmount(BigDecimal.valueOf(amount));
                 transaction.setOrderId(String.valueOf(invoiceId));
                 transaction.setPaymentKey(paymentKey);
-                transaction.setStatus(PaymentStatus.PENDING);
+                transaction.setStatus(PaymentStatus.INITIATED);
                 transaction.setType(type);
                 transaction.setGateway(getGatewayName());
                 transaction.setCurrency("EGP");
@@ -142,6 +144,7 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                 transaction.setMetadata(objectMapper.writeValueAsString(mutableMetadata));
 
                 paymentRepository.save(transaction);
+                paymentLedgerService.recordInitiated(transaction, "fawaterak.create");
 
                 log.info("Fawaterak payment created successfully. Invoice ID: {}", invoiceId);
 
@@ -179,12 +182,11 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                 String invoiceStatus = data.get("payment_status").asText(); // paid, pending, expired
 
                 if ("paid".equalsIgnoreCase(invoiceStatus)) {
-                    transaction.setStatus(PaymentStatus.COMPLETED);
-                    transaction.setCompletedAt(LocalDateTime.now());
+                    paymentLedgerService.recordCompleted(transaction, invoiceStatus, "fawaterak.verify");
                     paymentRepository.save(transaction);
                     return true;
                 } else if ("expired".equalsIgnoreCase(invoiceStatus)) {
-                    transaction.setStatus(PaymentStatus.FAILED);
+                    paymentLedgerService.recordFailed(transaction, invoiceStatus, "fawaterak.verify", "Invoice expired");
                     paymentRepository.save(transaction);
                 }
             }
@@ -268,54 +270,54 @@ public class FawaterakPaymentGateway implements PaymentGateway {
                 return result;
             }
 
-            // Step 7: Process payment based on status
+            // Step 7: Process payment based on status (via payment ledger)
             PaymentStatus previousStatus = transaction.getStatus();
+            PaymentLedgerStatus ledgerStatus = paymentLedgerService.resolveGatewayStatus(status);
 
-            switch (status.toLowerCase()) {
-                case "paid", "completed", "success", "successful" -> {
-                    transaction.setStatus(PaymentStatus.COMPLETED);
-                    transaction.setCompletedAt(LocalDateTime.now());
+            switch (ledgerStatus) {
+                case COMPLETED -> {
+                    paymentLedgerService.recordCompleted(transaction, status, "fawaterak.webhook");
                     result.setSuccess(true);
                     result.setMessage("PAYMENT_COMPLETED");
                     log.info("✅ Payment COMPLETED for invoice {}", invoiceId);
-                    
                     try {
-                        notificationService.sendToUser(transaction.getUserId(), "Payment Successful", 
+                        notificationService.sendToUser(transaction.getUserId(), "Payment Successful",
                                 "Your payment was successful and your plan is active.", com.app.civify.entity.enums.NotificationType.SYSTEM);
                     } catch (Exception ex) {
                         log.error("Failed to send payment success notification: {}", ex.getMessage());
                     }
                 }
-                case "failed", "declined", "cancelled" -> {
-                    transaction.setStatus(PaymentStatus.FAILED);
+                case FAILED -> {
+                    paymentLedgerService.recordFailed(transaction, status, "fawaterak.webhook",
+                            "Payment failed: " + status);
                     result.setSuccess(false);
-                    result.setMessage("PAYMENT_FAILED");
+                    result.setMessage("expired".equalsIgnoreCase(status) ? "PAYMENT_EXPIRED" : "PAYMENT_FAILED");
                     log.warn("❌ Payment FAILED for invoice {}: {}", invoiceId, status);
                 }
-                case "expired" -> {
-                    transaction.setStatus(PaymentStatus.FAILED);
-                    result.setSuccess(false);
-                    result.setMessage("PAYMENT_EXPIRED");
-                    log.warn("⏰ Payment EXPIRED for invoice {}", invoiceId);
-                }
-                case "refunded" -> {
-                    transaction.setStatus(PaymentStatus.REFUNDED);
+                case REFUNDED -> {
+                    paymentLedgerService.recordRefunded(transaction, status, "fawaterak.webhook");
                     result.setSuccess(false);
                     result.setMessage("PAYMENT_REFUNDED");
                     log.warn("💰 Payment REFUNDED for invoice {}", invoiceId);
                 }
-                case "pending", "processing" -> {
-                    // Keep as PENDING, no action needed
-                    log.info("⏳ Payment still PENDING for invoice {}", invoiceId);
+                case CANCELLED -> {
+                    paymentLedgerService.recordCancelled(transaction, status, "fawaterak.webhook");
+                    result.setSuccess(false);
+                    result.setMessage("PAYMENT_FAILED");
+                    log.warn("Payment cancelled for invoice {}", invoiceId);
+                }
+                case AUTHORIZED -> {
+                    paymentLedgerService.recordAuthorized(transaction, status, "fawaterak.webhook");
+                    result.setSuccess(false);
+                    result.setMessage("PAYMENT_AUTHORIZED");
+                    log.info("Payment authorized for invoice {}", invoiceId);
+                }
+                case PENDING, INITIATED -> {
+                    paymentLedgerService.transition(transaction, ledgerStatus, status, "fawaterak.webhook",
+                            "Payment in progress");
                     result.setSuccess(false);
                     result.setMessage("PAYMENT_PENDING");
-                }
-                default -> {
-                    log.error("❓ Unknown Fawaterak status: {} for invoice {}", status, invoiceId);
-                    result.setSuccess(false);
-                    result.setMessage("UNKNOWN_PAYMENT_STATUS");
-                    result.setErrorCode("UNKNOWN_PAYMENT_STATUS");
-                    return result; // Don't save unknown states
+                    log.info("⏳ Payment still {} for invoice {}", ledgerStatus, invoiceId);
                 }
             }
 
@@ -388,15 +390,16 @@ public class FawaterakPaymentGateway implements PaymentGateway {
             return false;
         }
 
-        // PENDING can transition to any state
-        if (currentStatus == PaymentStatus.PENDING) {
+        // In-progress states can transition to any non-terminal follow-up
+        if (currentStatus.isInProgress()) {
             return true;
         }
 
-        // FAILED can only retry to PENDING or stay FAILED
+        // FAILED can only retry to pending/initiated or stay failed
         if (currentStatus == PaymentStatus.FAILED) {
-            return "pending".equalsIgnoreCase(newStatus) ||
-                    "failed".equalsIgnoreCase(newStatus);
+            return "pending".equalsIgnoreCase(newStatus)
+                    || "processing".equalsIgnoreCase(newStatus)
+                    || "failed".equalsIgnoreCase(newStatus);
         }
 
         return true;
