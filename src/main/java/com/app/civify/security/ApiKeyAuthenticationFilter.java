@@ -31,13 +31,6 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         log.info("ApiKeyFilter: Checking path: {}", path);
 
-        // Use contains to handle context paths (e.g. /apis/api/v1/external)
-        if (!path.contains("/external")) {
-            log.info("ApiKeyFilter: Skipping path: {}", path);
-            filterChain.doFilter(request, response);
-            return;
-        }
-
         // Allow CORS preflight requests to pass through without API key validation
         // Preflight OPTIONS requests don't include custom headers like X-API-KEY
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
@@ -47,10 +40,18 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         }
 
         String apiKeyHeader = request.getHeader(API_KEY_HEADER);
+        boolean isExternal = path.contains("/external");
+
+        // If not an external endpoint and no API key header is provided, pass through to other filters (e.g. JWT)
+        if (!isExternal && (apiKeyHeader == null || apiKeyHeader.isBlank())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         log.info("ApiKeyFilter: API Key Header present: {}", (apiKeyHeader != null && !apiKeyHeader.isBlank()));
 
         if (apiKeyHeader == null || apiKeyHeader.isBlank()) {
-            log.warn("ApiKeyFilter: Missing API Key");
+            log.warn("ApiKeyFilter: Missing API Key for external endpoint: {}", path);
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write("Missing API Key");
             return;
