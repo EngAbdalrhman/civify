@@ -33,6 +33,7 @@ public class PdfWatermarkController {
     @Operation(summary = "Resolve watermark config for the current PDF export context")
     @GetMapping("/watermark-config")
     public ResponseEntity<CommonResponse<WatermarkConfigDto>> getWatermarkConfig(
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String resumeId,
             @AuthenticationPrincipal UserPrincipal userPrincipal,
             @RequestHeader(value = "X-Pdf-Internal-Token", required = false) String pdfInternalToken,
             @RequestHeader(value = "X-Pdf-User-Id", required = false) Long pdfUserId) {
@@ -45,12 +46,13 @@ public class PdfWatermarkController {
         if (userId == null) {
             config = watermarkPolicyService.resolveForGuest();
         } else {
-            config = watermarkPolicyService.resolveForUser(userId);
+            config = watermarkPolicyService.resolveForUserAndResume(userId, resumeId);
             String planInfo = subscriptionService.getActiveSubscription(userId)
                     .map(sub -> sub.getPlan().getName() + ", plan.watermark=" + sub.getPlan().getWatermark())
                     .orElse("no-active-subscription");
-            log.info("PDF watermark-config userId={} plan=[{}] enabled={} imageUrl={} position={}",
+            log.info("PDF watermark-config userId={} resumeId={} plan=[{}] enabled={} imageUrl={} position={}",
                     userId,
+                    resumeId,
                     planInfo,
                     config.isEnabled(),
                     config.getImageUrl() != null ? "set" : "null",
