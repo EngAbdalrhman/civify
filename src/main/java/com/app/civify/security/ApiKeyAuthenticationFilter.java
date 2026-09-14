@@ -29,11 +29,11 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String path = request.getRequestURI();
-        log.info("ApiKeyFilter: Checking path: {}", path);
+        log.debug("ApiKeyFilter: Checking path: {}", path);
 
-        // Use contains to handle context paths (e.g. /apis/api/v1/external)
-        if (!path.contains("/external")) {
-            log.info("ApiKeyFilter: Skipping path: {}", path);
+        // Explicitly isolate external API routes (e.g. /apis/v1/external/... or /apis/api/v1/external/...)
+        if (!path.contains("/external/") && !path.endsWith("/external")) {
+            log.debug("ApiKeyFilter: Skipping path: {}", path);
             filterChain.doFilter(request, response);
             return;
         }
@@ -41,7 +41,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         // Allow CORS preflight requests to pass through without API key validation
         // Preflight OPTIONS requests don't include custom headers like X-API-KEY
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
-            log.info("ApiKeyFilter: Allowing CORS preflight OPTIONS request for path: {}", path);
+            log.debug("ApiKeyFilter: Allowing CORS preflight OPTIONS request for path: {}", path);
             filterChain.doFilter(request, response);
             return;
         }
@@ -53,7 +53,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         }
 
         String apiKeyHeader = request.getHeader(API_KEY_HEADER);
-        log.info("ApiKeyFilter: API Key Header present: {}", (apiKeyHeader != null && !apiKeyHeader.isBlank()));
+        log.debug("ApiKeyFilter: API Key Header present: {}", (apiKeyHeader != null && !apiKeyHeader.isBlank()));
 
         if (apiKeyHeader == null || apiKeyHeader.isBlank()) {
             log.warn("ApiKeyFilter: Missing API Key");
