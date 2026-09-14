@@ -2,8 +2,10 @@ package com.app.civify.security.interceptor;
 
 import com.app.civify.annotation.RequiresScope;
 import com.app.civify.entity.security.ApiKey;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
@@ -14,7 +16,10 @@ import org.springframework.web.servlet.HandlerInterceptor;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ApiKeyScopeInterceptor implements HandlerInterceptor {
+
+    private final ObjectMapper objectMapper;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -44,7 +49,12 @@ public class ApiKeyScopeInterceptor implements HandlerInterceptor {
 
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType("application/json");
-            String scopesJson = apiKey.getScopes() != null ? apiKey.getScopes().toString() : "[]";
+            String scopesJson;
+            try {
+                scopesJson = apiKey.getScopes() != null ? objectMapper.writeValueAsString(apiKey.getScopes()) : "[]";
+            } catch (Exception e) {
+                scopesJson = "[]";
+            }
             response.getWriter().write(String.format(
                     "{\"error\":\"INSUFFICIENT_SCOPE\",\"message\":\"This API key lacks the required '%s' scope.\",\"requiredScope\":\"%s\",\"grantedScopes\":%s}",
                     requiredScope, requiredScope, scopesJson

@@ -64,6 +64,7 @@ public enum ApiKeyScope {
                 APPS_READ.getValue(),
                 APPS_WRITE.getValue(),
                 BILLING_READ.getValue(),
+                BILLING_PURCHASE.getValue(),
                 ACCOUNT_READ.getValue()
         );
     }
