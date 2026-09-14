@@ -36,6 +36,28 @@ public class ApiKey extends BaseEntity {
     @Column(length = 255)
     private String name;
 
+    @Column(name = "description", length = 500)
+    private String description;
+
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
+
     @Column(nullable = false)
     private Boolean isActive = true;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "api_key_scopes", joinColumns = @JoinColumn(name = "api_key_id"))
+    @Column(name = "scope", nullable = false, length = 50)
+    private java.util.Set<String> scopes = new java.util.HashSet<>();
+
+    public boolean isExpired() {
+        return expiresAt != null && LocalDateTime.now().isAfter(expiresAt);
+    }
+
+    public boolean hasScope(String requiredScope) {
+        if (scopes == null || scopes.isEmpty()) {
+            return true; // Backward compatibility for legacy full-access keys
+        }
+        return scopes.contains(requiredScope) || scopes.contains("*");
+    }
 }

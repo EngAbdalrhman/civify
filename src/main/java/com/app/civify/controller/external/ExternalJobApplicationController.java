@@ -1,5 +1,6 @@
 package com.app.civify.controller.external;
 
+import com.app.civify.annotation.RequiresScope;
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.job.JobApplicationRequest;
 import com.app.civify.dto.job.JobApplicationResponse;
@@ -28,18 +29,21 @@ public class ExternalJobApplicationController {
     private final JobApplicationService jobApplicationService;
 
     @Operation(summary = "Get all job applications (External)", security = @SecurityRequirement(name = "api-key"))
+    @RequiresScope("apps:read")
     @GetMapping
     public ResponseEntity<List<JobApplicationResponse>> getAllApplications(@AuthenticationPrincipal UserPrincipal userPrincipal) {
         return ResponseEntity.ok(jobApplicationService.getAllApplications(userPrincipal));
     }
 
     @Operation(summary = "Get job application by ID (External)", security = @SecurityRequirement(name = "api-key"))
+    @RequiresScope("apps:read")
     @GetMapping("/{id}")
     public ResponseEntity<JobApplicationResponse> getApplication(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal userPrincipal) {
         return ResponseEntity.ok(jobApplicationService.getApplication(id, userPrincipal));
     }
 
     @Operation(summary = "Create job application (External)", security = @SecurityRequirement(name = "api-key"))
+    @RequiresScope("apps:write")
     @PostMapping
     public ResponseEntity<JobApplicationResponse> createApplication(@RequestBody JobApplicationRequest request,
                                                                     @AuthenticationPrincipal UserPrincipal userPrincipal) {
@@ -47,6 +51,7 @@ public class ExternalJobApplicationController {
     }
 
     @Operation(summary = "Update job application (External)", security = @SecurityRequirement(name = "api-key"))
+    @RequiresScope("apps:write")
     @PatchMapping("/{id}")
     public ResponseEntity<JobApplicationResponse> updateApplication(
             @PathVariable Long id,
@@ -56,6 +61,7 @@ public class ExternalJobApplicationController {
     }
 
     @Operation(summary = "Delete job application (External)", security = @SecurityRequirement(name = "api-key"))
+    @RequiresScope("apps:write")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteApplication(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal userPrincipal) {
         jobApplicationService.deleteApplication(id, userPrincipal);

@@ -1,5 +1,6 @@
 package com.app.civify.controller.external;
 
+import com.app.civify.annotation.RequiresScope;
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.cv.CvTailorResponse;
 import com.app.civify.dto.document.CvParseResponse;
@@ -35,14 +36,15 @@ import jakarta.validation.Valid;
 public class ExternalCvController {
 
     private final ExternalCvService externalCvService;
-    private final CvUseCase cvUseCase;
     private final JdScraperService jdScraperService;
+    private final CvUseCase cvUseCase;
 
     @Operation(
             summary = "Mask CV (External)",
             description = "Upload a CV to mask PII and receive a masked PDF. Requires X-API-KEY header.",
             security = @SecurityRequirement(name = "api-key")
     )
+    @RequiresScope("pii:mask")
     @PostMapping(value = "/mask", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<byte[]> maskCv(
             @RequestPart("file") MultipartFile file,
@@ -66,6 +68,7 @@ public class ExternalCvController {
             description = "Upload a CV to extract structured data. Requires X-API-KEY header. Optional 'userTemplate' as a file part (JSON/YAML) to define output structure.",
             security = @SecurityRequirement(name = "api-key")
     )
+    @RequiresScope("cv:parse")
     @PostMapping(value = "/parse", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<CvParseResponse> parseCv(
             @RequestPart("file") MultipartFile file,
@@ -95,6 +98,7 @@ public class ExternalCvController {
             description = "Upload a CV and job description to get a tailored CV with ATS analysis. Requires X-API-KEY header.",
             security = @SecurityRequirement(name = "api-key")
     )
+    @RequiresScope("cv:tailor")
     @PostMapping(value = "/tailor", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<CvTailorResponse> tailorCv(
             @RequestPart("file") MultipartFile file,
@@ -131,6 +135,7 @@ public class ExternalCvController {
             description = "Get basic user profile and plan details. Requires X-API-KEY header.",
             security = @SecurityRequirement(name = "api-key")
     )
+    @RequiresScope("account:read")
     @GetMapping("/user/profile")
     public ResponseEntity<ExternalUserProfileResponse> getUserProfile(
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
@@ -142,6 +147,7 @@ public class ExternalCvController {
             description = "Analyzes a CV for general ATS compatibility. Requires X-API-KEY header.",
             security = @SecurityRequirement(name = "api-key")
     )
+    @RequiresScope("ats:score")
     @PostMapping("/score")
     public ResponseEntity<CommonResponse<CvTailorResponse.AtsScore>> calculateScore(
             @Valid @RequestBody CvScoreRequest request,

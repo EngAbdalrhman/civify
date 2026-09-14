@@ -29,6 +29,11 @@ public class ApiKeyService {
 
     @Transactional
     public String createApiKey(User user, String name) {
+        return createScopedApiKey(user, name, null, com.app.civify.entity.enums.ApiKeyScope.allValues(), null);
+    }
+
+    @Transactional
+    public String createScopedApiKey(User user, String name, String description, java.util.Set<String> scopes, java.time.LocalDateTime expiresAt) {
         String rawKey = generateSecureKey();
         String keyHash = hashKey(rawKey);
         
@@ -37,6 +42,9 @@ public class ApiKeyService {
         apiKey.setKeyHash(keyHash);
         apiKey.setKeyPreview(maskKey(rawKey));
         apiKey.setName(name);
+        apiKey.setDescription(description);
+        apiKey.setExpiresAt(expiresAt);
+        apiKey.setScopes(scopes != null && !scopes.isEmpty() ? scopes : com.app.civify.entity.enums.ApiKeyScope.allValues());
         apiKey.setIsActive(true);
         
         apiKeyRepository.save(apiKey);
@@ -155,7 +163,7 @@ public class ApiKeyService {
                     apiKeyRepository.save(existingKey);
                 });
 
-        // Create a fresh key
-        return createApiKey(user, EXTENSION_KEY_NAME);
+        // Create a fresh key with standard extension & MCP scopes
+        return createScopedApiKey(user, EXTENSION_KEY_NAME, "Auto-generated Chrome Extension & MCP Session Key", com.app.civify.entity.enums.ApiKeyScope.defaultExtensionScopes(), null);
     }
 }

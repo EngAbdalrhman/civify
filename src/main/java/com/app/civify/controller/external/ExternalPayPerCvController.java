@@ -1,5 +1,6 @@
 package com.app.civify.controller.external;
 
+import com.app.civify.annotation.RequiresScope;
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.controller.v1.billing.PayPerCvController;
 import com.app.civify.dto.payment.PaymentCreationResult;
@@ -41,6 +42,7 @@ public class ExternalPayPerCvController {
             description = "Initiates checkout for a one-time CV pass. Requires X-API-KEY header.",
             security = @SecurityRequirement(name = "api-key")
     )
+    @RequiresScope("billing:purchase")
     @PostMapping("/purchase")
     public ResponseEntity<CommonResponse<PaymentCreationResult>> purchase(
             @RequestBody PayPerCvPurchaseRequest purchaseRequest,
@@ -54,6 +56,7 @@ public class ExternalPayPerCvController {
             description = "Checks whether a CV has an active 30-day unwatermarked pass. Requires X-API-KEY header.",
             security = @SecurityRequirement(name = "api-key")
     )
+    @RequiresScope("billing:read")
     @GetMapping("/status")
     public ResponseEntity<CommonResponse<Map<String, Object>>> getStatus(
             @RequestParam String resumeId,

@@ -73,6 +73,15 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
+            if (apiKey.isExpired()) {
+                log.warn("ApiKeyFilter: Expired API Key: {}", apiKey.getKeyPreview());
+                apiKeyService.logUsage(apiKey.getUser(), apiKey, path, request.getMethod(), HttpServletResponse.SC_UNAUTHORIZED, false, getClientIp(request), "API Key Expired");
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\":\"API_KEY_EXPIRED\",\"message\":\"This API key has expired. Please generate a new key at /settings/api-keys\"}");
+                return;
+            }
+
             // Check if user has API access (either via permission or plan)
             boolean hasApiAccess = false;
             
@@ -99,7 +108,9 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
             log.info("ApiKeyFilter: Valid API Key for user: {}", apiKey.getUser().getEmail());
 
-            // Set authentication in context
+            // Set authentication in context and attach key to request
+            request.setAttribute("CURRENT_API_KEY", apiKey);
+
             UserPrincipal principal = new UserPrincipal(apiKey.getUser());
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                     principal, null, principal.getAuthorities());
