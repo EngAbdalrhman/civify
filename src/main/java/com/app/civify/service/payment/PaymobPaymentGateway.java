@@ -11,7 +11,6 @@ import com.app.civify.dto.payment.paymob.PaymobOrderResponse;
 import com.app.civify.dto.payment.paymob.PaymobPaymentKeyResponse;
 import com.app.civify.entity.enums.BillingAuditType;
 import com.app.civify.entity.billing.BillingTransaction;
-import com.app.civify.entity.enums.PaymentLedgerStatus;
 import com.app.civify.entity.enums.PaymentStatus;
 import com.app.civify.repository.billing.BillingTransactionRepository;
 import com.app.civify.service.logs.BillingAuditService;
@@ -60,7 +59,6 @@ public class PaymobPaymentGateway implements PaymentGateway {
     private final UserSubscriptionRepository subscriptionRepository;
     private final ObjectMapper objectMapper;
     private final BillingAuditService billingAuditService;
-    private final PaymentLedgerService paymentLedgerService;
 
     @Lazy
     @Autowired
@@ -203,7 +201,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
             transaction.setAmount(BigDecimal.valueOf(amount));
             transaction.setOrderId(orderId); 
             transaction.setPaymentKey(clientSecret); 
-            transaction.setStatus(PaymentStatus.INITIATED);
+            transaction.setStatus(PaymentStatus.PENDING);
             transaction.setGateway(getGatewayName());
             transaction.setCurrency("EGP");
             transaction.setType(type);
@@ -224,7 +222,6 @@ public class PaymobPaymentGateway implements PaymentGateway {
             transaction.setMetadata(objectMapper.writeValueAsString(txMetadata));
 
             paymentRepository.save(transaction);
-            paymentLedgerService.recordInitiated(transaction, "paymob.create.v2");
             
             log.info("Paymob V2 payment created. Intention: {}, Order: {}", intentionId, orderId);
 
@@ -264,7 +261,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
             transaction.setAmount(BigDecimal.valueOf(amount));
             transaction.setOrderId(orderId);
             transaction.setPaymentKey(paymentKey);
-            transaction.setStatus(PaymentStatus.INITIATED);
+            transaction.setStatus(PaymentStatus.PENDING);
             transaction.setType(type);
             transaction.setGateway(getGatewayName());
             transaction.setCurrency("EGP");
@@ -288,7 +285,6 @@ public class PaymobPaymentGateway implements PaymentGateway {
             }
 
             paymentRepository.save(transaction);
-            paymentLedgerService.recordInitiated(transaction, "paymob.create.legacy");
 
             log.info("Paymob payment created successfully for user {} with order ID {} and payment key {}",
                     userId, orderId, paymentKey);
@@ -354,18 +350,18 @@ public class PaymobPaymentGateway implements PaymentGateway {
         }
 
         if (isSuccessful) {
-            paymentLedgerService.recordCompleted(transaction, "verified", "paymob.verify");
+            transaction.setStatus(PaymentStatus.COMPLETED);
+            transaction.setCompletedAt(LocalDateTime.now());
             log.info("Paymob payment verified successfully for user {}", transaction.getUserId());
         } else {
             // For V2 transactions, manual verification failure might just mean "pending" or "not yet processed by webhook".
             // We should NOT mark it as FAILED immediately, because the webhook might arrive later with success.
             // Only legacy transactions (that rely on synchronous check) should be marked failed here if check fails.
             if (!isV2) {
-                paymentLedgerService.recordFailed(transaction, "verification_failed", "paymob.verify",
-                        "Paymob payment verification failed");
+                transaction.setStatus(PaymentStatus.FAILED);
                 log.warn("Paymob payment verification failed for user {}", transaction.getUserId());
             } else {
-                 log.info("Paymob V2 verification check returned false (likely pending). Keeping status and waiting for webhook. User: {}", transaction.getUserId());
+                 log.info("Paymob V2 verification check returned false (likely pending). Keeping status as PENDING and waiting for webhook. User: {}", transaction.getUserId());
             }
         }
 
@@ -500,16 +496,19 @@ public class PaymobPaymentGateway implements PaymentGateway {
             
             if (isSuccess) {
                 if (transaction.getStatus() != PaymentStatus.COMPLETED) {
-                    paymentLedgerService.recordCompleted(transaction, "success", "paymob.redirect");
+                    transaction.setStatus(PaymentStatus.COMPLETED);
+                    transaction.setCompletedAt(LocalDateTime.now());
                     paymentRepository.save(transaction);
                     log.info("✅ Paymob redirect confirmed SUCCESS for order {}", orderId);
+                    
+                    // Fulfill the payment
                     fulfillmentService.fulfillPayment(orderId);
                 }
                 result.setSuccess(true);
                 result.setMessage("Payment verified successfully");
             } else {
-                if (!transaction.getStatus().isTerminal()) {
-                    paymentLedgerService.recordFailed(transaction, "failed", "paymob.redirect", "Paymob redirect failure");
+                if (transaction.getStatus() != PaymentStatus.FAILED) {
+                    transaction.setStatus(PaymentStatus.FAILED);
                     paymentRepository.save(transaction);
                     log.warn("❌ Paymob redirect confirmed FAILURE for order {}", orderId);
                 }
@@ -617,48 +616,30 @@ public class PaymobPaymentGateway implements PaymentGateway {
                 transaction = paymentRepository.findByOrderId(paymobOrderId).orElse(null);
             }
 
+            // Parse callback success status
             boolean isSuccessful = parseCallbackSuccess(dataNode);
-            boolean pending = parseCallbackPending(dataNode);
-            boolean isAuth = parseCallbackAuthorized(dataNode);
-            PaymentLedgerStatus ledgerStatus = paymentLedgerService.resolvePaymobStatus(isSuccessful, pending, isAuth);
-            String gatewayStatusLabel = isSuccessful ? "success" : (pending || isAuth ? "authorized" : "failed");
 
-             // 4. Update transaction status via ledger
+             // 4. Update transaction status
             if (transaction != null) {
-                if (transaction.getStatus() == PaymentStatus.COMPLETED && ledgerStatus == PaymentLedgerStatus.COMPLETED) {
+                // Check if already completed to avoid duplicates
+                if (transaction.getStatus() == PaymentStatus.COMPLETED && isSuccessful) {
                     log.info("Transaction {} is already COMPLETED. Ignoring duplicate success callback.", orderId);
                     result.setSuccess(true);
                     result.setMessage("Duplicate callback ignored");
                     return result;
                 }
 
-                switch (ledgerStatus) {
-                    case COMPLETED -> paymentLedgerService.recordCompleted(transaction, gatewayStatusLabel, "paymob.webhook");
-                    case AUTHORIZED -> paymentLedgerService.recordAuthorized(transaction, gatewayStatusLabel, "paymob.webhook");
-                    case FAILED -> paymentLedgerService.recordFailed(transaction, gatewayStatusLabel, "paymob.webhook",
-                            "Paymob callback reported failure");
-                    default -> paymentLedgerService.transition(transaction, ledgerStatus, gatewayStatusLabel,
-                            "paymob.webhook", "Paymob callback status update");
-                }
+                transaction.setStatus(isSuccessful ? PaymentStatus.COMPLETED : PaymentStatus.FAILED);
+                if (isSuccessful) transaction.setCompletedAt(LocalDateTime.now());
                 paymentRepository.save(transaction);
             }
 
-            if (ledgerStatus == PaymentLedgerStatus.COMPLETED) {
+            if (isSuccessful) {
                 fulfillmentService.fulfillPayment(orderId);
-            } else if (ledgerStatus == PaymentLedgerStatus.FAILED) {
-                log.warn("Payment failed for order {}: {}", orderId, gatewayStatusLabel);
+                // Note: Token extraction is now handled by handleCardTokenCallback
             } else {
-                log.info("Payment status {} for order {}", ledgerStatus, orderId);
+                log.warn("Payment failed for order {}: {}", orderId, result.getMessage());
             }
-
-            result.setSuccess(ledgerStatus == PaymentLedgerStatus.COMPLETED
-                    || ledgerStatus == PaymentLedgerStatus.AUTHORIZED);
-            result.setMessage(switch (ledgerStatus) {
-                case COMPLETED -> "Payment completed";
-                case AUTHORIZED -> "Payment authorized";
-                case FAILED -> "Payment failed";
-                default -> "Payment status: " + ledgerStatus;
-            });
 
             // Log billing audit (non-critical - catch exceptions to prevent rollback)
             try {
@@ -668,16 +649,12 @@ public class PaymobPaymentGateway implements PaymentGateway {
                     null,
                     transaction != null ? transaction.getPaymentKey() : null,
                     orderId,
-                    gatewayStatusLabel,
+                    isSuccessful ? "success" : "failed",
                     "callback",
                     result.getMessage(),
                     rawPayload,
                     null,
-                    ledgerStatus == PaymentLedgerStatus.COMPLETED
-                            ? BillingAuditType.WEBHOOK_SUCCESS
-                            : (ledgerStatus == PaymentLedgerStatus.FAILED
-                                    ? BillingAuditType.WEBHOOK_FAILED
-                                    : BillingAuditType.WEBHOOK_RECEIVED)
+                    isSuccessful ? BillingAuditType.WEBHOOK_SUCCESS : BillingAuditType.WEBHOOK_FAILED
                 );
             } catch (Exception auditEx) {
                 log.warn("Failed to log billing audit for callback (non-critical): {}", auditEx.getMessage());
@@ -1002,26 +979,6 @@ public class PaymobPaymentGateway implements PaymentGateway {
         return false;
     }
 
-    private boolean parseCallbackPending(JsonNode callbackData) {
-        if (callbackData.has("pending")) {
-            return callbackData.get("pending").asBoolean();
-        }
-        if (callbackData.has("is_pending")) {
-            return callbackData.get("is_pending").asBoolean();
-        }
-        return false;
-    }
-
-    private boolean parseCallbackAuthorized(JsonNode callbackData) {
-        if (callbackData.has("is_auth")) {
-            return callbackData.get("is_auth").asBoolean();
-        }
-        if (callbackData.has("is_authorized")) {
-            return callbackData.get("is_authorized").asBoolean();
-        }
-        return false;
-    }
-
     /**
      * Extract order ID from callback data node
      */
@@ -1176,6 +1133,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
             transaction.setAmount(BigDecimal.valueOf(amount));
             transaction.setOrderId(orderId); // Intention ID as Order ID
             transaction.setPaymentKey(paymentKey);
+            transaction.setStatus(success ? PaymentStatus.COMPLETED : PaymentStatus.FAILED);
             transaction.setGateway(getGatewayName());
             transaction.setCurrency("EGP");
             transaction.setType(TransactionType.RENEWAL);
@@ -1186,12 +1144,7 @@ public class PaymobPaymentGateway implements PaymentGateway {
                 transaction.setInvoice(invoice);
             }
             transaction.setSavedCardToken(cardToken);
-            paymentRepository.save(transaction);
-            if (success) {
-                paymentLedgerService.recordCompleted(transaction, "moto_success", "paymob.moto");
-            } else {
-                paymentLedgerService.recordFailed(transaction, "moto_failed", "paymob.moto", "MOTO charge failed");
-            }
+            if (success) transaction.setCompletedAt(LocalDateTime.now());
             paymentRepository.save(transaction);
 
             return success;
