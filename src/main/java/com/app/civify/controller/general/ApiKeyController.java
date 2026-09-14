@@ -21,12 +21,18 @@ public class ApiKeyController {
 
     @PostMapping
     public ResponseEntity<?> createApiKey(@AuthenticationPrincipal UserPrincipal userDetails, @RequestBody CreateApiKeyRequest request) {
-        String rawKey = apiKeyService.createApiKey(userDetails.getUser(), request.getName());
+        String rawKey = apiKeyService.createScopedApiKey(
+                userDetails.getUser(),
+                request.getName(),
+                request.getDescription(),
+                request.getScopes(),
+                request.getExpiresAt()
+        );
         return ResponseEntity.ok(Map.of("key", rawKey));
     }
 
     /**
-     * Auto-generate an API key for Chrome Extension login.
+     * Auto-generate an API key for Chrome Extension & MCP login.
      * Reuses existing active key named "Chrome Extension" if one exists.
      */
     @PostMapping("/auto-generate")
@@ -38,6 +44,16 @@ public class ApiKeyController {
     @GetMapping
     public ResponseEntity<List<ApiKey>> getUserApiKeys(@AuthenticationPrincipal UserPrincipal userDetails) {
         return ResponseEntity.ok(apiKeyService.getUserApiKeys(userDetails.getUser()));
+    }
+
+    @GetMapping("/scopes")
+    public ResponseEntity<?> getAvailableScopes() {
+        return ResponseEntity.ok(java.util.Arrays.stream(com.app.civify.entity.enums.ApiKeyScope.values())
+                .map(s -> Map.of(
+                        "scope", s.getValue(),
+                        "description", s.getDescription()
+                ))
+                .toList());
     }
 
     @DeleteMapping("/{id}")

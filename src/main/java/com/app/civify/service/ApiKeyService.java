@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.app.civify.entity.enums.ApiKeyScope;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -29,6 +31,20 @@ public class ApiKeyService {
 
     @Transactional
     public String createApiKey(User user, String name) {
+        return createScopedApiKey(user, name, null, ApiKeyScope.allValues(), null);
+    }
+
+    @Transactional
+    public String createScopedApiKey(User user, String name, String description, java.util.Set<String> scopes, java.time.LocalDateTime expiresAt) {
+        if (scopes != null && !scopes.isEmpty()) {
+            java.util.Set<String> validScopes = ApiKeyScope.allValues();
+            for (String s : scopes) {
+                if (!validScopes.contains(s) && !"*".equals(s)) {
+                    throw new IllegalArgumentException("Invalid API key scope: " + s);
+                }
+            }
+        }
+
         String rawKey = generateSecureKey();
         String keyHash = hashKey(rawKey);
         
@@ -37,6 +53,9 @@ public class ApiKeyService {
         apiKey.setKeyHash(keyHash);
         apiKey.setKeyPreview(maskKey(rawKey));
         apiKey.setName(name);
+        apiKey.setDescription(description);
+        apiKey.setExpiresAt(expiresAt);
+        apiKey.setScopes(scopes != null && !scopes.isEmpty() ? scopes : ApiKeyScope.allValues());
         apiKey.setIsActive(true);
         
         apiKeyRepository.save(apiKey);
@@ -155,7 +174,7 @@ public class ApiKeyService {
                     apiKeyRepository.save(existingKey);
                 });
 
-        // Create a fresh key
-        return createApiKey(user, EXTENSION_KEY_NAME);
+        // Create a fresh key with standard extension & MCP scopes
+        return createScopedApiKey(user, EXTENSION_KEY_NAME, "Auto-generated Chrome Extension & MCP Session Key", com.app.civify.entity.enums.ApiKeyScope.defaultExtensionScopes(), null);
     }
 }

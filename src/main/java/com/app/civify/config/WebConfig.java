@@ -1,6 +1,7 @@
 package com.app.civify.config;
 
 import com.app.civify.controller.annotations.ApiV1Controller;
+import com.app.civify.security.interceptor.ApiKeyScopeInterceptor;
 import com.app.civify.security.interceptor.CivifyAuthorizationInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
@@ -13,10 +14,13 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @RequiredArgsConstructor
 public class WebConfig implements WebMvcConfigurer {
     private final CivifyAuthorizationInterceptor civifyAuthInterceptor;
+    private final ApiKeyScopeInterceptor apiKeyScopeInterceptor;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(civifyAuthInterceptor)
+                .addPathPatterns("/**");
+        registry.addInterceptor(apiKeyScopeInterceptor)
                 .addPathPatterns("/**");
     }
 
