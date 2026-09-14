@@ -22,5 +22,10 @@ public enum TransactionType {
     /**
      * Refund for a previous transaction
      */
-    REFUND
+    REFUND,
+
+    /**
+     * Pay-per-CV one-time unlock pass
+     */
+    PAY_PER_CV
 }

@@ -46,6 +46,12 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        // Allow public external endpoints to pass without API key
+        if (path.contains("/external/pay-per-cv/pricing") || path.contains("/external/cvs/scrape-jd")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String apiKeyHeader = request.getHeader(API_KEY_HEADER);
         log.info("ApiKeyFilter: API Key Header present: {}", (apiKeyHeader != null && !apiKeyHeader.isBlank()));
 

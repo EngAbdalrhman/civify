@@ -38,6 +38,10 @@ public class PaymentFulfillmentService {
     @Autowired
     private InvoiceService invoiceService;
 
+    @Lazy
+    @Autowired
+    private com.app.civify.service.billing.CvEntitlementService cvEntitlementService;
+
     /**
      * Fulfill a successful payment by order ID.
      * Determines the payment type and triggers the appropriate fulfillment action.
@@ -109,6 +113,10 @@ public class PaymentFulfillmentService {
                     log.info("Processing SUBSCRIPTION activation for orderId: {}", transaction.getOrderId());
                     subscriptionService.activateSubscription(transaction.getOrderId());
                     return true;
+                    
+                case PAY_PER_CV:
+                    log.info("Processing PAY_PER_CV fulfillment for orderId: {}", transaction.getOrderId());
+                    return cvEntitlementService.fulfillPayPerCv(transaction.getOrderId());
                     
                 case REFUND:
                     log.info("Refund processing not yet implemented for order: {}", transaction.getOrderId());

@@ -18,6 +18,13 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import com.app.civify.dto.external.ExternalUserProfileResponse;
+import com.app.civify.dto.cv.CvScoreRequest;
+import com.app.civify.dto.job.ScrapeJdRequest;
+import com.app.civify.dto.job.ScrapeJdResponse;
+import com.app.civify.service.external.JdScraperService;
+import com.app.civify.usecase.cv.CvUseCase;
+import com.app.civify.util.CommonResponse;
+import jakarta.validation.Valid;
 
 @ApiV1Controller
 @RequestMapping("/external/cvs")
@@ -28,6 +35,8 @@ import com.app.civify.dto.external.ExternalUserProfileResponse;
 public class ExternalCvController {
 
     private final ExternalCvService externalCvService;
+    private final CvUseCase cvUseCase;
+    private final JdScraperService jdScraperService;
 
     @Operation(
             summary = "Mask CV (External)",
@@ -126,6 +135,29 @@ public class ExternalCvController {
     public ResponseEntity<ExternalUserProfileResponse> getUserProfile(
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
         return ResponseEntity.ok(externalCvService.getUserProfile(userPrincipal.getUser()));
+    }
+
+    @Operation(
+            summary = "Calculate ATS Score (External)",
+            description = "Analyzes a CV for general ATS compatibility. Requires X-API-KEY header.",
+            security = @SecurityRequirement(name = "api-key")
+    )
+    @PostMapping("/score")
+    public ResponseEntity<CommonResponse<CvTailorResponse.AtsScore>> calculateScore(
+            @Valid @RequestBody CvScoreRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        CvTailorResponse.AtsScore score = cvUseCase.calculateScore(request.getResumeData(), userPrincipal.getId());
+        return ResponseEntity.ok(CommonResponse.success("ATS score calculated successfully", score));
+    }
+
+    @Operation(
+            summary = "Scrape Job Description (External)",
+            description = "Scrape and extract structured text from a job URL."
+    )
+    @PostMapping("/scrape-jd")
+    public ResponseEntity<ScrapeJdResponse> scrapeJobDescription(@RequestBody ScrapeJdRequest request) {
+        String content = jdScraperService.scrape(request.getUrl());
+        return ResponseEntity.ok(ScrapeJdResponse.builder().content(content).build());
     }
 }
 

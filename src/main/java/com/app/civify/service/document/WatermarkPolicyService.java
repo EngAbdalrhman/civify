@@ -33,6 +33,7 @@ public class WatermarkPolicyService {
     private final PlatformWatermarkSettingsRepository platformSettingsRepository;
     private final UserWatermarkSettingsRepository userSettingsRepository;
     private final BucketService bucketService;
+    private final com.app.civify.service.billing.CvEntitlementService cvEntitlementService;
 
     @Value("${watermark.logo-url:}")
     private String defaultLogoUrl;
@@ -48,6 +49,19 @@ public class WatermarkPolicyService {
 
     @Value("${app.frontend.base-url:http://localhost:3000}")
     private String frontendBaseUrl;
+
+    /**
+     * Resolve watermark for PDF export considering both user plan and CV entitlement.
+     */
+    public WatermarkConfigDto resolveForUserAndResume(Long userId, String resumeId) {
+        if (userId != null && resumeId != null && !resumeId.isBlank()) {
+            if (cvEntitlementService.isWatermarkFree(userId, resumeId)) {
+                log.info("Watermark disabled via active Pay-Per-CV entitlement: userId={} resumeId={}", userId, resumeId);
+                return disabled();
+            }
+        }
+        return resolveForUser(userId);
+    }
 
     /**
      * Resolve watermark for PDF export. {@code userId} null = guest (always platform watermark).
