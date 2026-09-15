@@ -8,6 +8,7 @@ public enum DocumentType {
     PDF_SCANNED("application/pdf", "pdf"),
     DOCX("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"),
     DOC("application/msword", "doc"),
+    TEXT("text/plain", "txt"),
     IMAGE_PNG("image/png", "png"),
     IMAGE_JPEG("image/jpeg", "jpg"),
     IMAGE_TIFF("image/tiff", "tiff"),
@@ -53,6 +54,7 @@ public enum DocumentType {
             case "application/pdf" -> PDF;
             case "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> DOCX;
             case "application/msword" -> DOC;
+            case "text/plain" -> TEXT;
             case "image/png" -> IMAGE_PNG;
             case "image/jpeg", "image/jpg" -> IMAGE_JPEG;
             case "image/tiff" -> IMAGE_TIFF;
@@ -73,6 +75,7 @@ public enum DocumentType {
             case "pdf" -> PDF;
             case "docx" -> DOCX;
             case "doc" -> DOC;
+            case "txt", "text", "md", "markdown" -> TEXT;
             case "png" -> IMAGE_PNG;
             case "jpg", "jpeg" -> IMAGE_JPEG;
             case "tiff", "tif" -> IMAGE_TIFF;
@@ -81,4 +84,3 @@ public enum DocumentType {
         };
     }
 }
-
