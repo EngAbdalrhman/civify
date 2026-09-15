@@ -39,6 +39,7 @@ public class DocumentProcessorService {
             "application/pdf",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "application/msword",
+            "text/plain",
             "image/png",
             "image/jpeg",
             "image/jpg",

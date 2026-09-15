@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 @Component
 @RequiredArgsConstructor
@@ -31,8 +32,10 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         log.debug("ApiKeyFilter: Checking path: {}", path);
 
-        // Explicitly isolate external API routes (e.g. /apis/v1/external/... or /apis/api/v1/external/...)
-        if (!path.contains("/external/") && !path.endsWith("/external")) {
+        // Only authenticate routes handled by the versioned external API. A
+        // segment match avoids capturing unrelated routes that happen to use
+        // the word "external" in a resource name.
+        if (!path.matches("(?:.*/)?v1/external(?:/.*)?")) {
             log.debug("ApiKeyFilter: Skipping path: {}", path);
             filterChain.doFilter(request, response);
             return;
@@ -47,7 +50,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         }
 
         // Allow public external endpoints to pass without API key
-        if (path.contains("/external/pay-per-cv/pricing") || path.contains("/external/cvs/scrape-jd")) {
+        if (path.endsWith("/v1/external/pay-per-cv/pricing") || path.endsWith("/v1/external/cvs/scrape-jd")) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -57,8 +60,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
         if (apiKeyHeader == null || apiKeyHeader.isBlank()) {
             log.warn("ApiKeyFilter: Missing API Key");
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("Missing API Key");
+            writeJsonError(response, HttpServletResponse.SC_UNAUTHORIZED, "API_KEY_MISSING", "Missing API Key");
             return;
         }
 
@@ -67,18 +69,15 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             
             if (apiKey == null) {
                 log.warn("ApiKeyFilter: Invalid API Key");
-                apiKeyService.logUsage(null, null, path, request.getMethod(), HttpServletResponse.SC_UNAUTHORIZED, false, getClientIp(request), "Invalid or Inactive API Key");
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.getWriter().write("Invalid or Inactive API Key");
+                logUsageSafely(null, path, request.getMethod(), HttpServletResponse.SC_UNAUTHORIZED, false, getClientIp(request), "Invalid or Inactive API Key");
+                writeJsonError(response, HttpServletResponse.SC_UNAUTHORIZED, "API_KEY_INVALID", "Invalid or inactive API key");
                 return;
             }
 
             if (apiKey.isExpired()) {
                 log.warn("ApiKeyFilter: Expired API Key: {}", apiKey.getKeyPreview());
-                apiKeyService.logUsage(apiKey.getUser(), apiKey, path, request.getMethod(), HttpServletResponse.SC_UNAUTHORIZED, false, getClientIp(request), "API Key Expired");
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.setContentType("application/json");
-                response.getWriter().write("{\"error\":\"API_KEY_EXPIRED\",\"message\":\"This API key has expired. Please generate a new key at /settings/api-keys\"}");
+                logUsageSafely(apiKey, path, request.getMethod(), HttpServletResponse.SC_UNAUTHORIZED, false, getClientIp(request), "API Key Expired");
+                writeJsonError(response, HttpServletResponse.SC_UNAUTHORIZED, "API_KEY_EXPIRED", "This API key has expired. Please generate a new key at /settings/api-keys");
                 return;
             }
 
@@ -106,7 +105,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             //     return;
             // }
 
-            log.info("ApiKeyFilter: Valid API Key for user: {}", apiKey.getUser().getEmail());
+            log.debug("ApiKeyFilter: Valid API key: {}", apiKey.getKeyPreview());
 
             // Set authentication in context and attach key to request
             request.setAttribute("CURRENT_API_KEY", apiKey);
@@ -127,19 +126,37 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
                 errorMessage = "HTTP Error " + status;
             }
 
-            log.info("ApiKeyFilter: Logging usage for user: {}. Status: {}, Success: {}", 
-                    apiKey.getUser().getEmail(), status, success);
+            log.debug("ApiKeyFilter: Logging usage for key: {}. Status: {}, Success: {}",
+                    apiKey.getKeyPreview(), status, success);
             
-            apiKeyService.logUsage(apiKey.getUser(), apiKey, path, request.getMethod(), 
-                    status, success, getClientIp(request), errorMessage);
+            logUsageSafely(apiKey, path, request.getMethod(), status, success, getClientIp(request), errorMessage);
             
-            log.info("ApiKeyFilter: Usage logged successfully");
+            log.debug("ApiKeyFilter: Usage logged successfully");
 
         } catch (Exception e) {
             log.error("API Key authentication error", e);
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"error\": \"Internal Server Error\", \"message\": \"" + e.getMessage() + "\"}");
+            if (!response.isCommitted()) {
+                writeJsonError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "API_KEY_AUTHENTICATION_ERROR", "Unable to authenticate API key");
+            }
+        }
+    }
+
+    private void writeJsonError(HttpServletResponse response, int status, String error, String message) throws IOException {
+        response.setStatus(status);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.setContentType("application/json");
+        response.getWriter().write(String.format(
+                "{\"error\":\"%s\",\"message\":\"%s\"}", error, message));
+    }
+
+    private void logUsageSafely(ApiKey apiKey, String path, String method, int status, boolean success,
+                                String clientIp, String errorMessage) {
+        try {
+            apiKeyService.logUsage(apiKey != null ? apiKey.getUser() : null, apiKey, path, method,
+                    status, success, clientIp, errorMessage);
+        } catch (Exception e) {
+            // Usage telemetry must never change the outcome of an API request.
+            log.error("Failed to record API-key usage for path: {}", path, e);
         }
     }
 
