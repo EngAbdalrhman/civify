@@ -1,101 +1,75 @@
 package com.app.civify.util;
 
-import com.app.civify.entity.User;
-import com.app.civify.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import org.slf4j.MDC;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.util.Enumeration;
+import java.util.Map;
+import java.util.UUID;
 
+/** Metadata only: never log headers, query strings, bodies, filenames or credentials. */
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE + 10)
 @Slf4j
-@RequiredArgsConstructor
 public class RequestLoggingFilter extends OncePerRequestFilter {
-
-    private final UserRepository userRepository;
+    public static final String OPERATION_FAILED = RequestLoggingFilter.class.getName() + ".failed";
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-
-        long startTime = System.currentTimeMillis();
-        String method = request.getMethod();
-        String uri = request.getRequestURI();
-        String queryString = request.getQueryString();
-        String fullUri = uri + (queryString != null ? "?" + queryString : "");
-        String remoteAddr = request.getRemoteAddr();
-        String userAgent = request.getHeader("User-Agent");
-        String requestId = java.util.UUID.randomUUID().toString();
-
-        // Add request ID to response header for tracking
+        long started = System.nanoTime();
+        Map<String, String> previous = MDC.getCopyOfContextMap();
+        String suppliedId = request.getHeader("X-Request-ID");
+        String requestId = suppliedId != null && suppliedId.matches("[a-fA-F0-9]{8}(-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}")
+                ? suppliedId : UUID.randomUUID().toString();
+        String tool = request.getHeader("X-Civify-MCP-Tool");
+        // Caller labels are diagnostics, never authentication or authorization evidence.
+        if (tool == null || !tool.matches("civify_[a-z_]{1,64}")) tool = "none";
+        String operation = operation(request.getRequestURI());
+        String method = request.getMethod().replaceAll("[^A-Z]", "");
         response.setHeader("X-Request-ID", requestId);
-
-        // Add to MDC for thread-local access
         MDC.put("requestId", requestId);
-        MDC.put("method", method);
-        MDC.put("uri", fullUri);
-
-        // Log incoming request with structured format for ELK
-        log.info("REQUEST_START | requestId={} | method={} | uri={} | remoteAddr={} | userAgent={} | timestamp={}",
-                requestId, method, fullUri, remoteAddr, userAgent, LocalDateTime.now());
-
-        // Get current user if authenticated
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String username = null;
-        User user = null;
-        if (auth != null && auth.isAuthenticated() && !auth.getPrincipal().equals("anonymousUser")) {
-            username = auth.getName();
-            log.info("AUTHENTICATED_USER | username={} | authorities={}", username, auth.getAuthorities());
-
-            // Try to get user entity for logging
-            try {
-                user = userRepository.findByEmail(username).orElse(null);
-            } catch (Exception e) {
-                log.warn("Failed to fetch user for logging: {}", username);
-            }
-        } else {
-            log.info("ANONYMOUS_REQUEST | no authentication");
-        }
-
-        // Log request headers for debugging (optional, can be disabled in production)
-        if (log.isDebugEnabled()) {
-            log.debug("REQUEST_HEADERS | uri={}", fullUri);
-            Enumeration<String> headerNames = request.getHeaderNames();
-            while (headerNames.hasMoreElements()) {
-                String headerName = headerNames.nextElement();
-                // Skip sensitive headers
-                if (!headerName.equalsIgnoreCase("authorization")
-                        && !headerName.equalsIgnoreCase("cookie")) {
-                    log.debug("HEADER | {}: {}", headerName, request.getHeader(headerName));
-                }
-            }
-        }
-
+        MDC.put("mcpTool", tool);
+        MDC.put("operation", operation);
+        boolean threw = false;
+        log.info("REQUEST_START | requestId={} | method={} | operation={} | mcpTool={}", requestId, method, operation, tool);
         try {
-            filterChain.doFilter(request, response);
+            chain.doFilter(request, response);
+        } catch (IOException | ServletException | RuntimeException | Error failure) {
+            threw = true;
+            throw failure;
         } finally {
-            long duration = System.currentTimeMillis() - startTime;
-            int status = response.getStatus();
-            boolean isSuccess = status >= 200 && status < 400;
-
-            // Log response with structured format for ELK
-            log.info("REQUEST_END | requestId={} | method={} | uri={} | status={} | duration={}ms | success={} | timestamp={}",
-                    requestId, method, fullUri, status, duration, isSuccess, LocalDateTime.now());
-            
-            // Clear MDC
-            MDC.clear();
+            int status = threw && response.getStatus() < 400 ? 500 : response.getStatus();
+            boolean success = !threw && status < 400 && !Boolean.TRUE.equals(request.getAttribute(OPERATION_FAILED));
+            log.info("REQUEST_END | requestId={} | method={} | operation={} | mcpTool={} | status={} | durationMs={} | success={}",
+                    requestId, method, operation, tool, status, (System.nanoTime() - started) / 1_000_000, success);
+            if (previous == null) MDC.clear(); else MDC.setContextMap(previous);
         }
+    }
+
+    private static String operation(String path) {
+        // Only fixed route names enter logs. Resource IDs and arbitrary paths stay private.
+        int external = path.indexOf("/external/");
+        if (external < 0) return "http";
+        String route = path.substring(external);
+        return switch (route) {
+            case "/external/cvs/parse" -> "cv_parse";
+            case "/external/cvs/tailor" -> "cv_tailor";
+            case "/external/cvs/mask" -> "cv_mask";
+            case "/external/cvs/score" -> "cv_score";
+            case "/external/cvs/scrape-jd" -> "job_scrape";
+            case "/external/cvs/user/profile" -> "account_profile";
+            case "/external/cvs/watermark-config" -> "pdf_policy";
+            default -> route.startsWith("/external/job-applications") ? "job_applications"
+                    : route.startsWith("/external/pay-per-cv") ? "pay_per_cv" : "external_other";
+        };
     }
 }

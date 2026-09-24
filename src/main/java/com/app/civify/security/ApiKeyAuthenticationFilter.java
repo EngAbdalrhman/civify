@@ -75,9 +75,9 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             }
 
             if (apiKey.isExpired()) {
-                log.warn("ApiKeyFilter: Expired API Key: {}", apiKey.getKeyPreview());
+                log.warn("ApiKeyFilter: Expired API Key");
                 logUsageSafely(apiKey, path, request.getMethod(), HttpServletResponse.SC_UNAUTHORIZED, false, getClientIp(request), "API Key Expired");
-                writeJsonError(response, HttpServletResponse.SC_UNAUTHORIZED, "API_KEY_EXPIRED", "This API key has expired. Please generate a new key at /settings/api-keys");
+                writeJsonError(response, HttpServletResponse.SC_UNAUTHORIZED, "API_KEY_EXPIRED", "This API key has expired. Please generate a new key at https://civify.cv/en/app/api-keys");
                 return;
             }
 
@@ -105,7 +105,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             //     return;
             // }
 
-            log.debug("ApiKeyFilter: Valid API key: {}", apiKey.getKeyPreview());
+            log.debug("ApiKeyFilter: Valid API key");
 
             // Set authentication in context and attach key to request
             request.setAttribute("CURRENT_API_KEY", apiKey);
@@ -126,8 +126,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
                 errorMessage = "HTTP Error " + status;
             }
 
-            log.debug("ApiKeyFilter: Logging usage for key: {}. Status: {}, Success: {}",
-                    apiKey.getKeyPreview(), status, success);
+            log.debug("ApiKeyFilter: Logging usage. Status: {}, Success: {}", status, success);
             
             logUsageSafely(apiKey, path, request.getMethod(), status, success, getClientIp(request), errorMessage);
             

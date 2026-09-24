@@ -3,6 +3,8 @@ package com.app.civify.controller.external;
 import com.app.civify.annotation.RequiresScope;
 import com.app.civify.controller.annotations.ApiV1Controller;
 import com.app.civify.dto.cv.CvTailorResponse;
+import com.app.civify.dto.cv.CvTailorRequest;
+import com.app.civify.util.RequestLoggingFilter;
 import com.app.civify.dto.document.CvParseResponse;
 import com.app.civify.security.UserPrincipal;
 import com.app.civify.service.external.ExternalCvService;
@@ -79,6 +81,7 @@ public class ExternalCvController {
         
         try {
             CvParseResponse response = externalCvService.parseCv(file, language, userTemplate, userPrincipal.getUser(), httpRequest);
+            httpRequest.setAttribute(RequestLoggingFilter.OPERATION_FAILED, !response.isSuccess());
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
              return ResponseEntity.badRequest().body(CvParseResponse.builder()
@@ -88,7 +91,7 @@ public class ExternalCvController {
         } catch (Exception e) {
              return ResponseEntity.internalServerError().body(CvParseResponse.builder()
                      .success(false)
-                     .message("Internal Server Error: " + e.getMessage())
+                     .message("CV parsing failed. Use the X-Request-ID response header when contacting support.")
                      .build());
         }
     }
@@ -123,12 +126,33 @@ public class ExternalCvController {
             return ResponseEntity.badRequest().body(CvTailorResponse.builder()
                     .build());
         } catch (Exception e) {
-            log.error("Error tailoring CV: {}", e.getMessage(), e);
+            log.error("External CV tailoring failed: type={}", e.getClass().getSimpleName());
             return ResponseEntity.internalServerError().body(CvTailorResponse.builder()
                     .build());
         }
     }
 
+
+    @Operation(summary = "Tailor structured CV (External)",
+            description = "Tailor existing resumeData without paying to parse the original again. Same scope and tailoring usage as file uploads.",
+            security = @SecurityRequirement(name = "api-key"))
+    @RequiresScope("cv:tailor")
+    @PostMapping(value = "/tailor", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<CvTailorResponse> tailorStructuredCv(
+            @Valid @RequestBody CvTailorRequest request,
+            @AuthenticationPrincipal UserPrincipal principal,
+            HttpServletRequest httpRequest) {
+        return ResponseEntity.ok(externalCvService.tailorCv(request, principal.getUser(), httpRequest));
+    }
+
+    @Operation(summary = "PDF watermark policy (External)", security = @SecurityRequirement(name = "api-key"))
+    @RequiresScope("account:read")
+    @GetMapping("/watermark-config")
+    public ResponseEntity<CommonResponse<com.app.civify.dto.document.WatermarkConfigDto>> getWatermark(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestParam(value = "resumeId", required = false) String resumeId) {
+        return ResponseEntity.ok(CommonResponse.success("PDF policy", externalCvService.getWatermark(principal.getUser(), resumeId)));
+    }
 
     @Operation(
             summary = "Get User Profile (External)",
