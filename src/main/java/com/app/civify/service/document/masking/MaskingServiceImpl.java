@@ -232,105 +232,97 @@ public class MaskingServiceImpl implements MaskingService {
     }
 
     @Override
-    public com.app.civify.dto.resume.ResumeData maskResumeData(com.app.civify.dto.resume.ResumeData resumeData, MaskRequest request) {
-        if (resumeData == null) {
-            return null;
-        }
-
+    public com.app.civify.dto.resume.ResumeData maskResumeData(com.app.civify.dto.resume.ResumeData source, MaskRequest request) {
+        if (source == null) return null;
+        // Preserve the original for auditing and callers that retain parsed data.
+        var resumeData = objectMapper.convertValue(source, com.app.civify.dto.resume.ResumeData.class);
+        if (request == null) request = MaskRequest.builder().build();
+        final MaskRequest policy = request;
         List<MaskedEntity> entities = new ArrayList<>();
-        String language = resumeData.getMetadata() != null ? resumeData.getMetadata().getLanguage() : "en";
-        boolean isArabic = "ar".equals(language);
-
-        // Mask Personal Info - directly replace known PII fields
         var info = resumeData.getPersonalInfo();
         if (info != null) {
-            // Mask Name - direct replacement since we know it's a name field
-            if (info.getFullName() != null && !info.getFullName().isEmpty()) {
-                String originalName = info.getFullName();
-                String replacement = isArabic ? "[الاسم_محذوف]" : "[NAME_REDACTED]";
-                info.setFullName(replacement);
-                entities.add(MaskedEntity.builder()
-                        .type(MaskType.NAME.name())
-                        .originalValue(originalName)
-                        .maskedValue(replacement)
-                        .build());
+            info.setFullName(redactField(info.getFullName(), MaskType.NAME, policy, entities));
+            info.setEmail(redactField(info.getEmail(), MaskType.EMAIL, policy, entities));
+            info.setPhone(redactField(info.getPhone(), MaskType.PHONE, policy, entities));
+            info.setAddress(redactField(info.getAddress(), MaskType.ADDRESS, policy, entities));
+            info.setLinkedin(redactField(info.getLinkedin(), MaskType.SOCIAL_PROFILES, policy, entities));
+            info.setGithub(redactField(info.getGithub(), MaskType.SOCIAL_PROFILES, policy, entities));
+            info.setWebsite(redactField(info.getWebsite(), MaskType.SOCIAL_PROFILES, policy, entities));
+            // Do not globally replace a city/country that can also identify an employer/project.
+            info.setCity(redactField(info.getCity(), MaskType.ADDRESS, policy, new ArrayList<>()));
+            info.setCountry(redactField(info.getCountry(), MaskType.ADDRESS, policy, new ArrayList<>()));
+        }
+        if (resumeData.getSections() != null) {
+            for (var section : resumeData.getSections()) {
+                if (section.getItems() == null) continue;
+                for (var item : section.getItems()) {
+                    MaskType type = personalLabelType(item.getTitle());
+                    if (type == null || !policy.shouldMask(type)) continue;
+                    item.setSubtitle(redactField(item.getSubtitle(), type, policy, entities));
+                    item.setDescription(redactField(item.getDescription(), type, policy, entities));
+                    item.setDate(redactField(item.getDate(), type, policy, entities));
+                    item.setLocation(redactField(item.getLocation(), type, policy, entities));
+                    if (item.getTags() != null) item.setTags(item.getTags().stream()
+                            .map(value -> redactField(value, type, policy, entities)).toList());
+                }
             }
-
-            // Mask Email - direct replacement
-            if (info.getEmail() != null && !info.getEmail().isEmpty()) {
-                String originalEmail = info.getEmail();
-                String replacement = isArabic ? "[البريد_محذوف]" : "[EMAIL_REDACTED]";
-                info.setEmail(replacement);
-                entities.add(MaskedEntity.builder()
-                        .type(MaskType.EMAIL.name())
-                        .originalValue(originalEmail)
-                        .maskedValue(replacement)
-                        .build());
-            }
-
-            // Mask Phone - direct replacement
-            if (info.getPhone() != null && !info.getPhone().isEmpty()) {
-                String originalPhone = info.getPhone();
-                String replacement = isArabic ? "[رقم_الهاتف_محذوف]" : "[PHONE_REDACTED]";
-                info.setPhone(replacement);
-                entities.add(MaskedEntity.builder()
-                        .type(MaskType.PHONE.name())
-                        .originalValue(originalPhone)
-                        .maskedValue(replacement)
-                        .build());
-            }
-
-            // Mask Address - direct replacement
-            if (info.getAddress() != null && !info.getAddress().isEmpty()) {
-                String originalAddress = info.getAddress();
-                String replacement = isArabic ? "[العنوان_محذوف]" : "[ADDRESS_REDACTED]";
-                info.setAddress(replacement);
-                entities.add(MaskedEntity.builder()
-                        .type(MaskType.ADDRESS.name())
-                        .originalValue(originalAddress)
-                        .maskedValue(replacement)
-                        .build());
-            }
-
-            // Mask LinkedIn - direct replacement
-            if (info.getLinkedin() != null && !info.getLinkedin().isEmpty()) {
-                String originalLinkedin = info.getLinkedin();
-                String replacement = "[LINKEDIN_REDACTED]";
-                info.setLinkedin(replacement);
-                entities.add(MaskedEntity.builder()
-                        .type(MaskType.SOCIAL_PROFILES.name())
-                        .originalValue(originalLinkedin)
-                        .maskedValue(replacement)
-                        .build());
-            }
-
-            // Mask GitHub
-            if (info.getGithub() != null && !info.getGithub().isEmpty()) {
-                String originalGithub = info.getGithub();
-                String replacement = "[GITHUB_REDACTED]";
-                info.setGithub(replacement);
-                entities.add(MaskedEntity.builder()
-                        .type(MaskType.SOCIAL_PROFILES.name())
-                        .originalValue(originalGithub)
-                        .maskedValue(replacement)
-                        .build());
-            }
-
-            // Mask Website
-            if (info.getWebsite() != null && !info.getWebsite().isEmpty()) {
-                String originalWebsite = info.getWebsite();
-                String replacement = "[WEBSITE_REDACTED]";
-                info.setWebsite(replacement);
-                entities.add(MaskedEntity.builder()
-                        .type(MaskType.SOCIAL_PROFILES.name())
-                        .originalValue(originalWebsite)
-                        .maskedValue(replacement)
-                        .build());
+            // Known personal details can be repeated outside the contact header.
+            for (var section : resumeData.getSections()) {
+                section.setTitle(redactKnownValues(section.getTitle(), entities));
+                if (section.getItems() == null) continue;
+                for (var item : section.getItems()) {
+                    item.setTitle(redactKnownValues(item.getTitle(), entities));
+                    item.setSubtitle(redactKnownValues(item.getSubtitle(), entities));
+                    item.setDescription(redactKnownValues(item.getDescription(), entities));
+                    item.setDate(redactKnownValues(item.getDate(), entities));
+                    item.setLocation(redactKnownValues(item.getLocation(), entities));
+                    if (item.getTags() != null) item.setTags(item.getTags().stream()
+                            .map(value -> redactKnownValues(value, entities)).toList());
+                }
             }
         }
-
-        log.info("Masked {} PII entities in resume data", entities.size());
+        if (info != null) {
+            info.setSummary(redactKnownValues(info.getSummary(), entities));
+            info.setJobTitle(redactKnownValues(info.getJobTitle(), entities));
+        }
+        log.info("Masked {} known PII values in resume data", entities.size());
         return resumeData;
+    }
+
+    private String redactField(String value, MaskType type, MaskRequest policy, List<MaskedEntity> entities) {
+        if (value == null || value.isBlank() || !policy.shouldMask(type)) return value;
+        String replacement = "[" + (type == MaskType.ALL ? "PERSONAL_DETAIL" : type.name()) + "_REDACTED]";
+        // Generic demographic words (e.g. "Single") may occur in unrelated job skills.
+        if (type != MaskType.ALL) entities.add(MaskedEntity.builder().type(type.name()).originalValue(value).maskedValue(replacement).build());
+        return replacement;
+    }
+
+    private MaskType personalLabelType(String label) {
+        if (label == null) return null;
+        String key = label.toLowerCase(java.util.Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
+        return switch (key) {
+            case "name", "fullname", "الاسم", "الإسم" -> MaskType.NAME;
+            case "email", "emailaddress", "البريدالإلكتروني", "البريدالالكتروني" -> MaskType.EMAIL;
+            case "phone", "phonenumber", "mobile", "mobilenumber", "الهاتف", "رقمالهاتف" -> MaskType.PHONE;
+            case "address", "residence", "city", "country", "العنوان", "الإقامة", "المدينة" -> MaskType.ADDRESS;
+            case "dob", "dateofbirth", "birthdate", "تاريخالميلاد", "تاريخميلاد" -> MaskType.DATE_OF_BIRTH;
+            case "nationalid", "passport", "passportnumber", "رقمالهوية", "الرقمالقومي" -> MaskType.NATIONAL_ID;
+            case "linkedin", "github", "website" -> MaskType.SOCIAL_PROFILES;
+            case "gender", "sex", "maritalstatus", "nationality", "militarystatus", "الجنس", "الجنسية", "الحالةالاجتماعية", "الموقفمنالتجنيد" -> MaskType.ALL;
+            default -> null;
+        };
+    }
+
+    private String redactKnownValues(String text, List<MaskedEntity> entities) {
+        if (text == null || text.isBlank()) return text;
+        String result = text;
+        for (MaskedEntity entity : entities) {
+            // Boundaries avoid replacing a short name inside an unrelated company name.
+            var pattern = java.util.regex.Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])"
+                    + java.util.regex.Pattern.quote(entity.getOriginalValue()) + "(?![\\p{L}\\p{N}])");
+            result = pattern.matcher(result).replaceAll(Matcher.quoteReplacement(entity.getMaskedValue()));
+        }
+        return result;
     }
 
     private String cleanJsonResponse(String response) {

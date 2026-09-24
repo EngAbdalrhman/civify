@@ -14,3 +14,9 @@ Run Java 21 and `mvn -Dtest=ExternalCvServiceTest,RequestLoggingFilterTest test`
 for these changes. Request logging runs before security; never log credentials,
 resume contents, arbitrary URLs or filenames. Update shared Knowledge after
 verifying behavior. Local tests and commits do not deploy Production.
+
+For live CV quality fixes, see ../Knowledge/2026-09-25-live-mcp-validation.md.
+Also run CvTailoringQualityTest, ResumeMaskingTest and AtsCompatibilityServiceTest.
+Use Maven clean test: incremental annotation-generated sources are stale in this workspace.
+Preserve identity across renamed/moved items; never inflate a lower ATS score or hide
+KEYWORD_FALLBACK. Deploy structured masking changes before rich custom PDF rendering.

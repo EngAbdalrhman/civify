@@ -29,3 +29,16 @@ Validation: Java 21; focused service/filter tests cover no duplicate parse, one
 tailoring charge, original-file compatibility, policy delegation, rejected input,
 credential exclusion, failure logging and MDC cleanup. Live AI/provider integration
 and client UI account linking require a deployed test account.
+
+## Live CV quality follow-up (2026-09-25)
+
+ATS results can include analysisSource=AI_HYBRID or KEYWORD_FALLBACK. Report fallback
+analysis as incomplete; do not retry paid tailoring just to replace the score. Scores
+are no longer artificially raised to their pre-tailoring value. Organization validation
+uses item.subtitle (employer/institution); item.title is the job title or degree.
+Stable IDs identify renamed/moved items when restoring content, preventing duplicates.
+
+Structured masking preserves the original object, respects requested mask types,
+redacts recognized personal-detail labels and repeated known contact values, and masks
+city/country in personalInfo. It is not exhaustive detection of unlabeled personal data.
+Deploy these masking changes before the frontend starts rendering rich custom fields.

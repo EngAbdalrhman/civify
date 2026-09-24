@@ -197,6 +197,7 @@ public class AtsCompatibilityService {
                 .toList();
 
         return AtsScore.builder()
+                .analysisSource(score.getAnalysisSource())
                 .overall(newOverall)
                 .keywordMatch(score.getKeywordMatch())
                 .skillsMatch(score.getSkillsMatch())
