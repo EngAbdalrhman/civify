@@ -100,7 +100,7 @@ public class ExternalCvService {
             try {
                 subscriptionService.chargeTokens(user.getId(), TOKENS_EXTERNAL_MASK, TokenUsageType.EXTERNAL_API,
                         "External API: CV Mask - " + file.getOriginalFilename());
-                log.info("Logged token usage for external mask API: userId={}, file={}", user.getId(), file.getOriginalFilename());
+                log.info("External mask completed: tokens={}", TOKENS_EXTERNAL_MASK);
             } catch (Exception e) {
                 log.error("Failed to log token usage for external mask: {}", e.getMessage());
             }
@@ -147,8 +147,7 @@ public class ExternalCvService {
         // Log external API parse usage (charging is handled by CvParsingService)
         if (response.isSuccess()) {
             int tokensUsed = response.getTokensUsed();
-            log.info("External API parse completed: userId={}, tokens={}, file={}",
-                    user.getId(), tokensUsed, file.getOriginalFilename());
+            log.info("External parse completed: tokens={}", tokensUsed);
         }
 
         return response;
@@ -192,30 +191,47 @@ public class ExternalCvService {
                                       String companyName, String language, boolean generateCoverLetter,
                                       boolean includeInterviewQuestions, boolean includeRoadmap,
                                       User user, HttpServletRequest httpRequest) {
+        return tailorCv(file, null, jobDescription, jobTitle, companyName, language,
+                generateCoverLetter, includeInterviewQuestions, includeRoadmap, user, httpRequest);
+    }
+
+    public CvTailorResponse tailorCv(CvTailorRequest request, User user, HttpServletRequest httpRequest) {
+        if (request.getResumeData() == null || request.getJobDescription() == null || request.getJobDescription().isBlank()) {
+            throw new IllegalArgumentException("Resume data and job description are required");
+        }
+        return tailorCv(null, request.getResumeData(), request.getJobDescription(), request.getJobTitle(),
+                request.getCompanyName(), null, request.isGenerateCoverLetter(), request.isIncludeInterviewQuestions(),
+                request.isIncludeRoadmap(), user, httpRequest);
+    }
+
+    private CvTailorResponse tailorCv(MultipartFile file, ResumeData suppliedResume, String jobDescription, String jobTitle,
+                                      String companyName, String language, boolean generateCoverLetter,
+                                      boolean includeInterviewQuestions, boolean includeRoadmap,
+                                      User user, HttpServletRequest httpRequest) {
+        if (jobDescription == null || jobDescription.isBlank()) {
+            throw new IllegalArgumentException("Job description is required");
+        }
         long startTime = System.currentTimeMillis();
         ResumeData originalResumeData = null;
 
         try {
-            // Step 1: Parse CV
-            var parseRequest = CvParseRequest.builder()
-                    .language(language)
-                    .saveToDatabase(false)
-                    .build();
+            if (suppliedResume != null) {
+                originalResumeData = suppliedResume;
+            } else {
+                // Step 1: Parse CV
+                var parseRequest = CvParseRequest.builder()
+                        .language(language)
+                        .saveToDatabase(false)
+                        .build();
 
-            var parseResponse = cvParsingService.parseCv(file, parseRequest, user.getId());
+                var parseResponse = cvParsingService.parseCv(file, parseRequest, user.getId());
 
-            if (!parseResponse.isSuccess() || parseResponse.getResumeData() == null) {
-                long processingTime = System.currentTimeMillis() - startTime;
-                cvOperationLogService.logTailor(
-                        user, null, "/apis/v1/external/cvs/tailor", processingTime,
-                        false, "Failed to parse CV: " + parseResponse.getMessage(),
-                        getClientIp(httpRequest), httpRequest.getHeader("User-Agent"),
-                        jobTitle != null ? jobTitle : "unspecified"
-                );
-                throw new RuntimeException("Failed to parse CV: " + parseResponse.getMessage());
+                if (!parseResponse.isSuccess() || parseResponse.getResumeData() == null) {
+                    throw new IllegalArgumentException("Failed to parse CV");
+                }
+
+                originalResumeData = parseResponse.getResumeData();
             }
-
-            originalResumeData = parseResponse.getResumeData();
 
             // Step 2: Tailor CV
             var tailorRequest = CvTailorRequest.builder()
@@ -246,10 +262,10 @@ public class ExternalCvService {
                 // Use ACTUAL total tokens from the response
                 int totalTokens = response.getTotalTokensUsed();
                 subscriptionService.chargeTokens(user.getId(), totalTokens, TokenUsageType.EXTERNAL_API,
-                        "External API: CV Tailor (Actual Tokens) - " + file.getOriginalFilename());
+                        "External API: CV Tailor (Actual Tokens)");
                 log.info("Logged token usage for external tailor API: userId={}, tokens={}", user.getId(), totalTokens);
             } catch (Exception e) {
-                log.error("Failed to log token usage for external tailor: {}", e.getMessage());
+                log.error("Failed to log token usage for external tailor: type={}", e.getClass().getSimpleName());
             }
 
             return response;
@@ -264,6 +280,10 @@ public class ExternalCvService {
             );
             throw e;
         }
+    }
+
+    public com.app.civify.dto.document.WatermarkConfigDto getWatermark(User user, String resumeId) {
+        return watermarkPolicyService.resolveForUserAndResume(user.getId(), resumeId);
     }
 
     public ExternalUserProfileResponse getUserProfile(User user) {
