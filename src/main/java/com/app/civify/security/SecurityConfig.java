@@ -191,6 +191,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Authentication
                         .requestMatchers("/auth", "/auth/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/mcp/account-link/exchange").permitAll()
                         // Documentation endpoints
                         .requestMatchers("/civify-docs-ui", "/civify-docs-api", "/swagger-ui/**").permitAll()
                         // Public API endpoints

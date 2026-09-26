@@ -63,8 +63,8 @@ public class ResumeData implements Serializable {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class SectionItem implements Serializable {
         private String id;
-        private String title; // e.g., Company Name or School Name
-        private String subtitle; // e.g., Job Title or Degree
+        private String title; // Job title, degree, project or skill
+        private String subtitle; // Employer, institution or supporting detail
         private String date; // e.g., "2020 - Present"
         private String description; // HTML or Markdown content
         private String location;
