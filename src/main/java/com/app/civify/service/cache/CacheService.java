@@ -22,6 +22,9 @@ public interface CacheService {
      */
     String get(String key);
 
+    /** Atomically remove and return a value. Security codes must never use get + delete. */
+    String getAndDelete(String key);
+
     /**
      * Delete a value from cache
      * @param key Cache key

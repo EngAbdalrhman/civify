@@ -64,6 +64,12 @@ public class RedisCacheService implements CacheService {
     }
 
     @Override
+    public String getAndDelete(String key) {
+        // Fail closed on an uncertain Redis consume; switching stores could allow replay.
+        return redis.opsForValue().getAndDelete(key);
+    }
+
+    @Override
     public Long increment(String key) {
         try {
             Long value = redis.opsForValue().increment(key);
