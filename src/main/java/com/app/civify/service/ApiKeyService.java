@@ -88,6 +88,8 @@ public class ApiKeyService {
                 .orElse(null);
         
         if (apiKey != null) {
+            // Existing MCP grants must stop working when their owning account is disabled/deleted.
+            if (apiKey.getUser() == null || !apiKey.getUser().isEnabled()) return null;
             // Force initialization of User entity and subscriptions to avoid LazyInitializationException in filter
             apiKey.getUser().getId(); 
             apiKey.getUser().getEmail();

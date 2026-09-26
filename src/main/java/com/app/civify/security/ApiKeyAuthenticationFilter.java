@@ -77,7 +77,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             if (apiKey.isExpired()) {
                 log.warn("ApiKeyFilter: Expired API Key");
                 logUsageSafely(apiKey, path, request.getMethod(), HttpServletResponse.SC_UNAUTHORIZED, false, getClientIp(request), "API Key Expired");
-                writeJsonError(response, HttpServletResponse.SC_UNAUTHORIZED, "API_KEY_EXPIRED", "This API key has expired. Please generate a new key at https://civify.cv/en/app/api-keys");
+                writeJsonError(response, HttpServletResponse.SC_UNAUTHORIZED, "API_KEY_EXPIRED", "Account access has expired. Reconnect Civify in your MCP client, or replace the key in your developer API-key settings.");
                 return;
             }
 

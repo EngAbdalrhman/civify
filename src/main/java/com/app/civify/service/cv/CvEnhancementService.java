@@ -353,27 +353,8 @@ public class CvEnhancementService {
             AtsScore tailoredAtsScore = tailoredAtsScoreFuture.get();
             AtsScore originalAtsScore = originalAtsScoreFuture.get();
 
-            // Score Floor Guarantee: tailored must never score lower than original
-            if (tailoredAtsScore.getOverall() < originalAtsScore.getOverall()) {
-                log.warn("ATS score regression detected: tailored={} < original={}. Applying floor.",
-                        tailoredAtsScore.getOverall(), originalAtsScore.getOverall());
-                tailoredAtsScore = AtsScore.builder()
-                        .overall(originalAtsScore.getOverall())
-                        .keywordMatch(Math.max(tailoredAtsScore.getKeywordMatch(), originalAtsScore.getKeywordMatch()))
-                        .skillsMatch(Math.max(tailoredAtsScore.getSkillsMatch(), originalAtsScore.getSkillsMatch()))
-                        .contentScore(tailoredAtsScore.getContentScore())
-                        .formatScore(Math.max(
-                                tailoredAtsScore.getFormatScore() != null ? tailoredAtsScore.getFormatScore() : 0,
-                                originalAtsScore.getFormatScore() != null ? originalAtsScore.getFormatScore() : 0))
-                        .parseabilityScore(tailoredAtsScore.getParseabilityScore())
-                        .missingKeywords(tailoredAtsScore.getMissingKeywords())
-                        .suggestions(tailoredAtsScore.getSuggestions())
-                        .formatIssues(tailoredAtsScore.getFormatIssues())
-                        .atsReadiness(tailoredAtsScore.getAtsReadiness())
-                        .recommendedTemplateId(tailoredAtsScore.getRecommendedTemplateId())
-                        .tokensUsed(tailoredAtsScore.getTokensUsed())
-                        .build();
-            }
+            // Report the measured result, including regressions and scoring fallbacks.
+            // Raising it to the original score hides failures from users and agents.
 
             // Truthfulness Validation
             List<String> validationWarnings = validateAlignment(request.getResumeData(), refinedCv);
@@ -507,6 +488,7 @@ public class CvEnhancementService {
         // 1. Calculate deterministic keyword match score
         String cvText = extractFullText(resumeData);
         KeywordMatcher.MatchResult keywordResult = keywordMatcher.match(cvText, jobDescription);
+        int consumedTokens = 0;
 
         try {
             String cvYaml = convertToYaml(resumeData);
@@ -515,6 +497,7 @@ public class CvEnhancementService {
                     .replace("{CV_YAML}", cvYaml != null ? cvYaml : "");
 
             AiModelResponse response = aiService.callModel(promptBody, defaultProvider, defaultModel);
+            consumedTokens = response.getTotalTokens();
             if (tokenTracker != null) {
                 tokenTracker.addAndGet(response.getTotalTokens());
             }
@@ -522,6 +505,9 @@ public class CvEnhancementService {
             String cleanedResponse = jsonSanitizer.cleanAiResponse(response.getContent());
 
             AtsScore aiScore = parseYamlToAtsScore(cleanedResponse);
+            if (aiScore.getOverall() < 0) {
+                throw new IllegalStateException("AI score response was invalid");
+            }
 
             // 2. Hybrid Score Calculation
             // Weigh AI score 60% and Keyword score 40%
@@ -549,19 +535,21 @@ public class CvEnhancementService {
                     .skillsMatch(Math.max(aiScore.getSkillsMatch(), 0))
                     .missingKeywords(mergedMissingKeywords)
                     .suggestions(aiScore.getSuggestions())
+                    .analysisSource("AI_HYBRID")
                     .tokensUsed(response.getTotalTokens())
                     .build();
             return atsCompatibilityService.enrichScore(hybrid, resumeData);
 
         } catch (Exception e) {
-            log.error("Error calculating ATS score (AI failed), falling back to keyword score: {}", e.getMessage());
+            log.warn("ATS AI analysis unavailable; using keyword fallback ({})", e.getClass().getSimpleName());
             AtsScore fallback = AtsScore.builder()
                     .overall(keywordResult.score())
                     .keywordMatch(keywordResult.score())
                     .skillsMatch(0)
                     .missingKeywords(keywordResult.missingKeywords())
                     .suggestions(List.of("AI analysis failed. Score based on keyword matching only."))
-                    .tokensUsed(0)
+                    .tokensUsed(consumedTokens)
+                    .analysisSource("KEYWORD_FALLBACK")
                     .build();
             return atsCompatibilityService.enrichScore(fallback, resumeData);
         }
@@ -657,16 +645,28 @@ public class CvEnhancementService {
             if (origSection.getItems() == null || origSection.getItems().isEmpty())
                 continue;
 
-            // Find matching section in tailored CV by id or type+title
+            // An item can be renamed or moved to another section of the same type.
+            // Stable IDs identify it; titles alone caused duplicate projects/degrees.
+            List<ResumeData.SectionItem> missing = origSection.getItems().stream()
+                    .filter(originalItem -> tailored.getSections().stream()
+                            .filter(section -> java.util.Objects.equals(origSection.getType(), section.getType()))
+                            .filter(section -> section.getItems() != null)
+                            .flatMap(section -> section.getItems().stream())
+                            .noneMatch(item -> matchesItem(originalItem, item)))
+                    .collect(Collectors.toCollection(ArrayList::new));
+            if (missing.isEmpty()) continue;
+
+            // Find matching section in tailored CV by id or type+title.
             ResumeData.ResumeSection tailoredSection = tailored.getSections().stream()
                     .filter(s -> matchesSection(origSection, s))
                     .findFirst()
                     .orElse(null);
 
             if (tailoredSection == null) {
-                // Section entirely missing — restore it
-                tailored.getSections().add(origSection);
-                log.info("Restored entirely lost section: {}", origSection.getTitle());
+                ResumeData.ResumeSection restored = objectMapper.convertValue(origSection, ResumeData.ResumeSection.class);
+                restored.setItems(missing);
+                tailored.getSections().add(restored);
+                log.info("Restored {} missing CV items", missing.size());
                 continue;
             }
 
@@ -674,24 +674,22 @@ public class CvEnhancementService {
                 tailoredSection.setItems(new ArrayList<>());
             }
 
-            // Restore missing items within the section
-            Set<String> tailoredTitles = tailoredSection.getItems().stream()
-                    .map(i -> i.getTitle() != null ? i.getTitle().trim().toLowerCase() : "")
-                    .collect(Collectors.toSet());
-
-            int restored = 0;
-            for (ResumeData.SectionItem origItem : origSection.getItems()) {
-                String origTitle = origItem.getTitle() != null ? origItem.getTitle().trim().toLowerCase() : "";
-                if (!origTitle.isEmpty() && !tailoredTitles.contains(origTitle)) {
-                    tailoredSection.getItems().add(origItem);
-                    restored++;
-                }
-            }
-
-            if (restored > 0) {
-                log.info("Restored {} lost items in section '{}'", restored, origSection.getTitle());
-            }
+            tailoredSection.getItems().addAll(missing);
+            log.info("Restored {} missing CV items", missing.size());
         }
+    }
+
+    private boolean matchesItem(ResumeData.SectionItem original, ResumeData.SectionItem tailored) {
+        if (original.getId() != null && !original.getId().isBlank()
+                && original.getId().equals(tailored.getId())) return true;
+        return !normalizeValue(original.getTitle()).isEmpty()
+                && normalizeValue(original.getTitle()).equals(normalizeValue(tailored.getTitle()))
+                && normalizeValue(original.getSubtitle()).equals(normalizeValue(tailored.getSubtitle()))
+                && normalizeValue(original.getDate()).equals(normalizeValue(tailored.getDate()));
+    }
+
+    private String normalizeValue(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
     private boolean matchesSection(ResumeData.ResumeSection a, ResumeData.ResumeSection b) {
@@ -978,6 +976,7 @@ public class CvEnhancementService {
     private AtsScore parseYamlToAtsScore(String yaml) {
         try {
             com.fasterxml.jackson.databind.JsonNode root = YAML_MAPPER.readTree(yaml);
+            validateScoreFields(root);
 
             return AtsScore.builder()
                     .overall(root.path("overall").asInt(0))
@@ -987,10 +986,11 @@ public class CvEnhancementService {
                     .suggestions(extractStringList(root.path("suggestions")))
                     .build();
         } catch (Exception e) {
-            log.warn("First YAML parse failed for AtsScore, attempting sanitization: {}", e.getMessage());
+            log.warn("Invalid ATS score response; attempting local sanitization");
             try {
                 String sanitized = sanitizeYamlValues(yaml);
                 com.fasterxml.jackson.databind.JsonNode root = YAML_MAPPER.readTree(sanitized);
+                validateScoreFields(root);
                 return AtsScore.builder()
                         .overall(root.path("overall").asInt(0))
                         .keywordMatch(root.path("keywordMatch").asInt(0))
@@ -999,11 +999,21 @@ public class CvEnhancementService {
                         .suggestions(extractStringList(root.path("suggestions")))
                         .build();
             } catch (Exception e2) {
-                log.error("Error parsing YAML to AtsScore after sanitization: {}", e2.getMessage());
+                log.warn("ATS score response remains invalid after sanitization");
                 return AtsScore.builder()
                         .overall(-1)
                         .suggestions(List.of("Error parsing AI response"))
                         .build();
+            }
+        }
+    }
+
+    private void validateScoreFields(com.fasterxml.jackson.databind.JsonNode root) {
+        if (root == null || !root.isObject()) throw new IllegalArgumentException("Invalid ATS score object");
+        for (String field : List.of("overall", "keywordMatch", "skillsMatch")) {
+            var value = root.path(field);
+            if (!value.isIntegralNumber() || value.asInt() < 0 || value.asInt() > 100) {
+                throw new IllegalArgumentException("Invalid ATS score field");
             }
         }
     }
@@ -1170,8 +1180,8 @@ public class CvEnhancementService {
         List<String> warnings = new ArrayList<>();
 
         // 1. Validate Experience (Companies)
-        Set<String> originalCompanies = extractTitlesFromSection(original, "experience");
-        Set<String> tailoredCompanies = extractTitlesFromSection(tailored, "experience");
+        Set<String> originalCompanies = extractOrganizationsFromSection(original, "experience");
+        Set<String> tailoredCompanies = extractOrganizationsFromSection(tailored, "experience");
 
         for (String company : tailoredCompanies) {
             if (!originalCompanies.contains(company)) {
@@ -1181,8 +1191,8 @@ public class CvEnhancementService {
         }
 
         // 2. Validate Education (Schools/Degrees)
-        Set<String> originalSchools = extractTitlesFromSection(original, "education");
-        Set<String> tailoredSchools = extractTitlesFromSection(tailored, "education");
+        Set<String> originalSchools = extractOrganizationsFromSection(original, "education");
+        Set<String> tailoredSchools = extractOrganizationsFromSection(tailored, "education");
 
         for (String school : tailoredSchools) {
             if (!originalSchools.contains(school)) {
@@ -1194,14 +1204,15 @@ public class CvEnhancementService {
         return warnings;
     }
 
-    private Set<String> extractTitlesFromSection(ResumeData data, String sectionType) {
+    private Set<String> extractOrganizationsFromSection(ResumeData data, String sectionType) {
         if (data == null || data.getSections() == null) {
             return new HashSet<>();
         }
         return data.getSections().stream()
                 .filter(s -> sectionType.equalsIgnoreCase(s.getType())) // Filter by type (e.g., "experience")
+                .filter(s -> s.getItems() != null)
                 .flatMap(s -> s.getItems().stream())
-                .map(item -> item.getTitle() != null ? item.getTitle().trim().toLowerCase() : "")
+                .map(item -> normalizeValue(item.getSubtitle()))
                 .filter(title -> !title.isEmpty())
                 .collect(Collectors.toSet());
     }
