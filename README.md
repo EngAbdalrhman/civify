@@ -1,136 +1,66 @@
-# Civify - AI-Powered CV/Resume Management Platform
+# Civify Backend Core (`civify`)
 
-Civify is a comprehensive CV/resume building and management platform that leverages AI to help users create, tailor, and manage their professional documents. Built with Spring Boot, it offers a subscription-based service with both free and premium tiers.
+[![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk)](https://www.oracle.com/java/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.0-brightgreen?logo=springboot)](https://spring.io/projects/spring-boot)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue?logo=postgresql)](https://www.postgresql.org/)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-emerald)](https://www.gnu.org/licenses/agpl-3.0.html)
 
-## Features
+The enterprise core API backend for [Civify](https://civify.cv): AI resume parsing, ATS scoring, CV tailoring, document OCR, payment routing, and MCP agent backend services.
 
-### ✅ Implemented Features
+For full ecosystem overview, see the [Unified Civify README](../README.md).
 
-#### Authentication & Security
+---
 
-- **Multi-method Authentication**: Support for OAuth2 and traditional username/password login
-- **Email Verification**: Mandatory email verification during registration
-- **Two-Factor Authentication (2FA)**: Optional OTP-based 2FA for enhanced security
-- **Role-Based Access Control**: Different permissions for users, licensed users, and admins
-- **JWT Token Management**: Secure token-based authentication with refresh token rotation
+## 🌟 Architecture & Features
 
-#### AI-Powered CV Services
+- **Multi-Format Ingestion**: Parses PDF, DOCX, and scanned documents with Apache PDFBox, Apache POI, and Tesseract OCR (Tess4J).
+- **AI Orchestration**: Google Gemini 3 Flash and Vertex AI integration with automatic fallback to Gemini 2.5 Flash.
+- **Dual-Engine ATS Scoring**: Combines hybrid semantic AI evaluation with deterministic keyword gap analysis.
+- **Intelligent CV Tailoring**: Automatically optimizes candidate bullet points and achievements against job specifications.
+- **PII Redaction**: Privacy-first candidate anonymization redacting sensitive contact details, addresses, and IDs.
+- **Scoped API Key Engine**: Fine-grained access control (`cv:parse`, `cv:tailor`, `ats:score`, `pii:mask`, etc.) using `@RequiresScope`.
+- **MCP Account Link Integration**: Secure browser-based OAuth 2.0 code exchange via Redis `GETDEL` single-use tokens.
+- **Multi-Gateway Payment Engine**: Paymob (Cards, Mobile Wallets in EGP), Fawaterak, and Dodo Payments (USD) with MaxMind GeoLite2 country-based routing.
+- **High-Performance Infrastructure**: PostgreSQL with Flyway database migrations, Redis caching, Bucket4j rate limiting, and Cloudflare R2 object storage.
 
-- **CV Parsing**: AI-powered extraction of structured data from uploaded CVs using Gemini AI
-- **CV Tailoring**: Intelligent customization of CVs to match specific job descriptions
-- **Multi-Provider AI Support**: Configurable AI providers with automatic fallback mechanisms
-- **Retry & Error Handling**: Robust error handling with exponential backoff for AI calls
+---
 
-#### Subscription Management
-
-- **Flexible Plans**: Free and premium subscription tiers with different feature access
-- **Usage Tracking**: Real-time monitoring of CV generations and API calls with monthly limits
-- **Automatic Plan Transitions**: Seamless activation/deactivation of subscriptions
-- **Licensed User System**: Special status for premium users with enhanced capabilities
-
-#### Payment Integration
-
-- **Multi-Gateway Support**: Extensible payment gateway system (Paymob integration)
-- **Billing Cycles**: Monthly and annual subscription options
-- **Promo Code System**: Discount codes with usage tracking and validation
-- **Payment Verification**: Secure payment processing with transaction management
-
-#### User Management
-
-- **Profile Management**: Comprehensive user profile filling and management
-- **Usage Analytics**: Detailed tracking of user activities and limits
-- **Notification System**: Email notifications for important events
-
-#### API & Integration
-
-- **RESTful APIs**: Well-documented APIs for licensed users
-- **Swagger Documentation**: Interactive API documentation
-- **Generic Filtering**: Advanced filtering capabilities for data retrieval
-- **Masked Logging**: Secure logging with sensitive data masking
-
-#### Admin Features
-
-- **Admin Dashboard**: Comprehensive admin interface for user and license management
-- **License Management**: Ability to grant/revoke user licenses
-- **System Monitoring**: Built-in monitoring and logging capabilities
-
-### 🚧 Planned Features (Not Yet Implemented)
-
-#### Advanced CV Features
-
-- **CV Generation Wizard**: Step-by-step CV creation with AI assistance
-- **Cover Letter Generation**: Automated cover letter creation
-- **PDF Processing**: Advanced PDF extraction and manipulation
-- **Watermark System**: Branded watermarks for free plan CVs
-- **CV Templates**: Pre-built templates similar to FlowCV
-
-#### Social & Sharing
-
-- **CV Sharing**: Public sharing and posting of CVs
-- **Community Features**: User community for networking and collaboration
-
-#### Infrastructure & DevOps
-
-- **CI/CD Pipeline**: Automated deployment and testing pipeline
-- **ELK Stack Logging**: Centralized logging with Elasticsearch, Logstash, and Kibana
-
-## Technology Stack
-
-- **Backend**: Spring Boot 3.x
-- **Database**: PostgreSQL with JPA/Hibernate
-- **Security**: Spring Security with JWT
-- **AI Integration**: Google Gemini AI (extensible to other providers)
-- **Payment**: Paymob payment gateway (extensible architecture)
-- **Caching**: Redis for session and data caching
-- **Documentation**: Swagger/OpenAPI
-- **Build Tool**: Maven
-- **Testing**: JUnit 5 with comprehensive test coverage
-
-## Architecture
-
-The application follows a microservices-ready architecture with:
-
-- Layered architecture (Controller → Service → Repository)
-- Strategy pattern for payment gateways and AI providers
-- Event-driven notifications
-- Transactional service methods
-- Comprehensive error handling and logging
-
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
+- Java 21 (JDK 21 LTS)
+- Maven 3.9+
+- PostgreSQL 16+
+- Redis 7+
 
-- Java 17+
-- Maven 3.6+
-- PostgreSQL
-- Redis (optional, for caching)
-
-### Configuration
-
-Configure the following in `application.properties`:
-
-- Database connection settings
-- AI provider API keys (Gemini)
-- Payment gateway credentials
-- Email service configuration
-
-### Running the Application
+### Running Locally
 
 ```bash
+# Set required environment variables
+export DB_URL="jdbc:postgresql://localhost:5432/civify"
+export DB_USERNAME="postgres"
+export DB_PASSWORD="your_password"
+export REDIS_HOST="localhost"
+export REDIS_PORT="6379"
+export JWT_SECRET="your_secure_jwt_secret_minimum_64_characters_long_for_hmac_sha512"
+export GEMINI_API_KEY="your_gemini_api_key"
+
+# Run Spring Boot
 mvn spring-boot:run
 ```
 
-The application will start on port 8080 with Swagger documentation available at `/swagger-ui.html`.
+The application runs on port `8077` by default with context path `/apis`.
 
-## API Documentation
+### API Documentation (OpenAPI / Swagger)
+- Swagger UI: `http://localhost:8077/apis/civify-docs-ui`
+- OpenAPI JSON: `http://localhost:8077/apis/civify-docs-api`
 
-Licensed users can access comprehensive API documentation through Swagger UI, including endpoints for:
+---
 
-- CV parsing and generation
-- Subscription management
-- User profile operations
-- Usage analytics
+## 📄 License
 
-## Contributing
+This project is licensed under the GNU Affero General Public License v3.0 or later
+(AGPL-3.0-or-later). See [LICENSE](LICENSE).
 
-This project is under active development. Features marked as "planned" are prioritized for future releases based on user feedback and business requirements.
+The Civify name and logo are not granted by this license. Commercial licensing
+enquiries are available at [civify.cv](https://civify.cv).
