@@ -76,6 +76,8 @@ public class CvTailorResponse {
     @AllArgsConstructor
     @NoArgsConstructor
     public static class AtsScore {
+        /** AI_HYBRID or KEYWORD_FALLBACK; lets agents disclose incomplete AI analysis. */
+        private String analysisSource;
         /**
          * Overall ATS match score (0-100).
          */

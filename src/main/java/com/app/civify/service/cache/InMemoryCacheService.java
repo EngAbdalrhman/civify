@@ -20,6 +20,7 @@ public class InMemoryCacheService implements CacheService {
 
     private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
     private final Map<String, AtomicLong> counters = new ConcurrentHashMap<>();
+    private final Map<String, Instant> counterExpiries = new ConcurrentHashMap<>();
 
     @Override
     public void set(String key, String value, Duration ttl) {
@@ -48,19 +49,37 @@ public class InMemoryCacheService implements CacheService {
     public void delete(String key) {
         cache.remove(key);
         counters.remove(key);
+        counterExpiries.remove(key);
         log.debug("IN_MEMORY cache DELETE: {}", key);
     }
 
     @Override
+    public String getAndDelete(String key) {
+        CacheEntry entry = cache.remove(key);
+        return entry == null || entry.isExpired() ? null : entry.value;
+    }
+
+    @Override
     public Long increment(String key) {
-        AtomicLong counter = counters.computeIfAbsent(key, k -> new AtomicLong(0));
-        long value = counter.incrementAndGet();
+        AtomicLong result = new AtomicLong();
+        counters.compute(key, (k, current) -> {
+            Instant expiry = counterExpiries.get(k);
+            if (current == null || (expiry != null && !Instant.now().isBefore(expiry))) {
+                counterExpiries.remove(k);
+                result.set(1);
+                return new AtomicLong(1);
+            }
+            result.set(current.incrementAndGet());
+            return current;
+        });
+        long value = result.get();
         log.debug("IN_MEMORY cache INCREMENT: {} -> {}", key, value);
         return value;
     }
 
     @Override
     public void expire(String key, Duration ttl) {
+        if (counters.containsKey(key)) counterExpiries.put(key, Instant.now().plus(ttl));
         CacheEntry entry = cache.get(key);
         if (entry != null) {
             Instant newExpiry = Instant.now().plus(ttl);
@@ -84,6 +103,16 @@ public class InMemoryCacheService implements CacheService {
      */
     @Scheduled(fixedRate = 300000)
     public void cleanupExpiredEntries() {
+        for (String key : counterExpiries.keySet()) {
+            counters.computeIfPresent(key, (k, counter) -> {
+                Instant expiry = counterExpiries.get(k);
+                if (expiry != null && !Instant.now().isBefore(expiry)) {
+                    counterExpiries.remove(k);
+                    return null;
+                }
+                return counter;
+            });
+        }
         int removed = 0;
         for (Map.Entry<String, CacheEntry> entry : cache.entrySet()) {
             if (entry.getValue().isExpired()) {
